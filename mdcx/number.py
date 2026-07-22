@@ -131,8 +131,8 @@ def get_number_letters(number: str) -> str:
         return "CW3D2D"
     if re.search(r"MCB3D[BD]*-\d{2,}", number_upper):
         return "MCB3D"
-    if re.findall(r"(H4610|C0930|H0930)-[A-Z]+\d{4,}", number_upper):
-        return re.findall(r"(H4610|C0930|H0930)-[A-Z]+\d{4,}", number_upper)[0]
+    if re.findall(r"(H4610|C0930|H0930)-[A-Z]+\d{3,}", number_upper):
+        return re.findall(r"(H4610|C0930|H0930)-[A-Z]+\d{3,}", number_upper)[0]
     result = re.search(r"(\d*[A-Za-z]+)\d*", number)
     return result[1] if result else "未知车牌"
 
@@ -231,8 +231,8 @@ def get_file_number(filepath: str, escape_string_list: list[str]) -> str:
             file_number = filename
 
     elif r := re.search(
-        r"(H4610|C0930|H0930)-[A-Z]+\d{4,}", filename
-    ):  # 提取H4610-ki111111 c0930-ki221218 h0930-ori1665
+        r"(H4610|C0930|H0930)-[A-Z]+\d{3,}", filename
+    ):  # 提取 H4610-ori696、C0930-ki221218、H0930-gol065
         file_number = r.group()
 
     elif r := re.search(r"KIN8(TENGOKU)?-?\d{3,}", filename):  # 提取S2MBD-002 或S2MBD-006

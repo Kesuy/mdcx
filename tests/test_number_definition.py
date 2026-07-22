@@ -58,6 +58,18 @@ def test_get_file_number_keeps_non_suren_prefixes(raw_number: str, expected_numb
     assert get_file_number(raw_number, []) == expected_number
 
 
+@pytest.mark.parametrize(
+    ("raw_number", "expected_number"),
+    [
+        (r"D:/test/H4610-ori696.mp4", "H4610-ORI696"),
+        (r"D:/test/H4610-ori641.mp4", "H4610-ORI641"),
+        (r"D:/test/H0930-gol065.mp4", "H0930-GOL065"),
+    ],
+)
+def test_get_file_number_supports_short_h4610_and_h0930_numbers(raw_number: str, expected_number: str):
+    assert get_file_number(raw_number, []) == expected_number
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("file_path", "file_number", "custom_strings", "expected_definition"),
