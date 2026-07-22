@@ -118,6 +118,32 @@ async def test_avsox_crawler_uses_spa_api_for_search_and_detail(h4610_movie: dic
 
 
 @pytest.mark.asyncio
+async def test_avsox_crawler_normalizes_language_path_in_configured_url(h4610_movie: dict):
+    client = FakeAvsoxClient(h4610_movie)
+    crawler = AvsoxCrawler(client=client, base_url="https://avsox.click/cn")
+    crawler_input = CrawlerInput.empty()
+    crawler_input.number = "H0930-GOL122"
+    client.movie = {**h4610_movie, "movieId": "example-id", "movieFanHao": "H0930-gol122"}
+
+    response = await crawler.run(crawler_input)
+
+    assert response.data is not None
+    assert client.calls == [
+        ("GET", "https://avsox.click/cn/search/H0930-GOL122", None),
+        (
+            "POST",
+            "https://avsox.click/javu/data/api/search",
+            [{"search": "H0930-GOL122", "lang": "cn"}, 60, 1],
+        ),
+        (
+            "POST",
+            "https://avsox.click/javu/data/api/getMovie",
+            ["example-id", "cn"],
+        ),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_avsox_crawler_supports_appointed_spa_detail_url(h4610_movie: dict):
     client = FakeAvsoxClient(h4610_movie)
     crawler = AvsoxCrawler(client=client)

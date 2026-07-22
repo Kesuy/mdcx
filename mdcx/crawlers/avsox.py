@@ -260,7 +260,11 @@ class AvsoxCrawler(GenericBaseCrawler[AvsoxContext]):
         else:
             if not requested_number:
                 raise CralwerException("番号为空")
-            base_url = (self.base_url or await get_avsox_domain()).rstrip("/")
+            configured_url = self.base_url or await get_avsox_domain()
+            parsed = urlsplit(configured_url)
+            if not parsed.scheme or not parsed.netloc:
+                raise CralwerException("配置的 AVSOX URL 无效")
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
             search_url = f"{base_url}/cn/search/{quote(requested_number)}"
             ctx.debug_info.search_urls = [search_url]
             ctx.debug(f"搜索页 URL: {search_url}")

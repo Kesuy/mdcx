@@ -48,6 +48,7 @@ from mdcx.config.extend import deal_url, get_movie_path_setting, parse_media_pat
 from mdcx.config.manager import manager
 from mdcx.config.resources import resources
 from mdcx.consts import GITHUB_ISSUES_URL, GITHUB_RELEASES_URL, IS_WINDOWS, LOCAL_VERSION
+from mdcx.core.media_reorganization import MediaReorganizationError, reorganize_scraped_media
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 from mdcx.core.network_check import run_network_check
 from mdcx.core.nfo import write_nfo
@@ -2118,6 +2119,7 @@ class MyMAinWindow(QMainWindow):
             show_data = self.json_array[self.now_show_name]
             json_data = show_data.data
             file_info = show_data.file_info
+            old_number = json_data.number
             nfo_path = file_info.file_path.with_suffix(".nfo")
             nfo_folder = nfo_path.parent
             json_data.number = self.Ui.lineEdit_nfo_number.text()
@@ -2142,7 +2144,42 @@ class MyMAinWindow(QMainWindow):
             json_data.thumb = self.Ui.lineEdit_nfo_cover.text()
             json_data.trailer = self.Ui.lineEdit_nfo_trailer.text()
             if executor.run(write_nfo(file_info, json_data, nfo_path, nfo_folder, update=True)):
-                self.Ui.label_save_tips.setText(f"已保存! {get_current_time()}")
+                old_file_path = file_info.file_path
+                Flags.file_done_dic.pop(old_number, None)
+                Flags.file_done_dic.pop(json_data.number, None)
+                try:
+                    success_folder = get_movie_path_setting(old_file_path).success_folder
+                    reorganized = executor.run(
+                        reorganize_scraped_media(file_info, json_data, show_data.other, success_folder)
+                    )
+                    if reorganized.moved:
+                        original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
+                        if original_sources is not None:
+                            Flags.file_new_path_dic[reorganized.new_file_path] = original_sources
+                        if old_file_path in Flags.success_list:
+                            Flags.success_list.discard(old_file_path)
+                            Flags.success_list.add(reorganized.new_file_path)
+                        executor.run(save_success_list())
+                        self.Ui.label_nfo.setText(str(reorganized.new_file_path))
+                        self.Ui.label_save_tips.setText(f"已保存并整理! {get_current_time()}")
+                        signal_qt.show_log_text(
+                            f"\n 🍀 编辑信息后自动整理完成\n    原路径: {old_file_path}\n    新路径: {reorganized.new_file_path}"
+                        )
+                    else:
+                        self.Ui.label_save_tips.setText(f"已保存! {get_current_time()}")
+                except MediaReorganizationError as error:
+                    actual_file_path = file_info.file_path
+                    if actual_file_path != old_file_path:
+                        original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
+                        if original_sources is not None:
+                            Flags.file_new_path_dic[actual_file_path] = original_sources
+                        if old_file_path in Flags.success_list:
+                            Flags.success_list.discard(old_file_path)
+                            Flags.success_list.add(actual_file_path)
+                        executor.run(save_success_list())
+                        self.Ui.label_nfo.setText(str(actual_file_path))
+                    self.Ui.label_save_tips.setText(f"信息已保存，自动整理失败! {get_current_time()}")
+                    signal_qt.show_log_text(f"\n 🟡 信息已保存，但无法按当前设置自动整理：{error}")
                 self.set_main_info(show_data)
             else:
                 self.Ui.label_save_tips.setText(f"保存失败! {get_current_time()}")
