@@ -1,3 +1,4 @@
+import copy
 import html
 import os
 import re
@@ -48,7 +49,13 @@ from mdcx.config.extend import deal_url, get_movie_path_setting, parse_media_pat
 from mdcx.config.manager import manager
 from mdcx.config.resources import resources
 from mdcx.consts import GITHUB_ISSUES_URL, GITHUB_RELEASES_URL, IS_WINDOWS, LOCAL_VERSION
-from mdcx.core.media_reorganization import MediaReorganizationError, reorganize_scraped_media
+from mdcx.controllers.main_window.result_sorting import ResultSortEntry, ResultSortMode, sort_result_entries
+from mdcx.core.local_nfo_loader import LocalNfoLoadError, load_local_nfo
+from mdcx.core.media_reorganization import (
+    MediaReorganizationError,
+    reorganize_scraped_media,
+    update_runtime_paths_after_reorganization,
+)
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 from mdcx.core.network_check import run_network_check
 from mdcx.core.nfo import write_nfo
@@ -91,6 +98,7 @@ from .load_config import load_config
 from .save_config import save_config
 from .site_priority_dialog import apply_site_priority_theme
 from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
+from .ui_text import set_elided_label_text
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QMouseEvent
@@ -1123,6 +1131,9 @@ class MyMAinWindow(QMainWindow):
         node = QTreeWidgetItem()
         node.setText(0, filename)
         if result == "succ":
+            insertion_index = getattr(self, "_result_insertion_index", 0)
+            node.setData(0, Qt.ItemDataRole.UserRole, insertion_index)
+            self._result_insertion_index = insertion_index + 1
             self.item_succ.addChild(node)
         else:
             self.item_fail.addChild(node)
@@ -1160,9 +1171,43 @@ class MyMAinWindow(QMainWindow):
             show_data.data.title = LogBuffer.error().get()
             show_data.data.number = real_number
         self.json_array[show_data.show_name] = show_data
+        self._sort_success_results()
         if not self._has_single_selected_result_item():
             self.show_name = show_data.show_name
             self.set_main_info(show_data)
+
+    def _sort_success_results(self, *_args) -> None:
+        if not hasattr(self, "item_succ") or not hasattr(self, "result_sort_combo"):
+            return
+        items = [self.item_succ.child(index) for index in range(self.item_succ.childCount())]
+        entries: list[ResultSortEntry] = []
+        item_by_name: dict[str, QTreeWidgetItem] = {}
+        for item in items:
+            show_name = item.text(0)
+            show_data = self.json_array.get(show_name)
+            entries.append(
+                ResultSortEntry(
+                    show_name=show_name,
+                    number=show_data.data.number if show_data else "",
+                    actor=show_data.data.actor if show_data else "",
+                    insertion_index=int(item.data(0, Qt.ItemDataRole.UserRole) or 0),
+                )
+            )
+            item_by_name[show_name] = item
+
+        mode = cast("ResultSortMode", self.result_sort_combo.currentText())
+        sorted_entries = sort_result_entries(
+            entries,
+            mode,
+            descending=getattr(self, "_result_sort_descending", False),
+        )
+        self.item_succ.takeChildren()
+        self.item_succ.addChildren([item_by_name[entry.show_name] for entry in sorted_entries])
+
+    def _toggle_result_sort_order(self) -> None:
+        self._result_sort_descending = not getattr(self, "_result_sort_descending", False)
+        self.result_sort_order_button.setText("↓" if self._result_sort_descending else "↑")
+        self._sort_success_results()
 
     def set_main_info(self, show_data: "ShowData | None"):
         if show_data is not None:
@@ -1178,10 +1223,7 @@ class MyMAinWindow(QMainWindow):
             self.show_name = None
         try:
             number = data.number
-            self.Ui.label_number.setToolTip(number)
-            if len(number) > 11:
-                number = number[:10] + "……"
-            self.Ui.label_number.setText(number)
+            set_elided_label_text(self.Ui.label_number, number)
             actor = str(data.actor)
             if data.all_actor and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
                 actor = str(data.all_actor)
@@ -1413,10 +1455,10 @@ class MyMAinWindow(QMainWindow):
             detail_lines.append(f"... 其余 {len(failure_details) - detail_limit} 条请查看日志")
         detail_text = "\n\n".join(detail_lines)
 
+        preview_text = "\n".join(preview_lines)
         box = QMessageBox(QMessageBox.Icon.Warning, f"{action_name}结果", f"{action_name}完成")
         box.setInformativeText(
-            f"{self._build_action_result_text(success_count, len(failure_details), skipped_count)}\n\n"
-            f"{'\n'.join(preview_lines)}"
+            f"{self._build_action_result_text(success_count, len(failure_details), skipped_count)}\n\n{preview_text}"
         )
         box.setDetailedText(detail_text)
         view_log_button = box.addButton("查看日志", QMessageBox.ButtonRole.ActionRole)
@@ -1826,6 +1868,54 @@ class MyMAinWindow(QMainWindow):
             self.Ui.widget_nfo.show()
             self._show_nfo_info()
 
+    def main_load_nfo_click(self):
+        """选择本地 NFO，并将同目录媒体和图片加载到主界面。"""
+
+        current_path = getattr(self, "file_main_open_path", Path())
+        start_folder = current_path.parent if current_path.is_file() else manager.data_folder
+        selected_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "选择 NFO 文件",
+            start_folder.as_posix(),
+            "NFO Files (*.nfo *.NFO);;All Files (*)",
+            options=self.options,
+        )
+        if selected_path:
+            self._load_local_nfo_path(Path(selected_path))
+
+    def _load_local_nfo_path(self, nfo_path: Path) -> None:
+        try:
+            loaded = executor.run(load_local_nfo(nfo_path))
+        except LocalNfoLoadError as error:
+            QMessageBox.warning(self, "无法加载 NFO", str(error))
+            signal_qt.show_log_text(f"\n 🟡 无法加载 NFO：{error}")
+            return
+        except Exception:
+            signal_qt.show_traceback_log(traceback.format_exc())
+            QMessageBox.warning(self, "无法加载 NFO", "读取 NFO 时发生错误，请查看日志。")
+            return
+
+        loaded_paths = {entry.file_info.file_path for entry in loaded.entries}
+        for index in range(self.item_succ.childCount() - 1, -1, -1):
+            item = self.item_succ.child(index)
+            existing = self.json_array.get(item.text(0))
+            if existing is not None and existing.file_info.file_path in loaded_paths:
+                self.item_succ.takeChild(index)
+                self.json_array.pop(item.text(0), None)
+
+        for entry in loaded.entries:
+            self.show_list_name("succ", entry)
+            Flags.success_list.add(entry.file_info.file_path)
+
+        self.show_name = loaded.primary.show_name
+        self.set_main_info(loaded.primary)
+        for index in range(self.item_succ.childCount()):
+            item = self.item_succ.child(index)
+            if item.text(0) == loaded.primary.show_name:
+                self._set_result_item_as_current_selection(item)
+                break
+        signal_qt.show_log_text(f"\n 📂 已加载本地 NFO：{nfo_path}\n    关联媒体：{len(loaded.entries)} 个")
+
     def main_open_right_menu(self):
         """
         主界面点打开右键菜单
@@ -2118,6 +2208,7 @@ class MyMAinWindow(QMainWindow):
                 return
             show_data = self.json_array[self.now_show_name]
             json_data = show_data.data
+            original_current_data = copy.deepcopy(json_data)
             file_info = show_data.file_info
             old_number = json_data.number
             nfo_path = file_info.file_path.with_suffix(".nfo")
@@ -2143,7 +2234,62 @@ class MyMAinWindow(QMainWindow):
             json_data.poster = self.Ui.lineEdit_nfo_poster.text()
             json_data.thumb = self.Ui.lineEdit_nfo_cover.text()
             json_data.trailer = self.Ui.lineEdit_nfo_trailer.text()
-            if executor.run(write_nfo(file_info, json_data, nfo_path, nfo_folder, update=True)):
+            related_cd_entries = []
+            if file_info.cd_part:
+                current_cd_part = str(file_info.cd_part)
+                current_base = file_info.file_path.stem
+                if current_base.casefold().endswith(current_cd_part.casefold()):
+                    current_base = current_base[: -len(current_cd_part)]
+
+                def is_same_cd_group(entry: ShowData) -> bool:
+                    entry_cd_part = str(entry.file_info.cd_part or "")
+                    entry_base = entry.file_info.file_path.stem
+                    if entry_cd_part and entry_base.casefold().endswith(entry_cd_part.casefold()):
+                        entry_base = entry_base[: -len(entry_cd_part)]
+                    return entry_base.casefold() == current_base.casefold()
+
+                related_cd_entries = [
+                    entry
+                    for entry in self.json_array.values()
+                    if entry is not show_data
+                    and entry.file_info.cd_part
+                    and entry.file_info.file_path.parent == file_info.file_path.parent
+                    and entry.data.number == old_number
+                    and is_same_cd_group(entry)
+                ]
+
+            data_backups = [(show_data, original_current_data)] + [
+                (entry, copy.deepcopy(entry.data)) for entry in related_cd_entries
+            ]
+            nfo_paths = [nfo_path] + [entry.file_info.file_path.with_suffix(".nfo") for entry in related_cd_entries]
+            nfo_backups = {path: (path.exists(), path.read_bytes() if path.exists() else b"") for path in nfo_paths}
+            nfo_saved = executor.run(write_nfo(file_info, json_data, nfo_path, nfo_folder, update=True))
+            if nfo_saved:
+                for related_entry in related_cd_entries:
+                    related_entry.data = copy.deepcopy(json_data)
+                    related_nfo_path = related_entry.file_info.file_path.with_suffix(".nfo")
+                    if not executor.run(
+                        write_nfo(
+                            related_entry.file_info,
+                            related_entry.data,
+                            related_nfo_path,
+                            related_nfo_path.parent,
+                            update=True,
+                        )
+                    ):
+                        nfo_saved = False
+                        break
+            if not nfo_saved:
+                for path, (existed, content) in nfo_backups.items():
+                    if existed:
+                        path.write_bytes(content)
+                    elif path.exists():
+                        path.unlink()
+                for entry, data_backup in data_backups:
+                    entry.data = data_backup
+                self.Ui.label_save_tips.setText(f"保存失败，已恢复原信息! {get_current_time()}")
+                return
+            if nfo_saved:
                 old_file_path = file_info.file_path
                 Flags.file_done_dic.pop(old_number, None)
                 Flags.file_done_dic.pop(json_data.number, None)
@@ -2153,12 +2299,27 @@ class MyMAinWindow(QMainWindow):
                         reorganize_scraped_media(file_info, json_data, show_data.other, success_folder)
                     )
                     if reorganized.moved:
-                        original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
-                        if original_sources is not None:
-                            Flags.file_new_path_dic[reorganized.new_file_path] = original_sources
-                        if old_file_path in Flags.success_list:
-                            Flags.success_list.discard(old_file_path)
-                            Flags.success_list.add(reorganized.new_file_path)
+                        path_mapping = dict(reorganized.path_mapping) or {
+                            old_file_path: reorganized.new_file_path,
+                        }
+                        for related_show_data in self.json_array.values():
+                            related_old_path = related_show_data.file_info.file_path
+                            related_new_path = path_mapping.get(related_old_path)
+                            if related_new_path is None or related_show_data is show_data:
+                                continue
+                            update_runtime_paths_after_reorganization(
+                                related_show_data.file_info,
+                                related_show_data.other,
+                                related_old_path,
+                                related_new_path,
+                            )
+                        for source_path, target_path in path_mapping.items():
+                            original_sources = Flags.file_new_path_dic.pop(source_path, None)
+                            if original_sources is not None:
+                                Flags.file_new_path_dic[target_path] = original_sources
+                            if source_path in Flags.success_list:
+                                Flags.success_list.discard(source_path)
+                                Flags.success_list.add(target_path)
                         executor.run(save_success_list())
                         self.Ui.label_nfo.setText(str(reorganized.new_file_path))
                         self.Ui.label_save_tips.setText(f"已保存并整理! {get_current_time()}")
@@ -2168,14 +2329,34 @@ class MyMAinWindow(QMainWindow):
                     else:
                         self.Ui.label_save_tips.setText(f"已保存! {get_current_time()}")
                 except MediaReorganizationError as error:
+                    incomplete_mapping = dict(error.path_mapping)
+                    for related_show_data in self.json_array.values():
+                        related_old_path = related_show_data.file_info.file_path
+                        related_actual_path = incomplete_mapping.get(related_old_path)
+                        if related_actual_path is None or related_show_data is show_data:
+                            continue
+                        update_runtime_paths_after_reorganization(
+                            related_show_data.file_info,
+                            related_show_data.other,
+                            related_old_path,
+                            related_actual_path,
+                        )
+                    for source_path, actual_path in incomplete_mapping.items():
+                        original_sources = Flags.file_new_path_dic.pop(source_path, None)
+                        if original_sources is not None:
+                            Flags.file_new_path_dic[actual_path] = original_sources
+                        if source_path in Flags.success_list:
+                            Flags.success_list.discard(source_path)
+                            Flags.success_list.add(actual_path)
                     actual_file_path = file_info.file_path
-                    if actual_file_path != old_file_path:
+                    if actual_file_path != old_file_path and old_file_path not in incomplete_mapping:
                         original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
                         if original_sources is not None:
                             Flags.file_new_path_dic[actual_file_path] = original_sources
                         if old_file_path in Flags.success_list:
                             Flags.success_list.discard(old_file_path)
                             Flags.success_list.add(actual_file_path)
+                    if incomplete_mapping or actual_file_path != old_file_path:
                         executor.run(save_success_list())
                         self.Ui.label_nfo.setText(str(actual_file_path))
                     self.Ui.label_save_tips.setText(f"信息已保存，自动整理失败! {get_current_time()}")

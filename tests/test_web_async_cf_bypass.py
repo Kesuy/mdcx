@@ -1,11 +1,12 @@
 import asyncio
+import json
 import random
 from types import SimpleNamespace
 
 import pytest
 from curl_cffi.requests.exceptions import Timeout
 
-from mdcx.web_async import AsyncWebClient
+from mdcx.web_async import AsyncWebClient, _ScopedCookie
 
 
 def _fake_response(
@@ -48,6 +49,296 @@ def _patch_session_request(client: AsyncWebClient, request):
             return result
 
     client._pool_manager._session_factory = FakeSession  # type: ignore[assignment]
+
+
+@pytest.mark.asyncio
+async def test_detect_cf_bypass_service_recognizes_and_caches_flaresolverr():
+    client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
+    calls = 0
+
+    async def fake_request(method, url, **kwargs):
+        nonlocal calls
+        calls += 1
+        assert method == "GET"
+        assert url == "http://127.0.0.1:8191"
+        assert kwargs["enable_cf_bypass"] is False
+        return (
+            _fake_response(
+                status_code=200,
+                content=json.dumps({"msg": "FlareSolverr is ready!", "version": "3.5.0"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            "",
+        )
+
+    client.request = fake_request  # type: ignore[method-assign]
+
+    assert await client._detect_cf_bypass_service() == "flaresolverr"
+    assert await client._detect_cf_bypass_service() == "flaresolverr"
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_call_flaresolverr_converts_solution_to_standard_response():
+    client = AsyncWebClient(
+        timeout=5,
+        cf_bypass_url="http://127.0.0.1:8191",
+        cf_bypass_proxy="http://127.0.0.1:7890",
+    )
+    captured: dict[str, object] = {}
+
+    async def fake_request(method, url, **kwargs):
+        captured.update(method=method, url=url, kwargs=kwargs)
+        solution = {
+            "status": "ok",
+            "message": "Challenge solved!",
+            "solution": {
+                "url": "https://example.com/final",
+                "status": 200,
+                "headers": {"content-type": "text/html; charset=utf-8"},
+                "response": "<html>solved</html>",
+                "cookies": [{"name": "cf_clearance", "value": "token", "domain": ".example.com"}],
+                "userAgent": "Mozilla/5.0 test",
+            },
+        }
+        return _fake_response(status_code=200, content=json.dumps(solution).encode()), ""
+
+    client.request = fake_request  # type: ignore[method-assign]
+
+    response, error = await client._call_flaresolverr(
+        "https://example.com/challenge",
+        cookies={"session": "abc"},
+        use_proxy=True,
+    )
+
+    assert error == ""
+    assert response is not None
+    assert response.status_code == 200
+    assert response.content == b"<html>solved</html>"
+    assert str(response.url) == "https://example.com/final"
+    assert response.headers.get("x-mdcx-bypass-mode") == "flaresolverr"
+    assert response.headers.get("x-mdcx-flaresolverr-user-agent") == "Mozilla/5.0 test"
+    assert captured["method"] == "POST"
+    assert captured["url"] == "http://127.0.0.1:8191/v1"
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["enable_cf_bypass"] is False
+    payload = kwargs["json_data"]
+    assert payload["cmd"] == "request.get"
+    assert payload["url"] == "https://example.com/challenge"
+    assert payload["maxTimeout"] == 45000
+    assert payload["proxy"] == {"url": "http://127.0.0.1:7890"}
+    assert payload["cookies"] == [
+        {"name": "session", "value": "abc", "domain": "example.com"},
+    ]
+    assert client._flaresolverr_cookies_for_url("https://example.com/next") == {"cf_clearance": "token"}
+    assert client._cf_flaresolverr_user_agent_by_host["example.com"] == "Mozilla/5.0 test"
+
+
+@pytest.mark.asyncio
+async def test_request_reuses_flaresolverr_cookies_and_user_agent():
+    client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
+    scoped = _ScopedCookie("cf_clearance", "solved", "example.com", "/", True, None, True)
+    client._cf_flaresolverr_cookies[("example.com", "/", "cf_clearance", True)] = scoped
+    client._cf_flaresolverr_user_agent_by_host["example.com"] = "FlareSolverr UA"
+    captured: dict[str, object] = {}
+
+    async def fake_curl_request(**kwargs):
+        captured.update(kwargs)
+        return _fake_response(status_code=200, content=b"ok")
+
+    client._curl_request = fake_curl_request  # type: ignore[method-assign]
+    response, error = await client.request(
+        "GET",
+        "https://example.com/article",
+        headers={"User-Agent": "old ua"},
+        cookies={"session": "original"},
+        retry_count=1,
+    )
+
+    assert response is not None and error == ""
+    assert captured["cookies"] == {"session": "original", "cf_clearance": "solved"}
+    headers = captured["headers"]
+    assert isinstance(headers, dict)
+    assert headers["User-Agent"] == "FlareSolverr UA"
+
+
+def test_flaresolverr_cookies_respect_domain_path_secure_and_expiry():
+    client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
+    future = 4102444800.0
+    cookies = [
+        _ScopedCookie("parent", "yes", "example.com", "/", True, future, False),
+        _ScopedCookie("host", "yes", "sub.example.com", "/private", True, future, True),
+        _ScopedCookie("expired", "no", "sub.example.com", "/", False, 1.0, True),
+    ]
+    for cookie in cookies:
+        client._cf_flaresolverr_cookies[(cookie.domain, cookie.path, cookie.name, cookie.host_only)] = cookie
+
+    assert client._flaresolverr_cookies_for_url("https://sub.example.com/private/page") == {
+        "parent": "yes",
+        "host": "yes",
+    }
+    assert client._flaresolverr_cookies_for_url("http://sub.example.com/private/page") == {}
+    assert client._flaresolverr_cookies_for_url("https://other.example.com/private/page") == {"parent": "yes"}
+    assert client._flaresolverr_cookies_for_url("https://example.net/private/page") == {}
+
+
+@pytest.mark.asyncio
+async def test_flaresolverr_cross_domain_redirect_keeps_cookie_domains_isolated():
+    client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
+
+    async def fake_request(*args, **kwargs):
+        solution = {
+            "status": "ok",
+            "solution": {
+                "status": 200,
+                "url": "https://final.example.net/page",
+                "response": "<html>ok</html>",
+                "cookies": [
+                    {"name": "origin", "value": "o", "domain": ".origin.example.com", "path": "/"},
+                    {"name": "final", "value": "f", "domain": ".final.example.net", "path": "/"},
+                    {"name": "evil", "value": "x", "domain": ".evil.example.org", "path": "/"},
+                ],
+            },
+        }
+        return _fake_response(status_code=200, content=json.dumps(solution).encode()), ""
+
+    client.request = fake_request  # type: ignore[method-assign]
+    response, error = await client._call_flaresolverr(
+        "https://origin.example.com/start",
+        cookies=None,
+        use_proxy=False,
+    )
+
+    assert response is not None and error == ""
+    assert client._flaresolverr_cookies_for_url("https://origin.example.com/next") == {"origin": "o"}
+    assert client._flaresolverr_cookies_for_url("https://final.example.net/next") == {"final": "f"}
+    assert client._flaresolverr_cookies_for_url("https://evil.example.org/next") == {}
+
+
+def test_flaresolverr_proxy_falls_back_to_enabled_software_proxy():
+    client = AsyncWebClient(
+        timeout=5,
+        proxy="http://10.0.0.8:7890",
+        cf_bypass_url="http://127.0.0.1:8191",
+    )
+
+    assert client._resolve_flaresolverr_proxy(use_proxy=True) == "http://10.0.0.8:7890"
+    assert client._resolve_flaresolverr_proxy(use_proxy=False) == ""
+
+
+def test_flaresolverr_proxy_prefers_dedicated_bypass_proxy():
+    client = AsyncWebClient(
+        timeout=5,
+        proxy="http://10.0.0.8:7890",
+        cf_bypass_url="http://127.0.0.1:8191",
+        cf_bypass_proxy="http://10.0.0.9:7890",
+    )
+
+    assert client._resolve_flaresolverr_proxy(use_proxy=True) == "http://10.0.0.9:7890"
+
+
+@pytest.mark.asyncio
+async def test_flaresolverr_proxy_log_never_exposes_credentials():
+    logs: list[str] = []
+    client = AsyncWebClient(
+        timeout=5,
+        proxy="http://user:secret-password@10.0.0.8:7890",
+        cf_bypass_url="http://127.0.0.1:8191",
+        log_fn=logs.append,
+    )
+
+    async def fake_request(*args, **kwargs):
+        solution = {"status": "ok", "solution": {"status": 200, "response": "<html>ok</html>"}}
+        return _fake_response(status_code=200, content=json.dumps(solution).encode()), ""
+
+    client.request = fake_request  # type: ignore[method-assign]
+    response, error = await client._call_flaresolverr("https://example.com", cookies=None, use_proxy=True)
+
+    assert response is not None and error == ""
+    joined = "\n".join(logs)
+    assert "secret-password" not in joined
+    assert "user:" not in joined
+
+
+@pytest.mark.asyncio
+async def test_detect_cf_bypass_service_does_not_cache_transient_failure():
+    client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
+    calls = 0
+
+    async def fake_request(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None, "temporary failure"
+        payload = json.dumps({"msg": "FlareSolverr is ready!"}).encode()
+        return _fake_response(status_code=200, content=payload), ""
+
+    client.request = fake_request  # type: ignore[method-assign]
+
+    assert await client._detect_cf_bypass_service() == "mdcx"
+    assert client._cf_bypass_service_mode is None
+    assert await client._detect_cf_bypass_service() == "flaresolverr"
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_request_preserves_explicit_no_proxy_for_cf_bypass():
+    client = AsyncWebClient(
+        timeout=1,
+        proxy="http://10.0.0.8:7890",
+        cf_bypass_url="http://127.0.0.1:8191",
+    )
+    captured: list[bool] = []
+
+    async def fake_curl_request(**kwargs):
+        return _fake_response(
+            status_code=403,
+            headers={"server": "cloudflare", "content-type": "text/html"},
+            content=b"<html>Just a moment <div class='cf-chl'></div></html>",
+        )
+
+    async def fake_try_bypass(**kwargs):
+        captured.append(kwargs["use_proxy"])
+        return _fake_response(status_code=200, content=b"ok"), ""
+
+    client._curl_request = fake_curl_request  # type: ignore[method-assign]
+    client._try_bypass_cloudflare = fake_try_bypass  # type: ignore[method-assign]
+    response, error = await client.request("GET", "https://example.com", use_proxy=False, retry_count=1)
+
+    assert response is not None and error == ""
+    assert captured == [False]
+
+
+@pytest.mark.asyncio
+async def test_try_bypass_cloudflare_uses_flaresolverr_when_detected():
+    client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
+    calls: list[tuple[str, object]] = []
+
+    async def fake_detect():
+        return "flaresolverr"
+
+    async def fake_flaresolverr(target_url, *, cookies, use_proxy):
+        calls.append((target_url, cookies))
+        return _fake_response(status_code=200, content=b"<html>ok</html>"), ""
+
+    async def unexpected_mirror(**kwargs):
+        raise AssertionError("FlareSolverr 模式不应请求 mirror")
+
+    client._detect_cf_bypass_service = fake_detect  # type: ignore[method-assign]
+    client._call_flaresolverr = fake_flaresolverr  # type: ignore[method-assign]
+    client._call_bypass_mirror = unexpected_mirror  # type: ignore[method-assign]
+
+    response, error = await client._try_bypass_cloudflare(
+        host="example.com",
+        target_url="https://example.com/challenge",
+        cookies={"session": "abc"},
+        **{key: value for key, value in _default_try_kwargs().items() if key != "cookies"},
+    )
+
+    assert error == ""
+    assert response is not None
+    assert calls == [("https://example.com/challenge", {"session": "abc"})]
 
 
 @pytest.mark.asyncio

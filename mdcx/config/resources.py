@@ -38,7 +38,8 @@ class Resources:
         self.right_menu = self.qtr("Img/menu.svg")  # 主界面菜单按钮
         self.play_icon = self.qtr("Img/play.svg")  # 主界面播放按钮
         self.open_folder_icon = self.qtr("Img/folder.svg")  # 主界面打开文件夹按钮
-        self.open_nfo_icon = self.qtr("Img/nfo.svg")  # 主界面打开nfo按钮
+        self.open_nfo_icon = self.qtr("Img/nfo.svg")  # 主界面编辑nfo按钮
+        self.load_nfo_icon = self.qtr("Img/open_nfo.svg")  # 主界面选择并加载nfo按钮
         self.input_number_icon = self.qtr("Img/number.svg")  # 主界面输入番号按钮
         self.input_website_icon = self.qtr("Img/website.svg")  # 主界面输入网址按钮
         self.del_file_icon = self.qtr("Img/delfile.svg")  # 主界面删除文件按钮

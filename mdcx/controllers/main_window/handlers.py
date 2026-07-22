@@ -16,7 +16,12 @@ def show_netstatus() -> None:
         manager.config.retry,
     )
     bypass_status = "已配置" if cf_bypass_url else "未配置"
-    bypass_proxy_status = "已配置" if cf_bypass_proxy else "未配置"
+    if cf_bypass_proxy:
+        bypass_proxy_status = "独立代理"
+    elif use_proxy and proxy:
+        bypass_proxy_status = "FlareSolverr 复用软件代理"
+    else:
+        bypass_proxy_status = "未配置"
 
     if not use_proxy or not proxy:
         signal_qt.show_net_info(

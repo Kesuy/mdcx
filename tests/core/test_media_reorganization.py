@@ -137,6 +137,51 @@ async def test_reorganize_scraped_media_refuses_folder_with_another_movie(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("cd_prefix", ["-cd", "-CD", "-"])
+async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_group(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cd_prefix: str,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    old_folder = output / "望月奈々" / "H4610-ORI696 望月 奈々 望月奈々"
+    old_folder.mkdir(parents=True)
+    old_base = "H4610-ORI696 望月奈々"
+    old_cd1 = old_folder / f"{old_base}{cd_prefix}1.mp4"
+    old_cd2 = old_folder / f"{old_base}{cd_prefix}2.mp4"
+    for path in (old_cd1, old_cd2):
+        path.write_bytes(path.name.encode())
+        path.with_suffix(".nfo").write_text(path.stem, encoding="utf-8")
+    old_subtitle = old_folder / f"{old_base}{cd_prefix}2.zh.srt"
+    old_subtitle.write_text("subtitle", encoding="utf-8")
+    (old_folder / "poster.jpg").write_bytes(b"poster")
+
+    file_info = _build_file_info(old_cd1)
+    file_info.cd_part = f"{cd_prefix}1"
+
+    result = await reorganize_scraped_media(file_info, _build_data(), OtherInfo.empty(), output)
+
+    expected_folder = output / "天宮まりる" / "H4610-ORI696 望月 奈々 天宮まりる"
+    new_base = "H4610-ORI696 天宮まりる"
+    expected_cd1 = expected_folder / f"{new_base}{cd_prefix}1.mp4"
+    expected_cd2 = expected_folder / f"{new_base}{cd_prefix}2.mp4"
+    assert result.new_file_path == expected_cd1
+    assert dict(result.path_mapping) == {old_cd1: expected_cd1, old_cd2: expected_cd2}
+    assert sorted(path.name for path in expected_folder.iterdir()) == sorted(
+        [
+            f"{new_base}{cd_prefix}1.mp4",
+            f"{new_base}{cd_prefix}1.nfo",
+            f"{new_base}{cd_prefix}2.mp4",
+            f"{new_base}{cd_prefix}2.nfo",
+            f"{new_base}{cd_prefix}2.zh.srt",
+            "poster.jpg",
+        ]
+    )
+    assert file_info.file_path == expected_cd1
+
+
+@pytest.mark.asyncio
 async def test_reorganize_scraped_media_rolls_back_partial_rename(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     _configure_naming(monkeypatch)
     output = tmp_path / "JAV_output"

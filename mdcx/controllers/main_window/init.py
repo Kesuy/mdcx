@@ -5,7 +5,15 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QListView, QMenu, QSystemTrayIcon, QTreeWidgetItem
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QListView,
+    QMenu,
+    QPushButton,
+    QSystemTrayIcon,
+    QTreeWidgetItem,
+)
 
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.resources import resources
@@ -33,6 +41,8 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.progressBar_scrape.setValue(0)  # 进度条清0
     self.Ui.progressBar_scrape.setTextVisible(False)  # 不显示进度条文字
     self.Ui.pushButton_start_cap.setCheckable(True)  # 主界面开始按钮可点状态
+    setup_result_sort_ui(self)
+    setup_local_nfo_button(self)
     self.init_QTreeWidget()  # 初始化树状图
     self.Ui.treeWidget_number.setSelectionMode(
         QAbstractItemView.SelectionMode.ExtendedSelection
@@ -131,6 +141,39 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.widget_nfo.resize(791, 681)
     self.Ui.widget_nfo.hide()
     setup_site_priority_ui(self)
+
+
+def setup_result_sort_ui(self: "MyMAinWindow") -> None:
+    tree = self.Ui.treeWidget_number
+    geometry = tree.geometry()
+    tree.setGeometry(geometry.x(), geometry.y() + 30, geometry.width(), geometry.height() - 30)
+
+    self._result_sort_descending = False
+    self.result_sort_combo = QComboBox(self.Ui.page_main)
+    self.result_sort_combo.setGeometry(600, 110, 112, 26)
+    self.result_sort_combo.addItems(["完成顺序", "番号", "演员"])
+    self.result_sort_combo.setToolTip("成功结果排序方式（只改变显示顺序）")
+    self.result_sort_combo.currentTextChanged.connect(self._sort_success_results)
+
+    self.result_sort_order_button = QPushButton("↑", self.Ui.page_main)
+    self.result_sort_order_button.setGeometry(716, 110, 34, 26)
+    self.result_sort_order_button.setToolTip("切换升序/降序")
+    self.result_sort_order_button.clicked.connect(self._toggle_result_sort_order)
+    self.result_sort_combo.show()
+    self.result_sort_order_button.show()
+
+
+def setup_local_nfo_button(self: "MyMAinWindow") -> None:
+    button = QPushButton(self.Ui.page_main)
+    button.setObjectName("pushButton_load_nfo")
+    button.setGeometry(387, 110, 40, 40)
+    button.setMouseTracking(True)
+    button.setIcon(QIcon(resources.load_nfo_icon))
+    button.setIconSize(self.Ui.pushButton_open_nfo.iconSize())
+    button.setToolTip(" 选择并加载 NFO 文件 ")
+    button.clicked.connect(self.main_load_nfo_click)
+    button.show()
+    self.Ui.pushButton_load_nfo = button
 
 
 def _setup_combo_boxes(self: "MyMAinWindow") -> None:
@@ -366,6 +409,7 @@ def init_QTreeWidget(self: "MyMAinWindow"):
     else:
         self.label_result.emit(" 刮削中：0 成功：0 失败：0")
     self.Ui.treeWidget_number.clear()
+    self._result_insertion_index = 0
     self.item_succ = QTreeWidgetItem(self.Ui.treeWidget_number)
     self.item_succ.setText(0, "成功")
     self.item_fail = QTreeWidgetItem(self.Ui.treeWidget_number)

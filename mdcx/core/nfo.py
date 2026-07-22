@@ -370,8 +370,12 @@ async def write_nfo(file_info: FileInfo, data: CrawlersResult, nfo_file: Path, o
         return False
 
 
-async def get_nfo_data(file_path: Path, movie_number: str) -> tuple[CrawlersResult | None, OtherInfo | None]:
-    local_nfo_path = file_path.with_suffix(".nfo")
+async def get_nfo_data(
+    file_path: Path,
+    movie_number: str,
+    nfo_path: Path | None = None,
+) -> tuple[CrawlersResult | None, OtherInfo | None]:
+    local_nfo_path = nfo_path or file_path.with_suffix(".nfo")
     local_nfo_name = local_nfo_path.name
     file_folder = file_path.parent
     json_data = CrawlersResult.empty()

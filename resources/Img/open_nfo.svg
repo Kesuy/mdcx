@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="166px" height="166px" viewBox="0 0 166 166" xmlns="http://www.w3.org/2000/svg">
+  <title>open nfo</title>
+  <g fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M35 8h62l34 34v111H35z" stroke="#43484D" stroke-width="13"/>
+    <path d="M97 8v36h34" stroke="#43484D" stroke-width="13"/>
+    <path d="M13 104h77M68 80l25 24-25 24" stroke="#229BFF" stroke-width="14"/>
+  </g>
+</svg>

@@ -79,7 +79,7 @@
               <rect>
                 <x>80</x>
                 <y>70</y>
-                <width>161</width>
+                <width>211</width>
                 <height>40</height>
               </rect>
             </property>
@@ -144,7 +144,7 @@
           <widget class="QLabel" name="label_actor1">
             <property name="geometry">
               <rect>
-                <x>250</x>
+                <x>300</x>
                 <y>70</y>
                 <width>50</width>
                 <height>40</height>
@@ -160,7 +160,7 @@
           <widget class="QLabel" name="label_actor">
             <property name="geometry">
               <rect>
-                <x>300</x>
+                <x>350</x>
                 <y>70</y>
                 <width>161</width>
                 <height>40</height>
@@ -501,7 +501,7 @@
           <widget class="QLabel" name="label_result">
             <property name="geometry">
               <rect>
-                <x>600</x>
+                <x>650</x>
                 <y>70</y>
                 <width>211</width>
                 <height>40</height>
@@ -942,7 +942,7 @@
           <widget class="QLabel" name="label_source">
             <property name="geometry">
               <rect>
-                <x>460</x>
+                <x>520</x>
                 <y>70</y>
                 <width>121</width>
                 <height>40</height>
@@ -20811,7 +20811,7 @@
                               <set>Qt::NoTextInteraction</set>
                             </property>
                             <property name="text">
-                              <string>&lt;p&gt;支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897&lt;br&gt;需要用户名和密码时格式为: schema://username:password@host:port&lt;br&gt;Cloudflare Bypass 为空时表示关闭该功能&lt;br&gt;“使用代理”仅控制常规网络请求代理开关，不控制 CF Bypass 代理&lt;br&gt;“CF Bypass代理”仅作用于 bypass 服务请求（mirror/html）&lt;/p&gt;</string>
+                              <string>&lt;p&gt;支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897&lt;br&gt;需要用户名和密码时格式为: schema://username:password@host:port&lt;br&gt;Cloudflare Bypass 为空时表示关闭该功能，兼容 MDCx Bypass 与 FlareSolverr&lt;br&gt;FlareSolverr 优先使用“CF Bypass代理”；留空时复用已启用的软件代理&lt;br&gt;远程 FlareSolverr 无法访问 MDCx 电脑的 127.0.0.1，请填写其可访问的局域网或 EasyTier 代理地址&lt;/p&gt;</string>
                             </property>
                           </widget>
                         </item>
@@ -20820,7 +20820,7 @@
                             <item>
                               <widget class="QCheckBox" name="checkBox_use_proxy">
                                 <property name="toolTip">
-                                  <string>仅控制常规网络请求代理开关，不控制 CF Bypass 代理</string>
+                                  <string>控制常规网络请求代理；FlareSolverr 未填写独立代理时也会复用此代理</string>
                                 </property>
                                 <property name="text">
                                   <string>使用代理</string>
@@ -21078,7 +21078,7 @@
 </string>
                             </property>
                             <property name="placeholderText">
-                              <string>例如: http://127.0.0.1:7890（可选）</string>
+                              <string>可选；留空时 FlareSolverr 复用已启用的软件代理</string>
                             </property>
                           </widget>
                         </item>

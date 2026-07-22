@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import json
 import os
 import random
 import re
@@ -58,6 +59,17 @@ class _FingerprintState:
     expires_at: float
     request_count: int
     max_requests: int
+
+
+@dataclass(frozen=True)
+class _ScopedCookie:
+    name: str
+    value: str
+    domain: str
+    path: str
+    secure: bool
+    expires_at: float | None
+    host_only: bool
 
 
 class HostConnectionPool:
@@ -337,12 +349,16 @@ class AsyncWebClient:
         self.cf_bypass_url = cf_bypass_url.strip().rstrip("/")
         self.cf_bypass_proxy = (cf_bypass_proxy or "").strip()
         self._cf_bypass_enabled = bool(self.cf_bypass_url)
+        self._cf_bypass_service_mode: str | None = None
+        self._cf_bypass_service_mode_lock = asyncio.Lock()
         self._cf_host_locks: dict[str, asyncio.Lock] = {}
         self._cf_force_refresh_locks: dict[str, asyncio.Lock] = {}
         self._cf_host_retry_semaphores: dict[str, asyncio.Semaphore] = {}
         self._cf_locks_guard = asyncio.Lock()
         self._cf_last_bypass_attempt_at: dict[str, float] = {}
         self._cf_host_challenge_hits: dict[str, int] = {}
+        self._cf_flaresolverr_cookies: dict[tuple[str, str, str, bool], _ScopedCookie] = {}
+        self._cf_flaresolverr_user_agent_by_host: dict[str, str] = {}
         self._cf_bypass_min_interval = 2.0
         self._cf_bypass_timeout = 45.0
         self._cf_bypass_retries = 2
@@ -679,6 +695,26 @@ class AsyncWebClient:
             base.update(bypass_cookies)
         return base or None
 
+    def _flaresolverr_cookies_for_url(self, url: str) -> dict[str, str]:
+        parsed = httpx.URL(url)
+        host = (parsed.host or "").casefold()
+        request_path = parsed.path or "/"
+        is_secure = parsed.scheme.casefold() == "https"
+        now = time.time()
+        matched: dict[str, str] = {}
+        expired_keys: list[tuple[str, str, str, bool]] = []
+        for key, cookie in self._cf_flaresolverr_cookies.items():
+            if cookie.expires_at is not None and cookie.expires_at <= now:
+                expired_keys.append(key)
+                continue
+            domain_matches = host == cookie.domain or (not cookie.host_only and host.endswith(f".{cookie.domain}"))
+            path_matches = request_path == cookie.path or request_path.startswith(cookie.path.rstrip("/") + "/")
+            if domain_matches and path_matches and (not cookie.secure or is_secure):
+                matched[cookie.name] = cookie.value
+        for key in expired_keys:
+            self._cf_flaresolverr_cookies.pop(key, None)
+        return matched
+
     def _extract_header_case_insensitive(self, headers: dict[str, Any], key: str) -> str:
         key_lower = key.lower()
         for k, v in headers.items():
@@ -826,6 +862,176 @@ class AsyncWebClient:
         if not use_proxy:
             return ""
         return (self.cf_bypass_proxy or "").strip()
+
+    def _resolve_flaresolverr_proxy(self, *, use_proxy: bool) -> str:
+        if not use_proxy:
+            return ""
+        return (self.cf_bypass_proxy or self.proxy or "").strip()
+
+    async def _detect_cf_bypass_service(self) -> str:
+        if self._cf_bypass_service_mode is not None:
+            return self._cf_bypass_service_mode
+
+        async with self._cf_bypass_service_mode_lock:
+            if self._cf_bypass_service_mode is not None:
+                return self._cf_bypass_service_mode
+
+            mode = "mdcx"
+            response, _ = await self.request(
+                "GET",
+                self.cf_bypass_url,
+                use_proxy=False,
+                timeout=min(self._cf_bypass_timeout, 10.0),
+                enable_cf_bypass=False,
+                retry_count=1,
+            )
+            if response is not None and response.status_code < 400:
+                try:
+                    payload = json.loads(response.content.decode("utf-8", errors="replace"))
+                except (TypeError, ValueError, UnicodeDecodeError):
+                    payload = None
+                if isinstance(payload, dict):
+                    message = str(payload.get("msg") or payload.get("message") or "").lower()
+                    if "flaresolverr" in message and "ready" in message:
+                        mode = "flaresolverr"
+
+            # FlareSolverr 的根端点有明确 ready JSON，可以安全缓存。
+            # mdcx mirror 的根端点没有稳定的识别协议；探测超时或临时异常时
+            # 也会落入该分支，因此不能缓存，下一次挑战时必须允许重新探测。
+            if mode == "flaresolverr":
+                self._cf_bypass_service_mode = mode
+                self._log_cf(f"🔎 已识别 bypass 服务类型: {mode}")
+            else:
+                self._log_cf("🔎 未识别为 FlareSolverr，本次按 mdcx bypass 协议处理")
+            return mode
+
+    async def _call_flaresolverr(
+        self,
+        target_url: str,
+        *,
+        cookies: dict[str, str] | None,
+        use_proxy: bool,
+    ) -> tuple[Response | None, str]:
+        try:
+            target = httpx.URL(target_url)
+        except Exception as exc:
+            return None, f"FlareSolverr 目标 URL 解析失败: {exc}"
+        target_host = target.host or ""
+        if not target_host:
+            return None, "FlareSolverr 目标 URL 缺少 host"
+
+        payload: dict[str, Any] = {
+            "cmd": "request.get",
+            "url": target_url,
+            "maxTimeout": int(self._cf_bypass_timeout * 1000),
+        }
+        proxy = self._resolve_flaresolverr_proxy(use_proxy=use_proxy)
+        if proxy:
+            payload["proxy"] = {"url": proxy}
+            source = "CF Bypass 独立代理" if self.cf_bypass_proxy else "软件代理"
+            # 代理 URL 可能包含 username/password，日志只记录来源，不记录地址。
+            self._log_cf(f"🌐 FlareSolverr 将使用{source}", target_host)
+        if cookies:
+            payload["cookies"] = [
+                {"name": str(name), "value": str(value), "domain": target_host}
+                for name, value in cookies.items()
+                if name
+            ]
+
+        api_response, error = await self.request(
+            "POST",
+            f"{self.cf_bypass_url}/v1",
+            use_proxy=False,
+            json_data=payload,
+            timeout=self._cf_bypass_timeout + 5.0,
+            enable_cf_bypass=False,
+            retry_count=1,
+        )
+        if api_response is None:
+            return None, f"FlareSolverr 请求失败: {error}"
+        if api_response.status_code >= 400:
+            return None, f"FlareSolverr HTTP {api_response.status_code}"
+
+        try:
+            result = json.loads(api_response.content.decode("utf-8", errors="replace"))
+        except (TypeError, ValueError, UnicodeDecodeError) as exc:
+            return None, f"FlareSolverr 返回无效 JSON: {exc}"
+        if not isinstance(result, dict) or str(result.get("status", "")).lower() != "ok":
+            message = result.get("message", "未知错误") if isinstance(result, dict) else "响应格式错误"
+            return None, f"FlareSolverr 解题失败: {message}"
+
+        solution = result.get("solution")
+        if not isinstance(solution, dict):
+            return None, "FlareSolverr 响应缺少 solution"
+        html = solution.get("response")
+        if not isinstance(html, str) or not html:
+            return None, "FlareSolverr 返回空 HTML"
+
+        response = Response()
+        try:
+            response.status_code = int(solution.get("status") or 200)
+        except (TypeError, ValueError):
+            return None, "FlareSolverr solution.status 无效"
+        response.content = html.encode("utf-8")
+        response.url = str(solution.get("url") or target_url)
+        solution_headers = solution.get("headers")
+        response.headers = dict(solution_headers) if isinstance(solution_headers, dict) else {}
+        response.headers["x-mdcx-bypass-mode"] = "flaresolverr"
+        user_agent = str(solution.get("userAgent") or "").strip()
+        if user_agent:
+            response.headers["x-mdcx-flaresolverr-user-agent"] = user_agent
+        if response.status_code >= 400:
+            return None, f"FlareSolverr 目标 HTTP {response.status_code}"
+
+        allowed_hosts = {target_host.casefold()}
+        try:
+            final_host = httpx.URL(str(response.url)).host
+            if final_host:
+                allowed_hosts.add(final_host.casefold())
+        except Exception:
+            pass
+        solution_cookies = solution.get("cookies")
+        if isinstance(solution_cookies, list):
+            for item in solution_cookies:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    continue
+                raw_domain = str(item.get("domain") or "").strip().casefold()
+                host_only = not raw_domain.startswith(".")
+                domain = raw_domain.lstrip(".") or target_host.casefold()
+                domain_is_allowed = any(
+                    allowed == domain or (not host_only and allowed.endswith(f".{domain}")) for allowed in allowed_hosts
+                )
+                if not domain_is_allowed:
+                    continue
+                cookie_path = str(item.get("path") or "/")
+                if not cookie_path.startswith("/"):
+                    cookie_path = "/"
+                raw_expiry = item.get("expires", item.get("expirationDate"))
+                expires_at: float | None = None
+                try:
+                    if raw_expiry is not None and float(raw_expiry) > 0:
+                        expires_at = float(raw_expiry)
+                except (TypeError, ValueError):
+                    expires_at = None
+                cookie = _ScopedCookie(
+                    name=name,
+                    value=str(item.get("value") or ""),
+                    domain=domain,
+                    path=cookie_path,
+                    secure=bool(item.get("secure", False)),
+                    expires_at=expires_at,
+                    host_only=host_only,
+                )
+                if cookie.expires_at is None or cookie.expires_at > time.time():
+                    key = (cookie.domain, cookie.path, cookie.name, cookie.host_only)
+                    self._cf_flaresolverr_cookies[key] = cookie
+        for cache_host in allowed_hosts:
+            if user_agent:
+                self._cf_flaresolverr_user_agent_by_host[cache_host] = user_agent
+        return response, ""
 
     def _prepare_mirror_headers(
         self,
@@ -1123,6 +1329,30 @@ class AsyncWebClient:
                 await asyncio.sleep(wait_seconds)
 
             self._cf_last_bypass_attempt_at[host] = time.monotonic()
+            service_mode = await self._detect_cf_bypass_service()
+            if service_mode == "flaresolverr":
+                if str(method).upper() != "GET":
+                    return None, f"FlareSolverr 暂不支持 {str(method).upper()} 请求"
+                flare_error = ""
+                for i in range(self._cf_bypass_retries):
+                    if i == 0:
+                        self._log_cf(f"🔐 尝试 FlareSolverr /v1: {target_url}", host)
+                    else:
+                        self._log_cf(f"🔁 FlareSolverr 重试 ({i + 1}/{self._cf_bypass_retries})", host)
+                    bypass_response, flare_error = await self._call_flaresolverr(
+                        target_url,
+                        cookies=cookies,
+                        use_proxy=use_proxy,
+                    )
+                    if bypass_response is not None:
+                        self._cf_host_challenge_hits[host] = 0
+                        return bypass_response, ""
+                    if i < self._cf_bypass_retries - 1:
+                        sleep_seconds = self._calc_retry_sleep_seconds(i, after_cf_bypass=True)
+                        self._log_cf(f"⚠️ FlareSolverr 失败，{sleep_seconds:.2f}s 后重试: {flare_error}", host)
+                        await asyncio.sleep(sleep_seconds)
+                return None, flare_error or "FlareSolverr 获取 HTML 失败"
+
             error = ""
             for i in range(self._cf_bypass_retries):
                 if i == 0:
@@ -1289,11 +1519,17 @@ class AsyncWebClient:
                     purpose=purpose,
                     apply_fingerprint=apply_fingerprint,
                 )
+                flaresolverr_user_agent = self._cf_flaresolverr_user_agent_by_host.get(host.casefold(), "")
+                if flaresolverr_user_agent:
+                    self._set_header_case_insensitive(prepared_headers, "User-Agent", flaresolverr_user_agent)
                 pool_key = HostPoolManager.key_for_request(url, request_proxy, fingerprint)
                 try:
                     await limiter.acquire()
                     req_headers = dict(prepared_headers)
-                    req_cookies = self._merge_cookies(cookies)
+                    req_cookies = self._merge_cookies(
+                        cookies,
+                        self._flaresolverr_cookies_for_url(url),
+                    )
                     host_retry_semaphore = None
                     if host and self._cf_host_challenge_hits.get(host, 0) > 0:
                         host_retry_semaphore = await self._get_cf_host_retry_semaphore(host)
@@ -1348,7 +1584,7 @@ class AsyncWebClient:
                                 json_data=json_data,
                                 timeout=timeout,
                                 allow_redirects=allow_redirects,
-                                use_proxy=bool((self.cf_bypass_proxy or "").strip()),
+                                use_proxy=use_proxy,
                             )
                             bypass_round += 1
 
