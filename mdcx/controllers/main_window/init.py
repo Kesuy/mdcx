@@ -17,11 +17,12 @@ from PyQt6.QtWidgets import (
 
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.resources import resources
-from mdcx.consts import GITHUB_RELEASES_URL, IS_WINDOWS
+from mdcx.consts import GITHUB_RELEASES_URL
 from mdcx.crawlers import get_registered_crawler_site_values
 from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
 
+from .responsive_layout import setup_responsive_ui
 from .site_priority_dialog import setup_site_priority_ui
 from .style import build_menu_style, build_tree_widget_style
 
@@ -33,10 +34,6 @@ def Init_Ui(self: "MyMAinWindow"):
     self.setWindowTitle("MDCx")  # 设置任务栏标题
     self.setWindowIcon(QIcon(resources.icon_ico))  # 设置任务栏图标
     self.setWindowOpacity(1.0)  # 设置窗口透明度
-    if IS_WINDOWS:
-        self.setFixedSize(
-            self.width(), self.height()
-        )  # 禁止调整窗口大小(mac 平台禁止后最小化没反应，恢复时顶部会残留标题栏)
     self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # 设置窗口背景透明
     self.Ui.progressBar_scrape.setValue(0)  # 进度条清0
     self.Ui.progressBar_scrape.setTextVisible(False)  # 不显示进度条文字
@@ -141,6 +138,7 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.widget_nfo.resize(791, 681)
     self.Ui.widget_nfo.hide()
     setup_site_priority_ui(self)
+    setup_responsive_ui(self)
 
 
 def setup_result_sort_ui(self: "MyMAinWindow") -> None:
