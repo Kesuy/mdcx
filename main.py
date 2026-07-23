@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import os
 import platform
 import sys
 
@@ -35,9 +34,8 @@ def show_constants():
 show_constants()
 
 
-if os.path.isfile("highdpi_passthrough"):
-    # Qt6 默认启用高 DPI，这里仅保留非整数缩放策略开关，避免 150% 缩放被取整。
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+# Qt 6 使用 logical pixel；明确保留 125%/150% 等非整数缩放，避免固定布局被取整放大。
+QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
 
 app = QApplication(sys.argv)
 app.setStyle("Fusion")

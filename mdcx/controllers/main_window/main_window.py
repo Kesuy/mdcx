@@ -95,6 +95,7 @@ from ..cut_window import CutWindow
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
+from .responsive_layout import apply_responsive_layout
 from .save_config import save_config
 from .site_priority_dialog import apply_site_priority_theme
 from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
@@ -641,7 +642,13 @@ class MyMAinWindow(QMainWindow):
         return super().eventFilter(a0, a1)
 
     def showEvent(self, a0):
-        self.resize(1030, 700)  # 调整窗口大小
+        super().showEvent(a0)
+        apply_responsive_layout(self)
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        if hasattr(self, "Ui") and hasattr(self, "_resize_grip"):
+            apply_responsive_layout(self)
 
     # 当隐藏边框时，最小化后，点击任务栏时，需要监听事件，在恢复窗口时隐藏边框
     def changeEvent(self, a0):
