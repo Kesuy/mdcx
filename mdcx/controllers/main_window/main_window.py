@@ -95,7 +95,7 @@ from ..cut_window import CutWindow
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
-from .responsive_layout import apply_responsive_layout
+from .responsive_layout import _MIN_LEFT_WIDTH, _MAX_LEFT_WIDTH, _MIN_MIDDLE_WIDTH, apply_responsive_layout
 from .save_config import save_config
 from .site_priority_dialog import apply_site_priority_theme
 from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
@@ -616,6 +616,30 @@ class MyMAinWindow(QMainWindow):
 
     def eventFilter(self, a0, a1):
         # print(event.type())
+
+        # Splitter drag handling
+        splitter_left = getattr(self, "_splitter_left", None)
+        splitter_right = getattr(self, "_splitter_right", None)
+        if a0 is splitter_left or a0 is splitter_right:
+            if a1.type() == QEvent.Type.MouseButtonPress and a1.button() == Qt.MouseButton.LeftButton:
+                self._dragging_splitter = a0.objectName()
+                self._drag_start_x = a1.globalPosition().toPoint().x()
+                return True
+            elif a1.type() == QEvent.Type.MouseMove and self._dragging_splitter:
+                global_x = a1.globalPosition().toPoint().x()
+                delta = global_x - self._drag_start_x
+                self._drag_start_x = global_x
+                if self._dragging_splitter == "splitter_left":
+                    new_left = self._left_width + delta
+                    self._left_width = max(_MIN_LEFT_WIDTH, min(_MAX_LEFT_WIDTH, new_left))
+                elif self._dragging_splitter == "splitter_right":
+                    new_result = self._result_left + delta
+                    self._result_left = max(_MIN_MIDDLE_WIDTH, new_result)
+                apply_responsive_layout(self)
+                return True
+            elif a1.type() == QEvent.Type.MouseButtonRelease:
+                self._dragging_splitter = None
+                return True
 
         if a1.type() == QEvent.Type.MouseButtonRelease:  # 松开鼠标，检查是否在前台
             self.recover_windowflags()
@@ -3363,7 +3387,7 @@ class MyMAinWindow(QMainWindow):
                 response, error = executor.run(
                     fetch_article_info_with_warmup(
                         computed.async_client,
-                        base_url="https://fc2ppvdb.com",
+                        base_url="https://fc2cmadb.com",
                         number="3259498",
                         cookies=cookies,
                         use_proxy=manager.config.use_proxy,

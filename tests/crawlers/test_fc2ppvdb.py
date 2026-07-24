@@ -12,7 +12,7 @@ class FakeFc2ppvdbClient:
 
     async def request(self, method, url, **kwargs):
         assert method == "GET"
-        if url == "https://fc2ppvdb.com/articles/3259498":
+        if url == "https://fc2cmadb.com/articles/3259498":
             self.article_requested = True
 
             class ArticleResponse:
@@ -21,7 +21,7 @@ class FakeFc2ppvdbClient:
             return ArticleResponse(), ""
 
         assert self.article_requested is True
-        assert url == "https://fc2ppvdb.com/articles/article-info?videoid=3259498"
+        assert url == "https://fc2cmadb.com/articles/article-info?videoid=3259498"
 
         class XhrResponse:
             status_code = 200
@@ -48,7 +48,7 @@ class FakeFc2ppvdbHtmlClient:
     async def request(self, method, url, **kwargs):
         assert method == "GET"
 
-        if url == "https://fc2ppvdb.com/articles/3259498":
+        if url == "https://fc2cmadb.com/articles/3259498":
 
             class ArticleResponse:
                 status_code = 200
@@ -92,7 +92,7 @@ async def test_fc2ppvdb_crawler_uses_article_then_xhr(monkeypatch):
     assert res.data.tags == ["素人"]
     assert res.data.runtime == "65"
     assert res.data.mosaic == "无码"
-    assert res.data.external_id == "https://fc2ppvdb.com/articles/3259498"
+    assert res.data.external_id == "https://fc2cmadb.com/articles/3259498"
 
 
 def test_fc2ppvdb_cookie_parser_accepts_cookie_without_spaces():
@@ -122,4 +122,4 @@ async def test_fc2ppvdb_crawler_reports_login_page_xhr(monkeypatch):
 
     assert res.data is None
     assert res.debug_info.error is not None
-    assert "fc2ppvdb Cookie 可能无效或已过期" in str(res.debug_info.error)
+    assert "fc2cmadb Cookie 可能无效或已过期" in str(res.debug_info.error)

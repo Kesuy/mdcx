@@ -102,7 +102,7 @@ def describe_xhr_json_error(response, error: Exception) -> str:
     if not text.strip():
         reason = "接口返回空内容"
     elif "ログイン" in text or "login" in text.lower():
-        reason = "接口返回登录页，fc2ppvdb Cookie 可能无效或已过期"
+        reason = "接口返回登录页，fc2cmadb Cookie 可能无效或已过期"
     elif "text/html" in content_type.lower() or text.lstrip().startswith("<!DOCTYPE html"):
         reason = "接口返回 HTML 页面而不是 JSON"
     else:
@@ -168,7 +168,7 @@ async def fetch_article_info_with_warmup(
         return None, f"详情页请求失败: HTTP {response_article.status_code}"
     final_url = get_response_final_url(response_article)
     if "/login" in final_url:
-        return None, f"详情页跳转到登录页，fc2ppvdb Cookie 未生效: {final_url}"
+        return None, f"详情页跳转到登录页，fc2cmadb Cookie 未生效: {final_url}"
 
     return await fetch_article_info(
         async_client,
@@ -188,7 +188,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
     @classmethod
     @override
     def base_url_(cls) -> str:
-        return "https://fc2ppvdb.com"
+        return "https://fc2cmadb.com"
 
     @override
     async def _run(self, ctx: Context):

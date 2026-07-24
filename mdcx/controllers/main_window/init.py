@@ -148,13 +148,13 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
 
     self._result_sort_descending = False
     self.result_sort_combo = QComboBox(self.Ui.page_main)
-    self.result_sort_combo.setGeometry(600, 110, 112, 26)
+    self.result_sort_combo.setGeometry(600, 110, 130, 26)
     self.result_sort_combo.addItems(["完成顺序", "番号", "演员"])
     self.result_sort_combo.setToolTip("成功结果排序方式（只改变显示顺序）")
     self.result_sort_combo.currentTextChanged.connect(self._sort_success_results)
 
     self.result_sort_order_button = QPushButton("↑", self.Ui.page_main)
-    self.result_sort_order_button.setGeometry(716, 110, 34, 26)
+    self.result_sort_order_button.setGeometry(734, 110, 34, 26)
     self.result_sort_order_button.setToolTip("切换升序/降序")
     self.result_sort_order_button.clicked.connect(self._toggle_result_sort_order)
     self.result_sort_combo.show()
@@ -164,7 +164,7 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
 def setup_local_nfo_button(self: "MyMAinWindow") -> None:
     button = QPushButton(self.Ui.page_main)
     button.setObjectName("pushButton_load_nfo")
-    button.setGeometry(387, 110, 40, 40)
+    button.setGeometry(347, 110, 40, 40)
     button.setMouseTracking(True)
     button.setIcon(QIcon(resources.load_nfo_icon))
     button.setIconSize(self.Ui.pushButton_open_nfo.iconSize())

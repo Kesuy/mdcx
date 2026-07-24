@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRect
-from PyQt6.QtWidgets import QHeaderView, QSizeGrip, QSizePolicy
+from PyQt6.QtCore import QPoint, QRect, Qt
+from PyQt6.QtGui import QCursor
+from PyQt6.QtWidgets import QHeaderView, QSizeGrip, QSizePolicy, QWidget
 
 if TYPE_CHECKING:
     from .main_window import MyMAinWindow
@@ -17,6 +18,13 @@ STACKED_RIGHT_MARGIN = 59
 STACKED_BOTTOM_MARGIN = 2
 RESULT_LEFT = 590
 RESULT_RIGHT_MARGIN = 10
+
+# Draggable splitter state
+_SPLITTER_WIDTH = 6
+_MIN_LEFT_WIDTH = 150
+_MAX_LEFT_WIDTH = 400
+_MIN_MIDDLE_WIDTH = 300
+_MIN_RIGHT_WIDTH = 160
 
 
 @dataclass(frozen=True)
@@ -36,10 +44,10 @@ class LayoutMetrics:
     viewport_height: int
 
 
-def calculate_layout_metrics(window_width: int, window_height: int) -> LayoutMetrics:
+def calculate_layout_metrics(window_width: int, window_height: int, left_width: int = STACKED_LEFT, result_left: int = RESULT_LEFT) -> LayoutMetrics:
     width = max(MIN_WINDOW_WIDTH, window_width)
     height = max(MIN_WINDOW_HEIGHT, window_height)
-    stacked_width = width - STACKED_LEFT - STACKED_RIGHT_MARGIN
+    stacked_width = width - left_width - STACKED_RIGHT_MARGIN
     stacked_height = height - STACKED_TOP - STACKED_BOTTOM_MARGIN
     width_delta = stacked_width - 820
     height_delta = stacked_height - 692
@@ -50,8 +58,8 @@ def calculate_layout_metrics(window_width: int, window_height: int) -> LayoutMet
         stacked_height=stacked_height,
         width_delta=width_delta,
         height_delta=height_delta,
-        result_x=RESULT_LEFT,
-        result_width=max(160, stacked_width - RESULT_LEFT - RESULT_RIGHT_MARGIN),
+        result_x=result_left,
+        result_width=max(160, stacked_width - result_left - RESULT_RIGHT_MARGIN),
         result_height=max(300, stacked_height - 159),
         path_width=max(727, stacked_width - 34),
         line_width=max(712, stacked_width - 49),
@@ -78,26 +86,65 @@ def setup_responsive_ui(window: "MyMAinWindow") -> None:
         window._resize_grip.setToolTip("拖动调整窗口大小")
         window._resize_grip.raise_()
 
+    # Initialize splitter state for adjustable panes
+    window._left_width = STACKED_LEFT
+    window._result_left = RESULT_LEFT
+    window._dragging_splitter = None
+    window._drag_start_pos = None
+
+    _setup_splitter_widgets(window)
+
     apply_responsive_layout(window)
+
+
+def _setup_splitter_widgets(window: "MyMAinWindow") -> None:
+    """Create two vertical splitter bars for adjusting pane widths."""
+    central = window.Ui.centralwidget
+
+    # Splitter 1: between left sidebar and middle area
+    splitter1 = QWidget(central)
+    splitter1.setObjectName("splitter_left")
+    splitter1.setFixedWidth(_SPLITTER_WIDTH)
+    splitter1.setCursor(Qt.CursorShape.SplitHCursor)
+    splitter1.setStyleSheet("background: transparent;")
+    splitter1.setToolTip("拖动调整左侧栏宽度")
+    splitter1.show()
+    window._splitter_left = splitter1
+
+    # Splitter 2: between middle area and right results
+    splitter2 = QWidget(central)
+    splitter2.setObjectName("splitter_right")
+    splitter2.setFixedWidth(_SPLITTER_WIDTH)
+    splitter2.setCursor(Qt.CursorShape.SplitHCursor)
+    splitter2.setStyleSheet("background: transparent;")
+    splitter2.setToolTip("拖动调整右侧结果栏宽度")
+    splitter2.show()
+    window._splitter_right = splitter2
+
+    # Install event filter for drag handling
+    splitter1.installEventFilter(window)
+    splitter2.installEventFilter(window)
 
 
 def apply_responsive_layout(window: "MyMAinWindow") -> None:
     central = window.Ui.centralwidget
-    metrics = calculate_layout_metrics(central.width(), central.height())
+    left_width = getattr(window, "_left_width", STACKED_LEFT)
+    result_left = getattr(window, "_result_left", RESULT_LEFT)
+    metrics = calculate_layout_metrics(central.width(), central.height(), left_width, result_left)
     ui = window.Ui
 
     _set_geometry(
         ui.stackedWidget,
-        STACKED_LEFT,
+        left_width,
         STACKED_TOP,
         metrics.stacked_width,
         metrics.stacked_height,
     )
-    _set_geometry(ui.widget_setting, 0, 0, STACKED_LEFT, metrics.window_height)
-    _set_geometry(ui.left_backgroud_widget, 0, 0, STACKED_LEFT, metrics.window_height)
-    _set_geometry(ui.label_show_version, 0, 489 + metrics.height_delta, STACKED_LEFT, 201)
+    _set_geometry(ui.widget_setting, 0, 0, left_width, metrics.window_height)
+    _set_geometry(ui.left_backgroud_widget, 0, 0, left_width, metrics.window_height)
+    _set_geometry(ui.label_show_version, 0, 489 + metrics.height_delta, left_width, 201)
     _set_geometry(ui.label_local_number, 0, 680 + metrics.height_delta, 21, 21)
-    _set_geometry(ui.progressBar_scrape, 209, -1, metrics.stacked_width + 3, 7)
+    _set_geometry(ui.progressBar_scrape, left_width - 1, -1, metrics.stacked_width + 3, 7)
 
     _set_geometry(ui.label_file_path, 30, 10, metrics.path_width, 50)
     _set_geometry(ui.line_14, 30, 60, metrics.line_width, 20)
@@ -109,10 +156,10 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
 
     result_sort_combo = getattr(window, "result_sort_combo", None)
     if result_sort_combo is not None:
-        _set_geometry(result_sort_combo, metrics.result_x, 110, 112, 26)
+        _set_geometry(result_sort_combo, metrics.result_x, 110, 130, 26)
     result_sort_order_button = getattr(window, "result_sort_order_button", None)
     if result_sort_order_button is not None:
-        _set_geometry(result_sort_order_button, metrics.result_x + 116, 110, 34, 26)
+        _set_geometry(result_sort_order_button, metrics.result_x + 134, 110, 34, 26)
 
     _set_geometry(ui.textBrowser_log_main, 28, 0, metrics.viewport_width, 421)
     _set_geometry(
@@ -129,6 +176,18 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
     _set_geometry(ui.scrollArea_10, 20, 0, metrics.stacked_width - 24, metrics.stacked_height - 3)
     _set_geometry(ui.tabWidget, 20, 10, metrics.stacked_width - 18, metrics.stacked_height - 8)
     _set_geometry(ui.textBrowser_about, 30, 0, metrics.viewport_width, metrics.stacked_height - 3)
+
+    # Position splitter bars
+    splitter_left = getattr(window, "_splitter_left", None)
+    if splitter_left is not None:
+        _set_geometry(splitter_left, left_width - _SPLITTER_WIDTH // 2, 0, _SPLITTER_WIDTH, metrics.window_height)
+        splitter_left.raise_()
+
+    splitter_right = getattr(window, "_splitter_right", None)
+    if splitter_right is not None:
+        result_abs_x = left_width + metrics.result_x
+        _set_geometry(splitter_right, result_abs_x - _SPLITTER_WIDTH // 2, 0, _SPLITTER_WIDTH, metrics.window_height)
+        splitter_right.raise_()
 
     grip = window._resize_grip
     grip_size = grip.sizeHint()
