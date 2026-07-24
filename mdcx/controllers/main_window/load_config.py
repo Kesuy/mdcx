@@ -912,6 +912,8 @@ def load_config(self: "MyMAinWindow"):
         if not fc2_cookie and "fc2ppvdb_session" in manager.config.javdb:
             fc2_cookie = manager.config.javdb
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlainText(fc2_cookie)
+        # fc2cmadb cookie
+        self.Ui.plainTextEdit_cookie_fc2cmadb.setPlainText(manager.config.fc2cmadb)
         # javbus cookie
         self.set_javbus_cookie.emit(manager.config.javbus)
         # endregion

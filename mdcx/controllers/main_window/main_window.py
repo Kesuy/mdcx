@@ -127,6 +127,7 @@ class MyMAinWindow(QMainWindow):
     set_javdb_cookie = pyqtSignal(str)  # 加载javdb cookie文本内容到设置页面
     set_javdb_status = pyqtSignal(str)  # javdb 检查状态更新
     set_fc2ppvdb_status = pyqtSignal(str)  # fc2ppvdb 检查状态更新
+    set_fc2cmadb_status = pyqtSignal(str)  # fc2cmadb 检查状态更新
     set_javbus_cookie = pyqtSignal(str)  # 加载javbus cookie文本内容到设置页面
     set_javbus_status = pyqtSignal(str)  # javbus 检查状态更新
     exec_save_config = pyqtSignal()  # 主线程执行保存配置
@@ -399,6 +400,98 @@ class MyMAinWindow(QMainWindow):
         self.Ui.label_fc2ppvdb_cookie_result.setObjectName("label_fc2ppvdb_cookie_result")
         self.Ui.horizontalLayout_fc2ppvdb_cookie.addWidget(self.Ui.label_fc2ppvdb_cookie_result)
         self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2ppvdb_cookie, 5, 1, 1, 1)
+
+        self._setup_fc2cmadb_cookie_ui()
+
+    def _setup_fc2cmadb_cookie_ui(self):
+        # 扩展 cookie 设置区域，并把下面分组整体下移，避免重叠
+        delta_y = 140
+        group_geo = self.Ui.groupBox_10.geometry()
+        old_group_bottom = group_geo.y() + group_geo.height()
+        self.Ui.groupBox_10.setGeometry(group_geo.x(), group_geo.y(), group_geo.width(), group_geo.height() + delta_y)
+        content_geo = self.Ui.scrollAreaWidgetContents_wangluo.geometry()
+        self.Ui.scrollAreaWidgetContents_wangluo.setGeometry(
+            content_geo.x(),
+            content_geo.y(),
+            content_geo.width(),
+            content_geo.height() + delta_y,
+        )
+        for child in self.Ui.scrollAreaWidgetContents_wangluo.children():
+            if not isinstance(child, QWidget) or child is self.Ui.groupBox_10:
+                continue
+            child_geo = child.geometry()
+            if child_geo.y() >= old_group_bottom:
+                child.setGeometry(
+                    child_geo.x(),
+                    child_geo.y() + delta_y,
+                    child_geo.width(),
+                    child_geo.height(),
+                )
+        grid_geo = self.Ui.gridLayoutWidget_10.geometry()
+        self.Ui.gridLayoutWidget_10.setGeometry(grid_geo.x(), grid_geo.y(), grid_geo.width(), grid_geo.height() + delta_y)
+        self.Ui.label_75.setGeometry(60, 590, 611, 141)
+        self.Ui.label_get_cookie_url.setGeometry(130, 740, 430, 21)
+        self.Ui.label_7.setGeometry(60, 740, 71, 21)
+
+        self.Ui.label_fc2cmadb_cookie = QLabel(self.Ui.gridLayoutWidget_10)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Ui.label_fc2cmadb_cookie.sizePolicy().hasHeightForWidth())
+        self.Ui.label_fc2cmadb_cookie.setSizePolicy(sizePolicy)
+        self.Ui.label_fc2cmadb_cookie.setMinimumSize(130, 30)
+        self.Ui.label_fc2cmadb_cookie.setMaximumSize(130, 16777215)
+        self.Ui.label_fc2cmadb_cookie.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.Ui.label_fc2cmadb_cookie.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTrailing | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.Ui.label_fc2cmadb_cookie.setText("fc2cmadb：\n（登录状态）")
+        self.Ui.label_fc2cmadb_cookie.setObjectName("label_fc2cmadb_cookie")
+        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2cmadb_cookie, 6, 0, 1, 1)
+
+        self.Ui.plainTextEdit_cookie_fc2cmadb = QPlainTextEdit(self.Ui.gridLayoutWidget_10)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Ui.plainTextEdit_cookie_fc2cmadb.sizePolicy().hasHeightForWidth())
+        self.Ui.plainTextEdit_cookie_fc2cmadb.setSizePolicy(sizePolicy)
+        self.Ui.plainTextEdit_cookie_fc2cmadb.setMinimumSize(400, 80)
+        self.Ui.plainTextEdit_cookie_fc2cmadb.setStyleSheet(
+            " border: 1px solid rgba(0,0,0, 50);\n"
+            "                                border-radius: 1px;\n"
+            '                                font: "Courier";'
+        )
+        self.Ui.plainTextEdit_cookie_fc2cmadb.setPlaceholderText("FC2 独立刮削请填写 fc2cmadb cookie")
+        self.Ui.plainTextEdit_cookie_fc2cmadb.setObjectName("plainTextEdit_cookie_fc2cmadb")
+        self.Ui.gridLayout_10.addWidget(self.Ui.plainTextEdit_cookie_fc2cmadb, 6, 1, 1, 1)
+
+        self.Ui.horizontalLayout_fc2cmadb_cookie = QHBoxLayout()
+        self.Ui.horizontalLayout_fc2cmadb_cookie.setObjectName("horizontalLayout_fc2cmadb_cookie")
+        self.Ui.pushButton_check_fc2cmadb_cookie = QPushButton(self.Ui.gridLayoutWidget_10)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Ui.pushButton_check_fc2cmadb_cookie.sizePolicy().hasHeightForWidth())
+        self.Ui.pushButton_check_fc2cmadb_cookie.setSizePolicy(sizePolicy)
+        self.Ui.pushButton_check_fc2cmadb_cookie.setText("检查cookie")
+        self.Ui.pushButton_check_fc2cmadb_cookie.setObjectName("pushButton_check_fc2cmadb_cookie")
+        self.Ui.horizontalLayout_fc2cmadb_cookie.addWidget(self.Ui.pushButton_check_fc2cmadb_cookie)
+
+        self.Ui.label_fc2cmadb_cookie_result = QLabel(self.Ui.gridLayoutWidget_10)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Ui.label_fc2cmadb_cookie_result.sizePolicy().hasHeightForWidth())
+        self.Ui.label_fc2cmadb_cookie_result.setSizePolicy(sizePolicy)
+        self.Ui.label_fc2cmadb_cookie_result.setMinimumSize(0, 0)
+        self.Ui.label_fc2cmadb_cookie_result.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.Ui.label_fc2cmadb_cookie_result.setText("")
+        self.Ui.label_fc2cmadb_cookie_result.setAlignment(
+            Qt.AlignmentFlag.AlignLeading | Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.Ui.label_fc2cmadb_cookie_result.setObjectName("label_fc2cmadb_cookie_result")
+        self.Ui.horizontalLayout_fc2cmadb_cookie.addWidget(self.Ui.label_fc2cmadb_cookie_result)
+        self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2cmadb_cookie, 7, 1, 1, 1)
 
     def _setup_baidu_translate_ui(self):
         delta_y = 70
@@ -3381,6 +3474,69 @@ class MyMAinWindow(QMainWindow):
 
         self.set_fc2ppvdb_status.emit(tips)
         self.show_log_text(tips.replace("❌", " ❌ FC2PPVDB").replace("✅", " ✅ FC2PPVDB"))
+        return tips
+
+    # fc2cmadb cookie
+    def pushButton_check_fc2cmadb_cookie_clicked(self):
+        input_cookie = self.Ui.plainTextEdit_cookie_fc2cmadb.toPlainText().strip()
+        if not input_cookie:
+            self.set_fc2cmadb_status.emit("❌ 未填写 Cookie")
+            self.show_log_text(" ❌ FC2CMADB 未填写 Cookie，可在「设置」-「网络」添加！")
+            return
+        self.set_fc2cmadb_status.emit("⏳ 正在检测中...")
+        try:
+            t = threading.Thread(target=self._check_fc2cmadb_cookie, args=(input_cookie,))
+            t.start()
+        except Exception:
+            signal_qt.show_traceback_log(traceback.format_exc())
+            self.show_log_text(traceback.format_exc())
+
+    def _check_fc2cmadb_cookie(self, input_cookie: str):
+        tips = "❌ 未填写 Cookie"
+        if not input_cookie:
+            self.set_fc2cmadb_status.emit(tips)
+            return tips
+
+        from mdcx.crawlers.fc2cmadb import normalize_fc2_number, parse_cookie
+        from mdcx.config.manager import manager
+
+        cookies = parse_cookie(input_cookie)
+        if not cookies:
+            tips = "❌ Cookie 解析失败！"
+            self.set_fc2cmadb_status.emit(tips)
+            return tips
+
+        import asyncio
+        from mdcx.crawlers.base import CralwerException
+        from mdcx.core.executor import executor
+
+        with manager.acquire_computed() as computed:
+            response, error = executor.run(
+                computed.async_client.request(
+                    "GET",
+                    f"https://fc2cmadb.com/articles/{normalize_fc2_number('3259498')}",
+                    cookies=cookies,
+                    use_proxy=manager.config.use_proxy,
+                )
+            )
+
+        if response is None:
+            tips = f"❌ Cookie 检查失败：{error}"
+        elif response.status_code != 200:
+            tips = f"❌ Cookie 无效！HTTP {response.status_code}"
+        else:
+            final_url = str(response.headers.get("x-mdcx-final-url") or response.url or "")
+            if "/login" in final_url:
+                tips = "❌ Cookie 已过期或无效（跳转到登录页）"
+            else:
+                if manager.config.fc2cmadb != input_cookie:
+                    self.exec_save_config.emit()
+                    tips = "✅ 连接正常，Cookie 已保存！"
+                else:
+                    tips = "✅ 连接正常！"
+
+        self.set_fc2cmadb_status.emit(tips)
+        self.show_log_text(tips.replace("❌", " ❌ FC2CMADB").replace("✅", " ✅ FC2CMADB"))
         return tips
 
     # javbus cookie
