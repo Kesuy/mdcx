@@ -62,6 +62,7 @@ def _window_harness() -> QMainWindow:
     clear_button = QPushButton(page_main)
     sort_combo = QWidget(page_main)
     sort_order = QWidget(page_main)
+    label_title = QLabel(page_main)
 
     page_log = QWidget()
     page_net = QWidget()
@@ -83,6 +84,7 @@ def _window_harness() -> QMainWindow:
         treeWidget_number=tree,
         label_result=result,
         label_file_path=path,
+        label_title=label_title,
         line_14=line,
         pushButton_select_media_folder=select_button,
         pushButton_start_cap=start_button,

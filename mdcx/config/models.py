@@ -144,6 +144,7 @@ DEFAULT_FIELD_SITE_PRIORITY = [
     Website.FC2HUB,
     Website.FC2,
     Website.FC2PPVDB,
+    Website.FC2CMADB,
 ]
 
 
@@ -616,6 +617,7 @@ class Config(BaseModel):
     theporndb_api_token: str = Field(default="", title="Theporndb API令牌")
     javdb: str = Field(default="", title="Javdb")
     fc2ppvdb: str = Field(default="", title="FC2PPVDB")
+    fc2cmadb: str = Field(default="", title="FC2CMADB")
     javbus: str = Field(default="", title="Javbus")
     # endregion
 

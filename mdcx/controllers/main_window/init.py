@@ -22,7 +22,7 @@ from mdcx.crawlers import get_registered_crawler_site_values
 from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
 
-from .responsive_layout import setup_responsive_ui
+from .responsive_layout import setup_responsive_ui, setup_main_splitter
 from .site_priority_dialog import setup_site_priority_ui
 from .style import build_menu_style, build_tree_widget_style
 
@@ -139,6 +139,7 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.widget_nfo.hide()
     setup_site_priority_ui(self)
     setup_responsive_ui(self)
+    setup_main_splitter(self)
 
 
 def setup_result_sort_ui(self: "MyMAinWindow") -> None:

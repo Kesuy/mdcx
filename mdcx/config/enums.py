@@ -497,6 +497,7 @@ class Website(Enum):
     FC2 = "fc2"
     FC2CLUB = "fc2club"
     FC2HUB = "fc2hub"
+    FC2CMADB = "fc2cmadb"
     FC2PPVDB = "fc2ppvdb"
     FREEJAVBT = "freejavbt"
     GETCHU = "getchu"

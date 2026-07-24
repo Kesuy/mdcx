@@ -34,6 +34,7 @@ from .fantastica import FantasticaCrawler
 from .fc2 import Fc2Crawler
 from .fc2club import Fc2clubCrawler
 from .fc2hub import Fc2hubCrawler
+from .fc2cmadb import Fc2cmadbCrawler
 from .fc2ppvdb import Fc2ppvdbCrawler
 from .freejavbt import FreejavbtCrawler
 from .getchu import GetchuCrawler
@@ -82,6 +83,7 @@ register_crawler(MdtvCrawler)
 register_crawler(MgstageCrawler)
 register_crawler(JavdayCrawler)
 register_crawler(Fc2ppvdbCrawler)
+register_crawler(Fc2cmadbCrawler)
 register_crawler(PrestigeCrawler)
 register_crawler(Fc2clubCrawler)
 register_crawler(Fc2Crawler)
