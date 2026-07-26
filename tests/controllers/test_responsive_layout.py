@@ -125,4 +125,6 @@ def test_apply_responsive_layout_resizes_main_result_and_page_viewports():
     assert window.Ui.textBrowser_net_main.geometry().getRect() == (30, 0, 1101, 892)
     assert window.Ui.tabWidget.geometry().getRect() == (20, 10, 1113, 884)
     assert window._resize_grip.isVisible() is True
+    assert not hasattr(window, "_splitter_left")
+    assert not hasattr(window, "_splitter_right")
     window.close()

@@ -60,7 +60,7 @@ from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 from mdcx.core.network_check import run_network_check
 from mdcx.core.nfo import write_nfo
 from mdcx.core.scraper import again_search, get_remain_list, start_new_scrape
-from mdcx.crawlers.fc2ppvdb import cookie_str_to_dict, fetch_article_info_with_warmup
+from mdcx.crawlers.fc2ppvdb import cookie_str_to_dict, fetch_article_info, has_fc2cmadb_session
 from mdcx.image import PreviewImageLoader
 from mdcx.models.enums import FileMode
 from mdcx.models.flags import Flags
@@ -95,7 +95,7 @@ from ..cut_window import CutWindow
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
-from .responsive_layout import _MIN_LEFT_WIDTH, _MAX_LEFT_WIDTH, _MIN_MIDDLE_WIDTH, apply_responsive_layout
+from .responsive_layout import apply_responsive_layout
 from .save_config import save_config
 from .site_priority_dialog import apply_site_priority_theme
 from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
@@ -352,7 +352,7 @@ class MyMAinWindow(QMainWindow):
         self.Ui.label_fc2ppvdb_cookie.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTrailing | Qt.AlignmentFlag.AlignVCenter
         )
-        self.Ui.label_fc2ppvdb_cookie.setText("fc2ppvdb：\n（登录状态）")
+        self.Ui.label_fc2ppvdb_cookie.setText("fc2cmadb：\n（登录状态）")
         self.Ui.label_fc2ppvdb_cookie.setObjectName("label_fc2ppvdb_cookie")
         self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2ppvdb_cookie, 4, 0, 1, 1)
 
@@ -368,7 +368,7 @@ class MyMAinWindow(QMainWindow):
             "                                border-radius: 1px;\n"
             '                                font: "Courier";'
         )
-        self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlaceholderText("FC2 独立刮削请填写 fc2ppvdb cookie")
+        self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlaceholderText("FC2 独立刮削请填写 fc2cmadb Cookie")
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setObjectName("plainTextEdit_cookie_fc2ppvdb")
         self.Ui.gridLayout_10.addWidget(self.Ui.plainTextEdit_cookie_fc2ppvdb, 4, 1, 1, 1)
 
@@ -616,30 +616,6 @@ class MyMAinWindow(QMainWindow):
 
     def eventFilter(self, a0, a1):
         # print(event.type())
-
-        # Splitter drag handling
-        splitter_left = getattr(self, "_splitter_left", None)
-        splitter_right = getattr(self, "_splitter_right", None)
-        if a0 is splitter_left or a0 is splitter_right:
-            if a1.type() == QEvent.Type.MouseButtonPress and a1.button() == Qt.MouseButton.LeftButton:
-                self._dragging_splitter = a0.objectName()
-                self._drag_start_x = a1.globalPosition().toPoint().x()
-                return True
-            elif a1.type() == QEvent.Type.MouseMove and self._dragging_splitter:
-                global_x = a1.globalPosition().toPoint().x()
-                delta = global_x - self._drag_start_x
-                self._drag_start_x = global_x
-                if self._dragging_splitter == "splitter_left":
-                    new_left = self._left_width + delta
-                    self._left_width = max(_MIN_LEFT_WIDTH, min(_MAX_LEFT_WIDTH, new_left))
-                elif self._dragging_splitter == "splitter_right":
-                    new_result = self._result_left + delta
-                    self._result_left = max(_MIN_MIDDLE_WIDTH, new_result)
-                apply_responsive_layout(self)
-                return True
-            elif a1.type() == QEvent.Type.MouseButtonRelease:
-                self._dragging_splitter = None
-                return True
 
         if a1.type() == QEvent.Type.MouseButtonRelease:  # 松开鼠标，检查是否在前台
             self.recover_windowflags()
@@ -3358,12 +3334,12 @@ class MyMAinWindow(QMainWindow):
         self.show_log_text(tips.replace("❌", " ❌ JavDb").replace("✅", " ✅ JavDb"))
         return tips
 
-    # 检查 fc2ppvdb cookie
+    # 检查 fc2cmadb Cookie
     def pushButton_check_fc2ppvdb_cookie_clicked(self):
         input_cookie = self.Ui.plainTextEdit_cookie_fc2ppvdb.toPlainText().strip()
         if not input_cookie:
             self.set_fc2ppvdb_status.emit("❌ 未填写 Cookie")
-            self.show_log_text(" ❌ FC2PPVDB 未填写 Cookie，可在「设置」-「网络」添加！")
+            self.show_log_text(" ❌ FC2CMADB 未填写 Cookie，可在「设置」-「网络」添加！")
             return
         self.set_fc2ppvdb_status.emit("⏳ 正在检测中...")
         try:
@@ -3379,16 +3355,16 @@ class MyMAinWindow(QMainWindow):
             self.set_fc2ppvdb_status.emit(tips)
             return tips
 
-        if "fc2ppvdb_session" not in input_cookie:
-            tips = "❌ Cookie 无效！缺少 fc2ppvdb_session"
+        if not has_fc2cmadb_session(input_cookie):
+            tips = "❌ Cookie 无效！缺少 fc2cmadb-session"
         else:
             cookies = cookie_str_to_dict(input_cookie)
             with manager.acquire_computed() as computed:
                 response, error = executor.run(
-                    fetch_article_info_with_warmup(
+                    fetch_article_info(
                         computed.async_client,
                         base_url="https://fc2cmadb.com",
-                        number="3259498",
+                        number="2701833",
                         cookies=cookies,
                         use_proxy=manager.config.use_proxy,
                     )
@@ -3404,7 +3380,7 @@ class MyMAinWindow(QMainWindow):
                 tips = "✅ 连接正常！"
 
         self.set_fc2ppvdb_status.emit(tips)
-        self.show_log_text(tips.replace("❌", " ❌ FC2PPVDB").replace("✅", " ✅ FC2PPVDB"))
+        self.show_log_text(tips.replace("❌", " ❌ FC2CMADB").replace("✅", " ✅ FC2CMADB"))
         return tips
 
     # javbus cookie

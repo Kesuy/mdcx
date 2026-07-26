@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+import html
+import json
 from http.cookies import SimpleCookie
 from typing import Any, override
+
+from bs4 import BeautifulSoup
 
 from ..config.manager import manager
 from ..config.models import Website
@@ -41,10 +45,12 @@ def get_video_type(data):  # 获取视频类型
     censored = data.get("article", {}).get("censored")
     if censored == "無":
         return "無碼"
-    elif censored == "有":
+    if censored == "有":
         return "有碼"
-    else:
-        return ""
+    tag_names = set(get_tags(data))
+    if "無修正" in tag_names:
+        return "無碼"
+    return ""
 
 
 def get_video_url(data):  # 获取视频URL
@@ -83,35 +89,29 @@ def cookie_str_to_dict(cookie_str: str) -> dict:  # cookie 转为字典
     return {key: morsel.value for key, morsel in cookie.items()}
 
 
+def has_fc2cmadb_session(cookie_str: str) -> bool:
+    return bool(cookie_str_to_dict(cookie_str).get("fc2cmadb-session"))
+
+
 def normalize_fc2_number(number: str) -> str:
     return number.upper().replace("FC2PPV", "").replace("FC2-PPV-", "").replace("FC2-", "").replace("-", "").strip()
 
 
-def get_xhr_headers(article_url: str) -> dict[str, str]:
-    return {
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Referer": article_url,
-        "X-Requested-With": "XMLHttpRequest",
-    }
+def parse_article_page(page_html: str) -> dict[str, Any]:
+    soup = BeautifulSoup(page_html, "html.parser")
+    page_script = soup.select_one('script[type="application/json"][data-page]')
+    if page_script is None:
+        raise ValueError("详情页缺少 Inertia 页面数据")
 
+    raw_page = page_script.string or page_script.get_text()
+    page_data = json.loads(html.unescape(raw_page))
+    if page_data.get("component") != "Articles/Show":
+        raise ValueError(f"详情页组件异常: {page_data.get('component') or '未知'}")
 
-def describe_xhr_json_error(response, error: Exception) -> str:
-    content_type = str(response.headers.get("content-type", "")).strip() or "未知"
-    text = str(getattr(response, "text", "") or "")
-    text_preview = " ".join(text.strip().split())[:120]
-    if not text.strip():
-        reason = "接口返回空内容"
-    elif "ログイン" in text or "login" in text.lower():
-        reason = "接口返回登录页，fc2cmadb Cookie 可能无效或已过期"
-    elif "text/html" in content_type.lower() or text.lstrip().startswith("<!DOCTYPE html"):
-        reason = "接口返回 HTML 页面而不是 JSON"
-    else:
-        reason = "接口返回内容不是有效 JSON"
-
-    detail = f"{reason}，status={response.status_code}，content-type={content_type}"
-    if text_preview:
-        detail = f"{detail}，响应摘要={text_preview}"
-    return f"{detail}；JSON解析失败: {error}"
+    article = page_data.get("props", {}).get("article")
+    if not isinstance(article, dict):
+        raise ValueError("详情页未返回影片数据")
+    return {"article": article}
 
 
 def get_response_final_url(response) -> str:
@@ -128,55 +128,27 @@ async def fetch_article_info(
     use_proxy: bool,
 ) -> tuple[dict[str, Any] | None, str]:
     article_url = f"{base_url}/articles/{number}"
-    xhr_url = f"{base_url}/articles/article-info?videoid={number}"
     response, error = await async_client.request(
-        "GET",
-        xhr_url,
-        headers=get_xhr_headers(article_url),
-        cookies=cookies,
-        use_proxy=use_proxy,
-    )
-    if response is None:
-        return None, error
-    try:
-        data = response.json()
-    except Exception as e:
-        return None, describe_xhr_json_error(response, e)
-    if not isinstance(data, dict):
-        return None, f"接口返回 JSON 结构异常: {type(data).__name__}"
-    return data, ""
-
-
-async def fetch_article_info_with_warmup(
-    async_client,
-    *,
-    base_url: str,
-    number: str,
-    cookies: dict[str, str],
-    use_proxy: bool,
-) -> tuple[dict[str, Any] | None, str]:
-    article_url = f"{base_url}/articles/{number}"
-    response_article, error = await async_client.request(
         "GET",
         article_url,
         cookies=cookies,
         use_proxy=use_proxy,
     )
-    if response_article is None:
+    if response is None:
         return None, f"详情页请求失败: {error}"
-    if response_article.status_code != 200:
-        return None, f"详情页请求失败: HTTP {response_article.status_code}"
-    final_url = get_response_final_url(response_article)
+    if response.status_code != 200:
+        return None, f"详情页请求失败: HTTP {response.status_code}"
+    final_url = get_response_final_url(response)
     if "/login" in final_url:
         return None, f"详情页跳转到登录页，fc2cmadb Cookie 未生效: {final_url}"
 
-    return await fetch_article_info(
-        async_client,
-        base_url=base_url,
-        number=number,
-        cookies=cookies,
-        use_proxy=use_proxy,
-    )
+    page_html = str(getattr(response, "text", "") or "")
+    try:
+        return parse_article_page(page_html), ""
+    except Exception as e:
+        if "ログイン" in page_html or "login" in page_html.lower():
+            return None, f"详情页返回登录页面，fc2cmadb Cookie 可能无效或已过期: {e}"
+        return None, f"详情页数据解析失败: {e}"
 
 
 class Fc2ppvdbCrawler(BaseCrawler):
@@ -194,14 +166,12 @@ class Fc2ppvdbCrawler(BaseCrawler):
     async def _run(self, ctx: Context):
         number = normalize_fc2_number(ctx.input.number)
         article_url = f"{self.base_url}/articles/{number}"
-        xhr_url = f"{self.base_url}/articles/article-info?videoid={number}"
         ctx.debug(f"番号地址: {article_url}")
         ctx.debug_info.detail_urls = [article_url]
 
         cookies = cookie_str_to_dict(manager.config.fc2ppvdb)
         use_proxy = manager.config.use_proxy
-        ctx.debug(f"XHR 地址: {xhr_url}")
-        html_info, error = await fetch_article_info_with_warmup(
+        html_info, error = await fetch_article_info(
             self.async_client,
             base_url=self.base_url,
             number=number,
@@ -209,7 +179,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
             use_proxy=use_proxy,
         )
         if html_info is None:
-            raise CralwerException(f"XHR 请求失败: {error}")
+            raise CralwerException(error)
 
         title = get_title(html_info)
         if not title:
@@ -246,7 +216,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
             extrafanart=[],
             trailer=get_video_url(html_info),
             image_download=False,
-            mosaic="无码" if video_type == "無碼" else "有码",
+            mosaic="无码" if video_type == "無碼" else "有码" if video_type == "有碼" else "",
             external_id=article_url,
             wanted="",
         )
