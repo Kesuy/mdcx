@@ -105,13 +105,47 @@ def parse_article_page(page_html: str) -> dict[str, Any]:
 
     raw_page = page_script.string or page_script.get_text()
     page_data = json.loads(html.unescape(raw_page))
+    if not isinstance(page_data, dict):
+        raise ValueError("详情页 Inertia 页面数据格式异常")
     if page_data.get("component") != "Articles/Show":
         raise ValueError(f"详情页组件异常: {page_data.get('component') or '未知'}")
 
-    article = page_data.get("props", {}).get("article")
+    props = page_data.get("props")
+    if not isinstance(props, dict):
+        raise ValueError("详情页 props 数据格式异常")
+    article = props.get("article")
     if not isinstance(article, dict):
         raise ValueError("详情页未返回影片数据")
-    return {"article": article}
+    deferred_props = page_data.get("deferredProps")
+    if deferred_props is None:
+        deferred_props = {}
+    if not isinstance(deferred_props, dict):
+        raise ValueError("详情页 deferredProps 数据格式异常")
+    deferred_names = {
+        name for names in deferred_props.values() if isinstance(names, list) for name in names if isinstance(name, str)
+    }
+    version = page_data.get("version")
+    return {
+        "article": article,
+        "deferred_props": deferred_names,
+        "inertia_version": version if isinstance(version, str) else "",
+    }
+
+
+def parse_deferred_actresses(response_text: str) -> list[dict[str, Any]]:
+    page_data = json.loads(response_text)
+    if not isinstance(page_data, dict):
+        raise ValueError("演员 Inertia 数据格式异常")
+    if page_data.get("component") != "Articles/Show":
+        raise ValueError(f"详情页组件异常: {page_data.get('component') or '未知'}")
+
+    props = page_data.get("props")
+    if not isinstance(props, dict):
+        raise ValueError("演员 props 数据格式异常")
+    actresses = props.get("actresses")
+    if not isinstance(actresses, list):
+        raise ValueError("详情页未返回延迟加载的演员数据")
+    return [actress for actress in actresses if isinstance(actress, dict)]
 
 
 def get_response_final_url(response) -> str:
@@ -144,11 +178,50 @@ async def fetch_article_info(
 
     page_html = str(getattr(response, "text", "") or "")
     try:
-        return parse_article_page(page_html), ""
+        article_info = parse_article_page(page_html)
     except Exception as e:
         if "ログイン" in page_html or "login" in page_html.lower():
             return None, f"详情页返回登录页面，fc2cmadb Cookie 可能无效或已过期: {e}"
         return None, f"详情页数据解析失败: {e}"
+
+    if "actresses" not in article_info["deferred_props"]:
+        return article_info, ""
+
+    deferred_headers = {
+        "Accept": "text/html, application/xhtml+xml",
+        "X-Inertia": "true",
+        "X-Inertia-Partial-Component": "Articles/Show",
+        "X-Inertia-Partial-Data": "actresses",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+    if article_info["inertia_version"]:
+        deferred_headers["X-Inertia-Version"] = article_info["inertia_version"]
+
+    deferred_response, error = await async_client.request(
+        "GET",
+        article_url,
+        headers=deferred_headers,
+        cookies=cookies,
+        use_proxy=use_proxy,
+    )
+    if deferred_response is None:
+        return None, f"演员数据请求失败: {error}"
+    if deferred_response.status_code != 200:
+        return None, f"演员数据请求失败: HTTP {deferred_response.status_code}"
+    final_url = get_response_final_url(deferred_response)
+    if "/login" in final_url:
+        return None, f"演员数据请求跳转到登录页，fc2cmadb Cookie 未生效: {final_url}"
+
+    deferred_text = str(getattr(deferred_response, "text", "") or "")
+    try:
+        actresses = parse_deferred_actresses(deferred_text)
+    except Exception as e:
+        if "ログイン" in deferred_text or "login" in deferred_text.lower():
+            return None, f"演员数据返回登录页面，fc2cmadb Cookie 可能无效或已过期: {e}"
+        return None, f"演员数据解析失败: {e}"
+
+    article_info["article"]["actresses"] = actresses
+    return article_info, ""
 
 
 class Fc2ppvdbCrawler(BaseCrawler):
