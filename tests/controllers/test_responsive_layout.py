@@ -5,6 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QPushButton, QStackedWidget, QTreeWidget, QWidget
 
+from mdcx.controllers.main_window.init import setup_local_nfo_button
 from mdcx.controllers.main_window.responsive_layout import (
     BASE_WINDOW_HEIGHT,
     BASE_WINDOW_WIDTH,
@@ -43,6 +44,21 @@ def test_layout_metrics_give_extra_space_to_result_panel():
     assert metrics.result_height == 733
     assert metrics.viewport_width == 1101
     assert metrics.viewport_height == 892
+
+
+def test_load_nfo_button_is_adjacent_to_edit_nfo_button():
+    page_main = QWidget()
+    edit_nfo_button = QPushButton(page_main)
+    edit_nfo_button.setGeometry(427, 110, 40, 40)
+    window = SimpleNamespace(
+        Ui=SimpleNamespace(page_main=page_main, pushButton_open_nfo=edit_nfo_button),
+        main_load_nfo_click=lambda: None,
+    )
+
+    setup_local_nfo_button(window)
+
+    load_nfo_button = window.Ui.pushButton_load_nfo
+    assert load_nfo_button.geometry().right() + 1 == edit_nfo_button.geometry().left()
 
 
 def _window_harness() -> QMainWindow:

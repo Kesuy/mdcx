@@ -28,6 +28,7 @@ from .network_fingerprint import (
     BrowserFingerprint,
     RequestPurpose,
     build_fingerprint_headers,
+    get_browser_fingerprint,
     infer_request_purpose,
     merge_headers,
     select_fingerprint,
@@ -1453,6 +1454,7 @@ class AsyncWebClient:
         allow_redirects: bool = True,
         enable_cf_bypass: bool = True,
         retry_count: int | None = None,
+        fingerprint_id: str = "",
     ) -> tuple[Response | None, str]:
         """
         执行请求的通用方法
@@ -1501,17 +1503,20 @@ class AsyncWebClient:
                 should_sleep_before_retry = True
                 sleep_after_cf_bypass = False
                 resp: Response | None = None
-                fingerprint = (
-                    self._get_fingerprint_for_request(
-                        url,
-                        request_proxy,
-                        host,
-                        purpose,
-                        allow_lifetime_rotation=allow_lifetime_rotation,
+                if apply_fingerprint and host:
+                    fingerprint = (
+                        get_browser_fingerprint(fingerprint_id)
+                        if fingerprint_id
+                        else self._get_fingerprint_for_request(
+                            url,
+                            request_proxy,
+                            host,
+                            purpose,
+                            allow_lifetime_rotation=allow_lifetime_rotation,
+                        )
                     )
-                    if apply_fingerprint and host
-                    else None
-                )
+                else:
+                    fingerprint = None
                 prepared_headers = self._prepare_headers(
                     url,
                     dict(headers or {}),

@@ -159,6 +159,7 @@ _DEFAULT_FINGERPRINTS = (
     _FIREFOX_135_WIN,
     _FIREFOX_133_WIN,
 )
+_FINGERPRINTS_BY_ID = {fingerprint.fingerprint_id: fingerprint for fingerprint in _DEFAULT_FINGERPRINTS}
 _AMAZON_FINGERPRINTS = _DEFAULT_FINGERPRINTS
 
 _ASSET_EXTENSIONS = (
@@ -194,6 +195,14 @@ def select_fingerprint(
     if purpose == "api":
         return _choose_fingerprint((_CHROME_136_WIN, _CHROME_131_WIN), exclude_fingerprint_id=exclude_fingerprint_id)
     return _choose_fingerprint(_DEFAULT_FINGERPRINTS, exclude_fingerprint_id=exclude_fingerprint_id)
+
+
+def get_browser_fingerprint(fingerprint_id: str) -> BrowserFingerprint:
+    """按稳定 ID 获取指定浏览器画像，供必须匹配浏览器绑定 Cookie 的请求使用。"""
+    try:
+        return _FINGERPRINTS_BY_ID[fingerprint_id]
+    except KeyError as e:
+        raise ValueError(f"未知浏览器画像: {fingerprint_id}") from e
 
 
 def select_amazon_fingerprint(*, exclude_fingerprint_id: str = "") -> BrowserFingerprint:

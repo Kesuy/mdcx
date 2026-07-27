@@ -10,6 +10,10 @@ from ..config.manager import manager
 from ..config.models import Website
 from .base import BaseCrawler, Context, CralwerException, CrawlerData
 
+# This known article returns 404 anonymously and Articles/Show for an authenticated session.
+FC2CMADB_AUTH_PROBE_NUMBER = "1817847"
+FC2CMADB_FINGERPRINT_ID = "chrome136_win"
+
 
 def get_title(data):  # 获取标题
     return data.get("article", {}).get("title", "")
@@ -93,6 +97,26 @@ def has_fc2cmadb_session(cookie_str: str) -> bool:
     return bool(cookie_str_to_dict(cookie_str).get("fc2cmadb-session"))
 
 
+async def validate_fc2cmadb_cookie(async_client, cookie_str: str, *, use_proxy: bool) -> tuple[bool, str]:
+    if not has_fc2cmadb_session(cookie_str):
+        return False, "Cookie 无效或已过期：缺少 fc2cmadb-session"
+
+    article_info, error = await fetch_article_info(
+        async_client,
+        base_url="https://fc2cmadb.com",
+        number=FC2CMADB_AUTH_PROBE_NUMBER,
+        cookies=cookie_str_to_dict(cookie_str),
+        use_proxy=use_proxy,
+    )
+    if article_info is None:
+        if any(marker in error for marker in ("HTTP 401", "HTTP 404", "登录页", "登录页面")):
+            return False, f"Cookie 无效或已过期：登录后影片访问失败（{error}）"
+        return False, f"暂时无法验证登录状态：{error}"
+    if not article_info.get("article"):
+        return False, "Cookie 无效或已过期：登录后影片数据异常"
+    return True, ""
+
+
 def normalize_fc2_number(number: str) -> str:
     return number.upper().replace("FC2PPV", "").replace("FC2-PPV-", "").replace("FC2-", "").replace("-", "").strip()
 
@@ -167,6 +191,7 @@ async def fetch_article_info(
         article_url,
         cookies=cookies,
         use_proxy=use_proxy,
+        fingerprint_id=FC2CMADB_FINGERPRINT_ID,
     )
     if response is None:
         return None, f"详情页请求失败: {error}"
@@ -203,6 +228,7 @@ async def fetch_article_info(
         headers=deferred_headers,
         cookies=cookies,
         use_proxy=use_proxy,
+        fingerprint_id=FC2CMADB_FINGERPRINT_ID,
     )
     if deferred_response is None:
         return None, f"演员数据请求失败: {error}"

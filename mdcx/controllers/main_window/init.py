@@ -165,7 +165,7 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
 def setup_local_nfo_button(self: "MyMAinWindow") -> None:
     button = QPushButton(self.Ui.page_main)
     button.setObjectName("pushButton_load_nfo")
-    button.setGeometry(347, 110, 40, 40)
+    button.setGeometry(387, 110, 40, 40)
     button.setMouseTracking(True)
     button.setIcon(QIcon(resources.load_nfo_icon))
     button.setIconSize(self.Ui.pushButton_open_nfo.iconSize())

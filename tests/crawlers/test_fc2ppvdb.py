@@ -6,11 +6,13 @@ import pytest
 from mdcx.config.enums import Language
 from mdcx.config.manager import manager
 from mdcx.crawlers.fc2ppvdb import (
+    FC2CMADB_AUTH_PROBE_NUMBER,
     Fc2ppvdbCrawler,
     cookie_str_to_dict,
     fetch_article_info,
     has_fc2cmadb_session,
     parse_article_page,
+    validate_fc2cmadb_cookie,
 )
 from mdcx.models.types import CrawlerInput
 
@@ -137,6 +139,69 @@ def test_fc2cmadb_cookie_parser_accepts_cookie_without_spaces():
 def test_fc2cmadb_session_check_rejects_legacy_cookie_name():
     assert has_fc2cmadb_session("fc2cmadb-session=abc; ageVerified=true") is True
     assert has_fc2cmadb_session("fc2ppvdb_session=abc") is False
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_cookie_validation_uses_login_only_article():
+    class AuthenticatedClient:
+        def __init__(self):
+            self.urls = []
+
+        async def request(self, method, url, **kwargs):
+            self.urls.append(url)
+            assert kwargs["fingerprint_id"] == "chrome136_win"
+
+            class Response:
+                status_code = 200
+                headers = {"content-type": "text/html; charset=utf-8"}
+                text = make_article_page(deferred=False)
+
+            return Response(), ""
+
+    client = AuthenticatedClient()
+
+    valid, error = await validate_fc2cmadb_cookie(
+        client,
+        "fc2cmadb-session=session-token; ageVerified=true",
+        use_proxy=False,
+    )
+
+    assert valid is True
+    assert error == ""
+    assert client.urls == [f"https://fc2cmadb.com/articles/{FC2CMADB_AUTH_PROBE_NUMBER}"]
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_cookie_validation_rejects_expired_session_returning_404():
+    class ExpiredClient:
+        async def request(self, method, url, **kwargs):
+            return None, f"GET {url} 失败: HTTP 404"
+
+    valid, error = await validate_fc2cmadb_cookie(
+        ExpiredClient(),
+        "fc2cmadb-session=expired-token",
+        use_proxy=False,
+    )
+
+    assert valid is False
+    assert "Cookie 无效或已过期" in error
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_cookie_validation_does_not_report_cloudflare_failure_as_expired():
+    class CloudflareBlockedClient:
+        async def request(self, method, url, **kwargs):
+            return None, f"GET {url} 失败: HTTP 403"
+
+    valid, error = await validate_fc2cmadb_cookie(
+        CloudflareBlockedClient(),
+        "fc2cmadb-session=session-token",
+        use_proxy=False,
+    )
+
+    assert valid is False
+    assert error.startswith("暂时无法验证登录状态")
+    assert "无效或已过期" not in error
 
 
 def test_parse_article_page_reads_inertia_page_data():

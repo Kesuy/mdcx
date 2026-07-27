@@ -52,17 +52,17 @@ def git_ref_exists(ref: str) -> bool:
     return result.returncode == 0
 
 
-def git_is_ancestor(ancestor: str, descendant: str) -> bool:
-    """检查 ancestor 是否为 descendant 的祖先提交。"""
+def get_previous_first_parent_tag(head_tag: str, pattern: str) -> str:
+    """获取当前发布 tag 在主线 first-parent 上的上一发布 tag。"""
     result = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        ["git", "describe", "--tags", "--abbrev=0", "--first-parent", "--match", pattern, f"{head_tag}^"],
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         check=False,
     )
-    return result.returncode == 0
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def get_latest_tag(pattern: str) -> str | None:
@@ -91,26 +91,11 @@ def get_commit_log_for_head_tag(head_tag: str, pattern: str) -> str:
             command = ["git", "log", "--pretty=format:%h %s", "HEAD"]
         return run_git_command(command)
 
-    if head_tag not in tags:
-        if git_ref_exists(head_tag):
-            for tag in tags:
-                if git_is_ancestor(tag, head_tag):
-                    command = ["git", "log", "--pretty=format:%h %s", f"{tag}..{head_tag}"]
-                    return run_git_command(command)
-            command = ["git", "log", "--pretty=format:%h %s", head_tag]
-            return run_git_command(command)
-
+    if not git_ref_exists(head_tag):
         console.print(f"[yellow]tag '{head_tag}' 不存在，回退为基于 HEAD 生成。[/yellow]")
         return get_commit_log(tags[0])
 
-    previous_tag = ""
-    for tag in tags:
-        if tag == head_tag:
-            continue
-        if git_is_ancestor(tag, head_tag):
-            previous_tag = tag
-            break
-
+    previous_tag = get_previous_first_parent_tag(head_tag, pattern)
     if previous_tag:
         command = ["git", "log", "--pretty=format:%h %s", f"{previous_tag}..{head_tag}"]
         return run_git_command(command)
@@ -127,18 +112,11 @@ def get_commit_log(from_tag: str) -> str:
 
 def generate_changelog(commit_log: str, output_file: Path) -> None:
     """生成changelog内容并写入文件"""
-    changelog_content = f"""## 新增
-*
-
-## 修复
-*
-
-<details>
-<summary>Full Changelog</summary>
-
-{commit_log}
-
-</details>"""
+    commit_lines = [line.strip() for line in commit_log.splitlines() if line.strip()]
+    if not commit_lines:
+        console.print("[red]本次发布没有可写入的提交记录。[/red]")
+        raise typer.Exit(1)
+    changelog_content = "## 本次改动\n" + "".join(f"- {line}\n" for line in commit_lines)
 
     try:
         output_file.write_text(changelog_content, encoding="utf-8")
@@ -194,11 +172,11 @@ def main(
     if verbose and commit_log:
         console.print("\n[cyan]提交记录预览:[/cyan]")
         # 显示前5条记录作为预览
-        preview_lines = commit_log.split("\n")[:5]
-        for line in preview_lines:
+        commit_lines = commit_log.splitlines()
+        for line in commit_lines[:5]:
             console.print(f"  {line}")
-        if len(commit_log.split("\n")) > 5:
-            console.print(f"  ... 还有 {len(commit_log.split('\n')) - 5} 条记录")
+        if len(commit_lines) > 5:
+            console.print(f"  ... 还有 {len(commit_lines) - 5} 条记录")
         console.print()
 
     # 生成changelog

@@ -38,6 +38,33 @@ async def test_request_merges_fingerprint_and_keeps_explicit_accept(monkeypatch:
 
 
 @pytest.mark.asyncio
+async def test_request_can_pin_fingerprint_for_browser_bound_cookie(monkeypatch: pytest.MonkeyPatch):
+    client = AsyncWebClient(timeout=1)
+    captured: dict[str, object] = {}
+
+    async def fake_curl_request(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(status_code=200, headers={}, content=b"", url=kwargs["url"])
+
+    monkeypatch.setattr(client, "_curl_request", fake_curl_request)
+    monkeypatch.setattr(client.limiters, "get", lambda key: SimpleNamespace(acquire=lambda: asyncio.sleep(0)))
+
+    response, error = await client.request(
+        "GET",
+        "https://example.test/authenticated",
+        fingerprint_id="chrome136_win",
+    )
+
+    assert response is not None
+    assert error == ""
+    fingerprint = captured["fingerprint"]
+    assert isinstance(fingerprint, BrowserFingerprint)
+    assert fingerprint.fingerprint_id == "chrome136_win"
+    assert captured["headers"]["User-Agent"].endswith("Chrome/136.0.0.0 Safari/537.36")
+    await client.close()
+
+
+@pytest.mark.asyncio
 async def test_range_download_keeps_range_and_skips_document_headers(monkeypatch: pytest.MonkeyPatch):
     client = AsyncWebClient(timeout=1)
     captured: dict[str, object] = {}

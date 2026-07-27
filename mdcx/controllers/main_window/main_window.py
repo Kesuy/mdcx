@@ -60,7 +60,7 @@ from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 from mdcx.core.network_check import run_network_check
 from mdcx.core.nfo import write_nfo
 from mdcx.core.scraper import again_search, get_remain_list, start_new_scrape
-from mdcx.crawlers.fc2ppvdb import cookie_str_to_dict, fetch_article_info, has_fc2cmadb_session
+from mdcx.crawlers.fc2ppvdb import validate_fc2cmadb_cookie
 from mdcx.image import PreviewImageLoader
 from mdcx.models.enums import FileMode
 from mdcx.models.flags import Flags
@@ -368,7 +368,9 @@ class MyMAinWindow(QMainWindow):
             "                                border-radius: 1px;\n"
             '                                font: "Courier";'
         )
-        self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlaceholderText("FC2 独立刮削请填写 fc2cmadb Cookie")
+        self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlaceholderText(
+            "登录 fc2cmadb 后，从浏览器开发者工具的 Request Headers 复制完整 Cookie（不要填写账号密码）"
+        )
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setObjectName("plainTextEdit_cookie_fc2ppvdb")
         self.Ui.gridLayout_10.addWidget(self.Ui.plainTextEdit_cookie_fc2ppvdb, 4, 1, 1, 1)
 
@@ -381,6 +383,7 @@ class MyMAinWindow(QMainWindow):
         sizePolicy.setHeightForWidth(self.Ui.pushButton_check_fc2ppvdb_cookie.sizePolicy().hasHeightForWidth())
         self.Ui.pushButton_check_fc2ppvdb_cookie.setSizePolicy(sizePolicy)
         self.Ui.pushButton_check_fc2ppvdb_cookie.setText("检查cookie")
+        self.Ui.pushButton_check_fc2ppvdb_cookie.setToolTip("验证登录后才能访问的影片，过期 Cookie 不会保存")
         self.Ui.pushButton_check_fc2ppvdb_cookie.setObjectName("pushButton_check_fc2ppvdb_cookie")
         self.Ui.horizontalLayout_fc2ppvdb_cookie.addWidget(self.Ui.pushButton_check_fc2ppvdb_cookie)
 
@@ -3355,29 +3358,21 @@ class MyMAinWindow(QMainWindow):
             self.set_fc2ppvdb_status.emit(tips)
             return tips
 
-        if not has_fc2cmadb_session(input_cookie):
-            tips = "❌ Cookie 无效！缺少 fc2cmadb-session"
-        else:
-            cookies = cookie_str_to_dict(input_cookie)
-            with manager.acquire_computed() as computed:
-                response, error = executor.run(
-                    fetch_article_info(
-                        computed.async_client,
-                        base_url="https://fc2cmadb.com",
-                        number="2701833",
-                        cookies=cookies,
-                        use_proxy=manager.config.use_proxy,
-                    )
+        with manager.acquire_computed() as computed:
+            valid, error = executor.run(
+                validate_fc2cmadb_cookie(
+                    computed.async_client,
+                    input_cookie,
+                    use_proxy=manager.config.use_proxy,
                 )
-            if response is None:
-                tips = f"❌ Cookie 检查失败：{error}"
-            elif not response.get("article"):
-                tips = "❌ Cookie 检查失败：返回数据异常"
-            elif manager.config.fc2ppvdb != input_cookie:
-                self.exec_save_config.emit()
-                tips = "✅ 连接正常，Cookie 已保存！"
-            else:
-                tips = "✅ 连接正常！"
+            )
+        if not valid:
+            tips = f"❌ Cookie 检查失败：{error}"
+        elif manager.config.fc2ppvdb != input_cookie:
+            self.exec_save_config.emit()
+            tips = "✅ 登录状态有效，Cookie 已保存！"
+        else:
+            tips = "✅ 登录状态有效！"
 
         self.set_fc2ppvdb_status.emit(tips)
         self.show_log_text(tips.replace("❌", " ❌ FC2CMADB").replace("✅", " ✅ FC2CMADB"))
