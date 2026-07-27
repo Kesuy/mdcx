@@ -99,12 +99,18 @@ async def move_other_file(number: str, folder_old_path: Path, folder_new_path: P
         return
 
     files = await aiofiles.os.listdir(folder_old_path)
+    number_folded = number.casefold()
+    file_name_folded = file_name.casefold()
+    naming_rule_folded = naming_rule.casefold()
     for old_file in files:
         if os.path.splitext(old_file)[1].lower() in manager.config.media_type:
             continue
+        old_file_folded = old_file.casefold()
         if (
-            number in old_file or file_name in old_file or naming_rule in old_file
-        ) and "-cd" not in old_file.lower():  # 避免多分集时，其他分级的内容被移走
+            number_folded in old_file_folded
+            or file_name_folded in old_file_folded
+            or naming_rule_folded in old_file_folded
+        ) and "-cd" not in old_file_folded:  # 避免多分集时，其他分级的内容被移走
             old_file_old_path = folder_old_path / old_file
             old_file_new_path = folder_new_path / old_file
             if (

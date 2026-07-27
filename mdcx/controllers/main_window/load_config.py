@@ -556,6 +556,7 @@ def load_config(self: "MyMAinWindow"):
         # endregion
 
         # region file_download
+        self.Ui.checkBox_use_local_number_images.setChecked(manager.config.use_local_number_images)
         # 下载文件
         set_checkboxes(
             manager.config.download_files,

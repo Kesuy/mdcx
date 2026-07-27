@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,17 @@ def configure_stdio_utf8() -> None:
 configure_stdio_utf8()
 console = Console(legacy_windows=False)
 app = typer.Typer(help="生成 changelog", context_settings={"help_option_names": ["-h", "--help"]})
+
+RELEASE_CATEGORIES = ("新功能", "优化", "修复")
+COMMIT_TYPE_CATEGORIES = {
+    "feat": "新功能",
+    "perf": "优化",
+    "refactor": "优化",
+    "fix": "修复",
+}
+LEGACY_SUBJECT_TRANSLATIONS = {
+    "refresh fc2cmadb sessions and images": "修复 FC2CMADB 会话续期、演员数据与图片下载处理",
+}
 
 
 def run_git_command(command: list[str]) -> str:
@@ -110,13 +122,68 @@ def get_commit_log(from_tag: str) -> str:
     return run_git_command(command)
 
 
-def generate_changelog(commit_log: str, output_file: Path) -> None:
+def _format_release_sections(sections: dict[str, list[str]]) -> str:
+    rendered = []
+    for category in RELEASE_CATEGORIES:
+        notes = sections[category]
+        if notes:
+            rendered.append(f"## {category}\n" + "".join(f"- {note}\n" for note in notes))
+    return "\n".join(rendered)
+
+
+def _notes_from_commit_log(commit_lines: list[str]) -> dict[str, list[str]]:
+    sections = {category: [] for category in RELEASE_CATEGORIES}
+    pattern = re.compile(r"^\S+\s+(feat|perf|refactor|fix)(?:\([^)]*\))?!?:\s*(.+)$", re.IGNORECASE)
+    for line in commit_lines:
+        match = pattern.match(line)
+        if not match:
+            continue
+        commit_type, subject = match.groups()
+        subject = LEGACY_SUBJECT_TRANSLATIONS.get(subject.casefold(), subject)
+        if not re.search(r"[\u3400-\u9fff]", subject):
+            console.print(f"[red]发布说明不是中文，请维护 changelog.md 或改用中文提交信息: {subject}[/red]")
+            raise typer.Exit(1)
+        sections[COMMIT_TYPE_CATEGORIES[commit_type.casefold()]].append(subject)
+    return sections
+
+
+def _notes_from_curated_content(content: str) -> dict[str, list[str]]:
+    sections = {category: [] for category in RELEASE_CATEGORIES}
+    current_category = ""
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("## "):
+            current_category = line[3:].strip()
+            if current_category not in sections:
+                console.print(f"[red]不支持的 changelog 分类: {current_category}[/red]")
+                raise typer.Exit(1)
+            continue
+        if line.startswith("- ") and current_category:
+            note = line[2:].strip()
+            if not re.search(r"[\u3400-\u9fff]", note):
+                console.print(f"[red]发布说明不是中文: {note}[/red]")
+                raise typer.Exit(1)
+            sections[current_category].append(note)
+    return sections
+
+
+def generate_changelog(commit_log: str, output_file: Path, *, curated_content: str | None = None) -> None:
     """生成changelog内容并写入文件"""
     commit_lines = [line.strip() for line in commit_log.splitlines() if line.strip()]
     if not commit_lines:
         console.print("[red]本次发布没有可写入的提交记录。[/red]")
         raise typer.Exit(1)
-    changelog_content = "## 本次改动\n" + "".join(f"- {line}\n" for line in commit_lines)
+    sections = (
+        _notes_from_curated_content(curated_content)
+        if curated_content is not None
+        else _notes_from_commit_log(commit_lines)
+    )
+    changelog_content = _format_release_sections(sections)
+    if not changelog_content:
+        console.print("[red]本次发布没有“新功能 / 优化 / 修复”分类的中文说明。[/red]")
+        raise typer.Exit(1)
 
     try:
         output_file.write_text(changelog_content, encoding="utf-8")
@@ -132,6 +199,7 @@ def main(
     output: Annotated[str, typer.Option("--output", "-o", help="输出文件路径")] = "changelog.md",
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="显示详细信息")] = False,
     tag: Annotated[str, typer.Option("--tag", help="当前发布 tag（用于 release 工作流）")] = "",
+    curated: Annotated[str, typer.Option("--curated", help="人工维护的中文分类 changelog 路径")] = "",
 ) -> None:
     """
     生成changelog文件
@@ -181,7 +249,14 @@ def main(
 
     # 生成changelog
     console.print(f"[yellow]正在生成changelog到 {output_path}...[/yellow]")
-    generate_changelog(commit_log, output_path)
+    curated_content = None
+    if curated:
+        curated_path = Path(curated)
+        if not curated_path.is_file():
+            console.print(f"[red]人工维护的 changelog 不存在: {curated_path}[/red]")
+            raise typer.Exit(1)
+        curated_content = curated_path.read_text(encoding="utf-8")
+    generate_changelog(commit_log, output_path, curated_content=curated_content)
 
     # 显示成功信息
     success_text = Text("Changelog生成完成!", style="bold green")

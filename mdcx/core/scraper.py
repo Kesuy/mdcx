@@ -39,7 +39,7 @@ from ..utils.file import copy_file_async, move_file_async
 from ..utils.path import is_any_descendant
 from .file import creat_folder, deal_old_files, get_file_info_v2, get_output_name, move_movie
 from .file_crawler import FileScraper, classify_existing_scrape_result, classify_scrape_task
-from .image import add_mark
+from .image import add_mark, prepare_local_number_images
 from .media_resource import MediaResourceContext
 from .nfo import get_nfo_data, write_nfo
 from .translate import translate_actor, translate_info, translate_title_outline
@@ -53,6 +53,7 @@ from .utils import (
     show_result,
 )
 from .web import (
+    _get_poster_copy_policy,
     extrafanart_download,
     fanart_download,
     poster_download,
@@ -68,6 +69,37 @@ class StopScrape(Exception): ...
 
 
 class UnexpectedScrapeCancellation(Exception): ...
+
+
+async def prepare_primary_images(
+    result: CrawlersResult,
+    other: OtherInfo,
+    cd_part: str,
+    folder_old_path: Path,
+    folder_new_path: Path,
+    poster_final_path: Path,
+    thumb_final_path: Path,
+    fanart_final_path: Path,
+    media_context: MediaResourceContext | None,
+) -> bool:
+    """优先处理同番号本地图片；未命中时才走网站图片流程。"""
+    local_found, local_success = await prepare_local_number_images(
+        result,
+        other,
+        folder_old_path,
+        folder_new_path,
+        poster_final_path,
+        thumb_final_path,
+        fanart_final_path,
+        copy_poster=_get_poster_copy_policy(result, manager.config.download_files),
+    )
+    if local_found:
+        return local_success
+
+    if not await thumb_download(result, other, cd_part, folder_new_path, thumb_final_path, media_context):
+        return False
+    await fanart_download(result.number, other, cd_part, fanart_final_path)
+    return await poster_download(result, other, cd_part, folder_new_path, poster_final_path, media_context)
 
 
 class Scraper:
@@ -818,18 +850,16 @@ class Scraper:
 
         # 如果 final_pic_path 没处理过，这时才需要下载和加水印
         if pic_final_catched and file_can_download:
-            # 下载thumb
-            if not await thumb_download(
-                res, other, file_info.cd_part, folder_new_path, thumb_final_path, media_context
-            ):
-                return None, None
-
-            # 下载艺术图
-            await fanart_download(res.number, other, file_info.cd_part, fanart_final_path)
-
-            # 下载poster
-            if not await poster_download(
-                res, other, file_info.cd_part, folder_new_path, poster_final_path, media_context
+            if not await prepare_primary_images(
+                res,
+                other,
+                file_info.cd_part,
+                folder_old_path,
+                folder_new_path,
+                poster_final_path,
+                thumb_final_path,
+                fanart_final_path,
+                media_context,
             ):
                 return None, None
 

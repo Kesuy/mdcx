@@ -289,6 +289,7 @@ class Config(BaseModel):
     success_file_rename: bool = Field(default=True, title="成功后重命名文件")
     del_empty_folder: bool = Field(default=True, title="删除空目录")
     show_poster: bool = Field(default=True, title="显示海报")
+    use_local_number_images: bool = Field(default=True, title="优先使用同番号本地图片")
     download_files: list[DownloadableFile] = Field(
         default_factory=lambda: [
             DownloadableFile.POSTER,

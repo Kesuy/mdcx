@@ -5,7 +5,7 @@ from mdcx.config.enums import DownloadableFile, FixedScrapingType, HDPicSource, 
 from mdcx.config.migrations import CURRENT_CONFIG_VERSION
 from mdcx.config.models import DEFAULT_FIELD_SITE_PRIORITY, Config
 from mdcx.config.resource_policy import resource_policy
-from mdcx.config.v1 import ConfigV1
+from mdcx.config.v1 import ConfigV1, load_v1
 from mdcx.controllers.main_window.site_priority_dialog import (
     FIELD_PRIORITY_FIELDS,
     _sync_field_sites_after_type_sites_changed,
@@ -108,6 +108,23 @@ def test_from_legacy():
     assert config.file_moword is True
     assert config.folder_hd is True
     assert config.file_hd is True
+
+
+def test_legacy_ini_local_number_image_switch_round_trips(tmp_path: Path):
+    ini_path = tmp_path / "legacy.ini"
+    ini_path.write_text("[file_download]\nuse_local_number_images = false\n", encoding="utf-8")
+
+    data, errors = load_v1(ini_path)
+    config = ConfigV1(**data).to_pydantic_model()
+
+    assert errors == []
+    assert config.use_local_number_images is False
+
+
+def test_legacy_ini_without_local_number_image_switch_keeps_compatible_default():
+    config = ConfigV1().to_pydantic_model()
+
+    assert config.use_local_number_images is True
 
 
 def test_config_update_removes_old_youma_poster_option_without_enabling_new_option():

@@ -2,6 +2,7 @@
 刮削过程所需图片操作
 """
 
+import asyncio
 import os
 import time
 import traceback
@@ -30,6 +31,98 @@ FACE_FALLBACK_CROP_TYPES = {
     FixedScrapingType.SUREN,
     FixedScrapingType.AUTO,
 }
+LOCAL_NUMBER_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def _save_local_image_as_jpeg(source_path: Path, target_path: Path) -> tuple[bool, str]:
+    temp_path = target_path.with_name(f"{target_path.name}.[LOCAL].jpg")
+    try:
+        with Image.open(source_path) as image:
+            image.convert("RGB").save(temp_path, format="JPEG", quality=95, subsampling=0)
+        os.replace(temp_path, target_path)
+        return True, ""
+    except Exception as exc:
+        delete_file_sync(temp_path)
+        return False, str(exc)
+
+
+async def prepare_local_number_images(
+    result: CrawlersResult,
+    other: OtherInfo,
+    folder_old_path: Path,
+    folder_new_path: Path,
+    poster_final_path: Path,
+    thumb_final_path: Path,
+    fanart_final_path: Path,
+    *,
+    copy_poster: bool,
+) -> tuple[bool, bool]:
+    """识别同番号原图，并严格用文件名排序后的第一张生成刮削图片。"""
+    if not manager.config.use_local_number_images or manager.config.soft_link != 0:
+        return False, True
+
+    try:
+        names = await asyncio.to_thread(os.listdir, folder_old_path)
+    except OSError:
+        return False, True
+
+    final_paths = {poster_final_path, thumb_final_path, fanart_final_path}
+    matched = sorted(
+        (
+            folder_old_path / name
+            for name in names
+            if result.number.casefold() in name.casefold()
+            and Path(name).suffix.lower() in LOCAL_NUMBER_IMAGE_EXTENSIONS
+            and folder_old_path / name not in final_paths
+        ),
+        key=lambda path: (path.name.casefold(), path.name),
+    )
+    if not matched:
+        return False, True
+
+    # 原图由刮削成功路径中的 move_other_file() 统一移动，避免后续步骤失败时提前移走用户文件。
+    source_image = matched[0]
+    if not await check_pic_async(source_image):
+        LogBuffer.log().write(f"\n 🔴 排序第一张同番号图片无法读取: {source_image.name}")
+        return True, False
+
+    download_files = manager.config.download_files
+    if DownloadableFile.THUMB in download_files:
+        copied, error = await asyncio.to_thread(_save_local_image_as_jpeg, source_image, thumb_final_path)
+        if not copied:
+            LogBuffer.log().write(f"\n 🔴 同番号图片生成 Thumb 失败: {error}")
+            return True, False
+        other.thumb_path = thumb_final_path
+        other.thumb_marked = False
+
+    if DownloadableFile.FANART in download_files:
+        copied, error = await asyncio.to_thread(_save_local_image_as_jpeg, source_image, fanart_final_path)
+        if not copied:
+            LogBuffer.log().write(f"\n 🔴 同番号图片生成 Fanart 失败: {error}")
+            return True, False
+        other.fanart_path = fanart_final_path
+        other.fanart_marked = False
+
+    if DownloadableFile.POSTER in download_files:
+        if copy_poster:
+            poster_created, error = await asyncio.to_thread(_save_local_image_as_jpeg, source_image, poster_final_path)
+            if not poster_created:
+                LogBuffer.log().write(f"\n 🔴 同番号图片生成 Poster 失败: {error}")
+        else:
+            poster_created = await asyncio.to_thread(
+                cut_thumb_to_poster,
+                result,
+                source_image,
+                poster_final_path,
+                result.scraping_type,
+            )
+        if not poster_created:
+            return True, False
+        other.poster_path = poster_final_path
+        other.poster_marked = False
+
+    LogBuffer.log().write(f"\n 🍀 已优先使用同番号本地图片: {source_image.name}")
+    return True, True
 
 
 async def add_mark(json_data: OtherInfo, file_info: FileInfo, mosaic: str):

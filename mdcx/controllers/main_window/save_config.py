@@ -377,6 +377,7 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region download
+    manager.config.use_local_number_images = self.Ui.checkBox_use_local_number_images.isChecked()
     manager.config.download_files = get_checkboxes(
         (self.Ui.checkBox_download_poster, DownloadableFile.POSTER),
         (self.Ui.checkBox_download_thumb, DownloadableFile.THUMB),

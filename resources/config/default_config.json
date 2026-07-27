@@ -125,6 +125,7 @@
   "success_file_rename": true,
   "del_empty_folder": false,
   "show_poster": true,
+  "use_local_number_images": true,
   "download_files": [
     "poster",
     "thumb",

@@ -7,15 +7,45 @@ import typer
 from scripts.changelog import generate_changelog, get_commit_log_for_head_tag
 
 
-def test_generate_changelog_contains_only_current_release_commits(tmp_path: Path):
+def test_generate_changelog_groups_chinese_release_notes_and_omits_empty_categories(tmp_path: Path):
     output = tmp_path / "changelog.md"
 
-    generate_changelog("abc1234 fix: current release bug\ndef5678 fix: current release UI", output)
+    generate_changelog(
+        "\n".join(
+            [
+                "abc1234 feat: 新增同番号本地图片整理",
+                "def5678 perf: 优化本地图片格式转换",
+                "61cd615 fix: refresh fc2cmadb sessions and images",
+                "987abcd docs: update readme",
+            ]
+        ),
+        output,
+    )
 
     assert (
-        output.read_text(encoding="utf-8")
-        == "## 本次改动\n- abc1234 fix: current release bug\n- def5678 fix: current release UI\n"
+        output.read_text(encoding="utf-8") == "## 新功能\n"
+        "- 新增同番号本地图片整理\n\n"
+        "## 优化\n"
+        "- 优化本地图片格式转换\n\n"
+        "## 修复\n"
+        "- 修复 FC2CMADB 会话续期、演员数据与图片下载处理\n"
     )
+
+
+def test_generate_changelog_uses_curated_chinese_notes_and_removes_empty_sections(tmp_path: Path):
+    output = tmp_path / "changelog.md"
+    curated = """## 新功能
+- 新增图片整理开关
+
+## 优化
+
+## 修复
+- 修复图片下载问题
+"""
+
+    generate_changelog("abc1234 feat: 新增图片整理开关", output, curated_content=curated)
+
+    assert output.read_text(encoding="utf-8") == ("## 新功能\n- 新增图片整理开关\n\n## 修复\n- 修复图片下载问题\n")
 
 
 def test_generate_changelog_rejects_empty_release(tmp_path: Path):

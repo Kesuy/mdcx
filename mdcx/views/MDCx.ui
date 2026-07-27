@@ -9036,6 +9036,33 @@
                       </property>
                       <layout class="QVBoxLayout" name="verticalLayout_2">
                         <item>
+                          <layout class="QHBoxLayout" name="horizontalLayout_local_number_images">
+                            <item>
+                              <widget class="QCheckBox" name="checkBox_use_local_number_images">
+                                <property name="sizePolicy">
+                                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                  </sizepolicy>
+                                </property>
+                                <property name="text">
+                                  <string>优先使用同番号本地图片</string>
+                                </property>
+                              </widget>
+                            </item>
+                            <item>
+                              <widget class="QLabel" name="label_local_number_images">
+                                <property name="styleSheet">
+                                  <string notr="true">color: rgb(8, 128, 128);</string>
+                                </property>
+                                <property name="text">
+                                  <string> 多图按文件名排序，第一张生成封面/缩略/背景图，不再从网站下载</string>
+                                </property>
+                              </widget>
+                            </item>
+                          </layout>
+                        </item>
+                        <item>
                           <layout class="QHBoxLayout" name="horizontalLayout_88">
                             <item>
                               <widget class="QCheckBox" name="checkBox_ignore_pic_fail">

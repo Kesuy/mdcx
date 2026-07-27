@@ -114,7 +114,10 @@ jobs:
             echo "发布 Tag 与应用版本不一致: tag=$tag app=$app_version"
             exit 1
           fi
-          uv run python scripts/changelog.py --tag "$tag" --output release-changelog.md
+          uv run python scripts/changelog.py \
+            --tag "$tag" \
+            --curated changelog.md \
+            --output release-changelog.md
           if [ ! -s release-changelog.md ]; then
             echo "本次版本 changelog 生成失败，无法生成 Release 说明。"
             exit 1

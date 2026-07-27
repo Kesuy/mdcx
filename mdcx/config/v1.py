@@ -113,6 +113,7 @@ class ConfigV1:
     show_poster: bool = True
 
     # file_download
+    use_local_number_images: bool = True
     download_files: str = r",poster,thumb,fanart,nfo,ignore_wuma,ignore_fc2,ignore_guochan,"
     keep_files: str = r",extrafanart,trailer,theme_videos,"
     download_hd_pics: str = r"amazon,"
