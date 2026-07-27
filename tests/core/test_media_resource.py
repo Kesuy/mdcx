@@ -137,6 +137,33 @@ async def test_media_resource_context_does_not_cache_failed_fetch(monkeypatch: p
 
 
 @pytest.mark.asyncio
+async def test_media_resource_context_retries_fc2_content_image_without_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    calls: list[bool | None] = []
+
+    async def fake_request(method: str, url: str, **kwargs):
+        assert method == "GET"
+        calls.append(kwargs.get("use_proxy"))
+        if kwargs.get("use_proxy") is not False:
+            return None, "proxy connection failed"
+        return _FakeResponse(url, _jpeg_bytes()), ""
+
+    monkeypatch.setattr(manager.config, "use_proxy", True)
+    monkeypatch.setattr(manager.computed.async_client, "request", fake_request)
+
+    context = MediaResourceContext()
+    try:
+        image = await context.fetch_image("https://storage61000.contents.fc2.com/file/259/25800737/1636632778.2.jpg")
+    finally:
+        context.close()
+
+    assert image is not None
+    assert image.size == (12, 18)
+    assert calls == [None, False]
+
+
+@pytest.mark.asyncio
 async def test_media_resource_context_rejects_invalid_dmm_redirect(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     calls: list[str] = []
 

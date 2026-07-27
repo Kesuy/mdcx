@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import aiofiles
 import aiofiles.os
@@ -32,6 +33,11 @@ class FetchedImage:
 
 
 MAX_IMAGE_PROBE_BYTES = 512 * 1024
+
+
+def _is_fc2_content_url(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").casefold()
+    return host == "contents.fc2.com" or host.endswith(".contents.fc2.com")
 
 
 def _configured_retry_delays(base_delay: float) -> list[float]:
@@ -82,6 +88,10 @@ class MediaResourceContext:
         request_url, added_probe = normalized_url, False
         async with manager.acquire_computed() as computed:
             response, error = await computed.async_client.request("GET", request_url)
+            if response is None and manager.config.use_proxy and _is_fc2_content_url(request_url):
+                response, direct_error = await computed.async_client.request("GET", request_url, use_proxy=False)
+                if response is None:
+                    error = f"{error}; 直连重试失败: {direct_error}"
         if response is None:
             if error:
                 LogBuffer.log().write(f"\n 🟡 图片读取失败: {error}")

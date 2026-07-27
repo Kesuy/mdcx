@@ -89,7 +89,7 @@ def make_article_page(*, deferred: bool = True) -> str:
 
 @pytest.mark.asyncio
 async def test_fc2ppvdb_crawler_reads_article_from_detail_page(monkeypatch):
-    monkeypatch.setattr(manager.config, "fields_rule", "")
+    monkeypatch.setattr(manager.config, "fields_rule", "fc2_seller")
     client = FakeFc2ppvdbClient()
     crawler = Fc2ppvdbCrawler(client=client)
     res = await crawler.run(
@@ -113,6 +113,7 @@ async def test_fc2ppvdb_crawler_reads_article_from_detail_page(monkeypatch):
     assert res.data.tags == ["素人"]
     assert res.data.runtime == "65"
     assert res.data.mosaic == "无码"
+    assert res.data.image_download is True
     assert res.data.external_id == "https://fc2cmadb.com/articles/2701833"
     assert [url for url, _kwargs in client.requests] == [
         "https://fc2cmadb.com/articles/2701833",
@@ -126,6 +127,102 @@ async def test_fc2ppvdb_crawler_reads_article_from_detail_page(monkeypatch):
         "X-Inertia-Version": "asset-version-20260726",
         "X-Requested-With": "XMLHttpRequest",
     }
+
+
+@pytest.mark.asyncio
+async def test_fetch_article_info_uses_rotated_cookie_for_deferred_request():
+    cookies = {
+        "ageVerified": "true",
+        "XSRF-TOKEN": "old-xsrf",
+        "fc2cmadb-session": "old-session",
+    }
+
+    class RotatingClient:
+        async def request(self, method, url, **kwargs):
+            headers = kwargs.get("headers") or {}
+            if headers.get("X-Inertia-Partial-Data") == "actresses":
+                assert kwargs["cookies"]["XSRF-TOKEN"] == "new-xsrf"
+                assert kwargs["cookies"]["fc2cmadb-session"] == "new-session"
+
+                class DeferredResponse:
+                    status_code = 200
+                    headers = {"content-type": "application/json"}
+                    text = json.dumps(
+                        {
+                            "component": "Articles/Show",
+                            "props": {"actresses": [{"name": "小山紗智子"}]},
+                        },
+                        ensure_ascii=False,
+                    )
+
+                return DeferredResponse(), ""
+
+            class ArticleResponse:
+                status_code = 200
+                headers = {
+                    "content-type": "text/html; charset=utf-8",
+                    "set-cookie": "XSRF-TOKEN=new-xsrf; Path=/, fc2cmadb-session=new-session; Path=/; HttpOnly",
+                }
+                text = make_article_page()
+
+            return ArticleResponse(), ""
+
+    data, error = await fetch_article_info(
+        RotatingClient(),
+        base_url="https://fc2cmadb.com",
+        number="1887986",
+        cookies=cookies,
+        use_proxy=False,
+    )
+
+    assert error == ""
+    assert data is not None
+    assert cookies["XSRF-TOKEN"] == "new-xsrf"
+    assert cookies["fc2cmadb-session"] == "new-session"
+
+
+@pytest.mark.asyncio
+async def test_fc2ppvdb_crawler_persists_rotated_cookie(monkeypatch):
+    class RotatingInlineClient:
+        async def request(self, method, url, **kwargs):
+            class Response:
+                status_code = 200
+                headers = {
+                    "content-type": "text/html; charset=utf-8",
+                    "set-cookie": "XSRF-TOKEN=new-xsrf; Path=/, fc2cmadb-session=new-session; Path=/; HttpOnly",
+                }
+                text = make_article_page(deferred=False)
+
+            return Response(), ""
+
+    save_calls = []
+    monkeypatch.setattr(manager.config, "fields_rule", "")
+    monkeypatch.setattr(
+        manager.config,
+        "fc2ppvdb",
+        "ageVerified=true; XSRF-TOKEN=old-xsrf; fc2cmadb-session=old-session",
+    )
+    monkeypatch.setattr(manager, "save", lambda: save_calls.append(True))
+
+    crawler = Fc2ppvdbCrawler(client=RotatingInlineClient())
+    res = await crawler.run(
+        CrawlerInput(
+            appoint_number="",
+            appoint_url="",
+            file_path=None,
+            mosaic="",
+            number="FC2-1887986",
+            short_number="FC2-1887986",
+            language=Language.UNDEFINED,
+            org_language=Language.UNDEFINED,
+        )
+    )
+
+    assert res.debug_info.error is None
+    saved_cookies = cookie_str_to_dict(manager.config.fc2ppvdb)
+    assert saved_cookies["XSRF-TOKEN"] == "new-xsrf"
+    assert saved_cookies["fc2cmadb-session"] == "new-session"
+    assert save_calls == [True]
 
 
 def test_fc2cmadb_cookie_parser_accepts_cookie_without_spaces():

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import html
 import json
+import threading
 from http.cookies import SimpleCookie
 from typing import Any, override
 
@@ -13,6 +14,7 @@ from .base import BaseCrawler, Context, CralwerException, CrawlerData
 # This known article returns 404 anonymously and Articles/Show for an authenticated session.
 FC2CMADB_AUTH_PROBE_NUMBER = "1817847"
 FC2CMADB_FINGERPRINT_ID = "chrome136_win"
+_FC2CMADB_COOKIE_SAVE_LOCK = threading.Lock()
 
 
 def get_title(data):  # 获取标题
@@ -91,6 +93,50 @@ def cookie_str_to_dict(cookie_str: str) -> dict:  # cookie 转为字典
     except Exception:
         return {}
     return {key: morsel.value for key, morsel in cookie.items()}
+
+
+def cookie_dict_to_str(cookies: dict[str, str]) -> str:
+    return "; ".join(f"{key}={value}" for key, value in cookies.items())
+
+
+def refresh_cookies_from_response(cookies: dict[str, str], response) -> bool:
+    headers = getattr(response, "headers", {}) or {}
+    raw_values = []
+    get_list = getattr(headers, "get_list", None)
+    if callable(get_list):
+        raw_values = [str(value) for value in get_list("set-cookie") if value]
+    if not raw_values:
+        raw_value = headers.get("set-cookie") or headers.get("Set-Cookie")
+        if raw_value:
+            raw_values = [str(raw_value)]
+
+    changed = False
+    for raw_value in raw_values:
+        parsed = SimpleCookie()
+        try:
+            parsed.load(raw_value)
+        except Exception:
+            continue
+        for key, morsel in parsed.items():
+            if cookies.get(key) != morsel.value:
+                cookies[key] = morsel.value
+                changed = True
+    return changed
+
+
+def persist_fc2cmadb_cookies(cookies: dict[str, str]) -> bool:
+    if not cookies.get("fc2cmadb-session"):
+        return False
+    refreshed_cookie = cookie_dict_to_str(cookies)
+    with _FC2CMADB_COOKIE_SAVE_LOCK:
+        if manager.config.fc2ppvdb == refreshed_cookie:
+            return False
+        manager.config.fc2ppvdb = refreshed_cookie
+        try:
+            manager.save()
+        except OSError:
+            return False
+    return True
 
 
 def has_fc2cmadb_session(cookie_str: str) -> bool:
@@ -195,6 +241,7 @@ async def fetch_article_info(
     )
     if response is None:
         return None, f"详情页请求失败: {error}"
+    refresh_cookies_from_response(cookies, response)
     if response.status_code != 200:
         return None, f"详情页请求失败: HTTP {response.status_code}"
     final_url = get_response_final_url(response)
@@ -232,6 +279,7 @@ async def fetch_article_info(
     )
     if deferred_response is None:
         return None, f"演员数据请求失败: {error}"
+    refresh_cookies_from_response(cookies, deferred_response)
     if deferred_response.status_code != 200:
         return None, f"演员数据请求失败: HTTP {deferred_response.status_code}"
     final_url = get_response_final_url(deferred_response)
@@ -279,6 +327,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
         )
         if html_info is None:
             raise CralwerException(error)
+        persist_fc2cmadb_cookies(cookies)
 
         title = get_title(html_info)
         if not title:
@@ -290,7 +339,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
         actors = get_actors(html_info)
         tags = [tag for tag in get_tags(html_info) if tag != "無修正"]
         studio = get_studio(html_info)  # 使用卖家作为厂商
-        if "fc2_seller" in manager.config.fields_rule and studio:
+        if "fc2_seller" in manager.config.fields_rule and studio and not actors:
             actors = [studio]
         video_type = get_video_type(html_info)
 
@@ -314,7 +363,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
             poster=cover_url,
             extrafanart=[],
             trailer=get_video_url(html_info),
-            image_download=False,
+            image_download=True,
             mosaic="无码" if video_type == "無碼" else "有码" if video_type == "有碼" else "",
             external_id=article_url,
             wanted="",
