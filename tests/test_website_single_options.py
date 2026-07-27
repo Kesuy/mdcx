@@ -1,12 +1,14 @@
 import os
+from unittest.mock import MagicMock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtWidgets import QApplication, QComboBox, QMainWindow
 
 from mdcx.config.enums import Website, website_display_name, website_from_display_name
 from mdcx.config.models import Config
+from mdcx.controllers.main_window import init as window_init
 from mdcx.controllers.main_window.site_priority_dialog import _make_site_item, _parse_sites, _sites_text
 from mdcx.crawlers import get_registered_crawler_site_values
 from mdcx.views.MDCx import Ui_MDCx
@@ -26,6 +28,26 @@ def test_single_website_combo_displays_fc2cmadb_instead_of_legacy_internal_name(
     ui.setupUi(window)
     options = [ui.comboBox_website_all.itemText(index) for index in range(ui.comboBox_website_all.count())]
 
+    assert "fc2cmadb" in options
+    assert Website.FC2PPVDB.value not in options
+
+
+def test_runtime_initialized_single_website_combo_displays_fc2cmadb(monkeypatch):
+    monkeypatch.setattr(window_init, "setup_result_sort_ui", lambda _window: None)
+    monkeypatch.setattr(window_init, "setup_local_nfo_button", lambda _window: None)
+    monkeypatch.setattr(window_init, "_setup_combo_boxes", lambda _window: None)
+    monkeypatch.setattr(window_init, "setup_site_priority_ui", lambda _window: None)
+    monkeypatch.setattr(window_init, "setup_responsive_ui", lambda _window: None)
+
+    window = MagicMock()
+    window.Ui.comboBox_website_all = QComboBox()
+    window.Ui.comboBox_custom_website = QComboBox()
+
+    window_init.Init_Ui(window)
+
+    options = [
+        window.Ui.comboBox_website_all.itemText(index) for index in range(window.Ui.comboBox_website_all.count())
+    ]
     assert "fc2cmadb" in options
     assert Website.FC2PPVDB.value not in options
 

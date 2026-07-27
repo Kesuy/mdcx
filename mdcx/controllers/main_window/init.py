@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QTreeWidgetItem,
 )
 
+from mdcx.config.enums import Website, website_display_name
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.resources import resources
 from mdcx.consts import GITHUB_RELEASES_URL
@@ -123,7 +124,7 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.pushButton_save_failed_list.hide()
     supported_websites = get_registered_crawler_site_values()
     self.Ui.comboBox_website_all.clear()
-    self.Ui.comboBox_website_all.addItems(supported_websites)
+    self.Ui.comboBox_website_all.addItems([website_display_name(Website(website)) for website in supported_websites])
     self.Ui.comboBox_custom_website.addItems(supported_websites)
     _setup_combo_boxes(self)
     self.Ui.textBrowser_log_main.document().setMaximumBlockCount(6000)
