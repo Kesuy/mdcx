@@ -28,6 +28,7 @@ from mdcx.config.enums import (
     TagInclude,
     Translator,
     Website,
+    website_from_display_name,
 )
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.manager import manager
@@ -131,14 +132,18 @@ def save_config(self: "MyMAinWindow"):
     # 网站相关字段需要转换为枚举或列表
     website_single_text = self.Ui.comboBox_website_all.currentText()
     try:
-        manager.config.website_single = Website(website_single_text)
+        manager.config.website_single = website_from_display_name(website_single_text)
     except ValueError:
         manager.config.website_single = Website.AIRAV_CC  # 默认值
     if manager.config.website_single == Website.AIRAV:
         manager.config.website_single = Website.AIRAV_CC
 
     def get_sites(text: str) -> list[Website]:
-        return list(dict.fromkeys(Website(site) for site in str_to_list(text, ",") if site != Website.AIRAV.value))
+        return list(
+            dict.fromkeys(
+                website_from_display_name(site) for site in str_to_list(text, ",") if site != Website.AIRAV.value
+            )
+        )
 
     manager.config.website_youma = get_sites(self.Ui.lineEdit_website_youma.text())
     manager.config.website_wuma = get_sites(self.Ui.lineEdit_website_wuma.text())

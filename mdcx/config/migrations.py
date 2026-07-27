@@ -3,7 +3,7 @@ from typing import Any
 
 from .enums import DownloadableFile, HDPicSource, Website
 
-CURRENT_CONFIG_VERSION = 2
+CURRENT_CONFIG_VERSION = 3
 
 
 def _str_to_list(v: str | list[Any] | None, sep: str = ",", unique: bool = True) -> list[str]:
@@ -42,6 +42,13 @@ def _migrate_site_list(value: Any) -> Any:
     if isinstance(value, list | set):
         return [site for site in value if not _is_removed_airav_site(site)]
     return value
+
+
+def _prepend_fc2cmadb_site(value: Any) -> Any:
+    sites = _migrate_site_list(value)
+    if not isinstance(sites, list):
+        return sites
+    return [Website.FC2PPVDB.value, *[site for site in sites if _enum_value(site) != Website.FC2PPVDB.value]]
 
 
 def _migrate_field_config_sites(value: Any) -> None:
@@ -137,6 +144,11 @@ def migrate_config_data(data: dict[str, Any]) -> list[str]:
     所有可恢复的旧配置差异都应在这里归一化，再交给 Pydantic 做强校验。
     """
     warnings: list[str] = []
+    source_version = data.get("config_version", 1)
+    try:
+        source_version = int(source_version)
+    except (TypeError, ValueError):
+        source_version = 1
 
     data.pop("google_used", None)
     data.pop("google_exclude", None)
@@ -148,6 +160,8 @@ def migrate_config_data(data: dict[str, Any]) -> list[str]:
     for key, value in list(data.items()):
         if key.startswith("website_") and key != "website_single":
             data[key] = _migrate_site_list(value)
+    if source_version < 3 and "website_fc2" in data:
+        data["website_fc2"] = _prepend_fc2cmadb_site(data["website_fc2"])
 
     if isinstance(field_configs := data.get("field_configs"), dict):
         for value in field_configs.values():

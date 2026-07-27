@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from mdcx.config.enums import DownloadableFile, FixedScrapingType, HDPicSource, KeepableFile, Website
+from mdcx.config.migrations import CURRENT_CONFIG_VERSION
 from mdcx.config.models import DEFAULT_FIELD_SITE_PRIORITY, Config
 from mdcx.config.resource_policy import resource_policy
 from mdcx.config.v1 import ConfigV1
@@ -163,7 +164,13 @@ def test_config_default_site_priorities_follow_current_frontend_defaults():
         Website.AVBASE,
         Website.MMTV,
     ]
-    assert config.website_fc2 == [Website.FC2, Website.MMTV, Website.FC2HUB, Website.FC2CLUB]
+    assert config.website_fc2 == [
+        Website.FC2PPVDB,
+        Website.FC2,
+        Website.MMTV,
+        Website.FC2HUB,
+        Website.FC2CLUB,
+    ]
     assert config.website_oumei == [Website.THEPORNDB]
     assert config.website_guochan == [
         Website.CNMDB,
@@ -183,10 +190,53 @@ def test_config_default_site_priorities_follow_current_frontend_defaults():
         Website.MISSAV,
     ]
     assert config.get_type_field_config(FixedScrapingType.FC2, CrawlerResultFields.TITLE).site_prority == [
+        Website.FC2PPVDB,
         Website.MMTV,
         Website.FC2HUB,
         Website.FC2,
     ]
+
+
+def test_version_2_config_enables_fc2cmadb_first_without_reordering_other_fc2_sites():
+    data = {
+        "config_version": 2,
+        "website_fc2": ["fc2hub", "fc2", "fc2club"],
+        "field_configs": {
+            "title": {
+                "site_prority": ["fc2hub", "fc2", "fc2club"],
+                "language": "undefined",
+                "translate": True,
+            }
+        },
+        "type_field_configs": {
+            "fc2": {
+                "title": {"site_prority": ["fc2hub", "fc2"]},
+            }
+        },
+    }
+
+    Config.update(data)
+    config = Config.model_validate(data)
+
+    assert config.config_version == 3
+    assert config.website_fc2 == [Website.FC2PPVDB, Website.FC2HUB, Website.FC2, Website.FC2CLUB]
+    assert config.get_type_field_config(FixedScrapingType.FC2, CrawlerResultFields.TITLE).site_prority == [
+        Website.FC2PPVDB,
+        Website.FC2HUB,
+        Website.FC2,
+    ]
+
+
+def test_version_3_config_preserves_explicit_fc2cmadb_removal():
+    data = {
+        "config_version": 3,
+        "website_fc2": ["fc2hub", "fc2"],
+    }
+
+    Config.update(data)
+    config = Config.model_validate(data)
+
+    assert config.website_fc2 == [Website.FC2HUB, Website.FC2]
 
 
 def test_removed_hd_pic_sources_are_filtered_from_old_config():
@@ -208,7 +258,7 @@ def test_removed_hd_pic_sources_are_filtered_from_old_config():
     config = Config.model_validate(data)
 
     assert config.download_hd_pics == [HDPicSource.AMAZON]
-    assert config.config_version == 2
+    assert config.config_version == CURRENT_CONFIG_VERSION
     assert "google_used" not in data
     assert "google_exclude" not in data
 

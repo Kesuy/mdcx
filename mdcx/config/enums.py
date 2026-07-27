@@ -542,6 +542,24 @@ class Website(Enum):
         return json_schema
 
 
+WEBSITE_DISPLAY_NAMES = {
+    Website.FC2PPVDB: "fc2cmadb",
+}
+
+
+def website_display_name(site: Website | str) -> str:
+    website = site if isinstance(site, Website) else Website(site)
+    return WEBSITE_DISPLAY_NAMES.get(website, website.value)
+
+
+def website_from_display_name(name: str) -> Website:
+    normalized = name.strip()
+    for website, display_name in WEBSITE_DISPLAY_NAMES.items():
+        if normalized == display_name:
+            return website
+    return Website(normalized)
+
+
 class FixedScrapingType(Enum):
     AUTO = "auto"
     YOUMA = "youma"

@@ -126,7 +126,7 @@ class ConfigV1:
 
     website_wuma: str = r"iqqtv,javbus,freejavbt,jav321,avsox,7mmtv,hdouban,javdb"
     website_suren: str = r"mgstage,avsex,jav321,freejavbt,7mmtv,javbus,javdb"
-    website_fc2: str = r"fc2,fc2club,fc2hub,freejavbt,7mmtv,hdouban,javdb,avsox"
+    website_fc2: str = r"fc2ppvdb,fc2,fc2club,fc2hub,freejavbt,7mmtv,hdouban,javdb,avsox"
     website_oumei: str = r"theporndb,javdb,javbus,hdouban"
     website_guochan: str = r"madouqu,mdtv,hdouban,cnmdb,javday"
     whole_fields: str = r"outline,actor,thumb,release,tag,"

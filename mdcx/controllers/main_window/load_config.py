@@ -24,6 +24,7 @@ from mdcx.config.enums import (
     TagInclude,
     Translator,
     Website,
+    website_display_name,
 )
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.manager import manager
@@ -162,7 +163,7 @@ def load_config(self: "MyMAinWindow"):
         # region website
         AllItems = [self.Ui.comboBox_website_all.itemText(i) for i in range(self.Ui.comboBox_website_all.count())]
         # 指定单个刮削网站
-        website_single_value = manager.config.website_single.value
+        website_single_value = website_display_name(manager.config.website_single)
         if website_single_value in AllItems:
             self.Ui.comboBox_website_all.setCurrentIndex(AllItems.index(website_single_value))
         else:
@@ -171,17 +172,29 @@ def load_config(self: "MyMAinWindow"):
                 f"⚠️ 指定网站 '{website_single_value}' 不在 UI 网站列表中，已回退为 {self.Ui.comboBox_website_all.itemText(0)}\n"
             )
         # 有码番号刮削网站
-        self.Ui.lineEdit_website_youma.setText(",".join([site.value for site in manager.config.website_youma]))
+        self.Ui.lineEdit_website_youma.setText(
+            ",".join(website_display_name(site) for site in manager.config.website_youma)
+        )
         # 无码番号刮削网站
-        self.Ui.lineEdit_website_wuma.setText(",".join([site.value for site in manager.config.website_wuma]))
+        self.Ui.lineEdit_website_wuma.setText(
+            ",".join(website_display_name(site) for site in manager.config.website_wuma)
+        )
         # 素人番号刮削网站
-        self.Ui.lineEdit_website_suren.setText(",".join([site.value for site in manager.config.website_suren]))
+        self.Ui.lineEdit_website_suren.setText(
+            ",".join(website_display_name(site) for site in manager.config.website_suren)
+        )
         # FC2番号刮削网站
-        self.Ui.lineEdit_website_fc2.setText(",".join([site.value for site in manager.config.website_fc2]))
+        self.Ui.lineEdit_website_fc2.setText(
+            ",".join(website_display_name(site) for site in manager.config.website_fc2)
+        )
         # 欧美番号刮削网站
-        self.Ui.lineEdit_website_oumei.setText(",".join([site.value for site in manager.config.website_oumei]))
+        self.Ui.lineEdit_website_oumei.setText(
+            ",".join(website_display_name(site) for site in manager.config.website_oumei)
+        )
         # 国产番号刮削网站
-        self.Ui.lineEdit_website_guochan.setText(",".join([site.value for site in manager.config.website_guochan]))
+        self.Ui.lineEdit_website_guochan.setText(
+            ",".join(website_display_name(site) for site in manager.config.website_guochan)
+        )
         # 锁定刮削类型
         _type_labels = ["自动判断", "有码", "无码", "素人", "FC2", "欧美", "国产"]
         _type_values = ["auto", "youma", "wuma", "suren", "fc2", "oumei", "guochan"]

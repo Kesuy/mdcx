@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from mdcx.config.enums import FixedScrapingType, Website
+from mdcx.config.enums import FixedScrapingType, Website, website_display_name, website_from_display_name
 from mdcx.config.models import SCRAPING_TYPE_SITE_FIELDS, FieldPriorityConfig, str_to_list
 from mdcx.crawlers import get_registered_crawler_site_values
 from mdcx.gen.field_enums import CrawlerResultFields
@@ -113,11 +113,19 @@ def _sync_field_sites_after_type_sites_changed(
 
 
 def _parse_sites(text: str) -> list[Website]:
-    return list(dict.fromkeys(Website(site) for site in str_to_list(text, ",") if site in Website))
+    sites: list[Website] = []
+    for value in str_to_list(text, ","):
+        try:
+            site = website_from_display_name(value)
+        except ValueError:
+            continue
+        if site not in sites:
+            sites.append(site)
+    return sites
 
 
 def _sites_text(sites: list[Website]) -> str:
-    return ",".join(site.value for site in sites)
+    return ",".join(website_display_name(site) for site in sites)
 
 
 def _site_priority_colors(dark: bool) -> dict[str, str]:
@@ -165,9 +173,10 @@ def _selected_sites(list_widget: QListWidget) -> list[Website]:
 
 
 def _make_site_item(site: Website) -> QListWidgetItem:
-    item = QListWidgetItem(site.value)
+    display_name = website_display_name(site)
+    item = QListWidgetItem(display_name)
     item.setData(Qt.ItemDataRole.UserRole, site.value)
-    item.setToolTip(site.value)
+    item.setToolTip(display_name)
     item.setFlags(
         item.flags() | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
     )

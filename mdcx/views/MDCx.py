@@ -10596,7 +10596,7 @@ class Ui_MDCx(object):
         self.comboBox_website_all.setItemText(23, _translate("MDCx", "fc2"))
         self.comboBox_website_all.setItemText(24, _translate("MDCx", "fc2club"))
         self.comboBox_website_all.setItemText(25, _translate("MDCx", "fc2hub"))
-        self.comboBox_website_all.setItemText(26, _translate("MDCx", "fc2ppvdb"))
+        self.comboBox_website_all.setItemText(26, _translate("MDCx", "fc2cmadb"))
         self.comboBox_website_all.setItemText(27, _translate("MDCx", "cableav"))
         self.comboBox_website_all.setItemText(28, _translate("MDCx", "mywife"))
         self.comboBox_website_all.setItemText(29, _translate("MDCx", "giga"))

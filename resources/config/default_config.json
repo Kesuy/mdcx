@@ -1,5 +1,5 @@
 {
-  "config_version": 2,
+  "config_version": 3,
   "media_path": "D:\\Media\\Input",
   "softlink_path": "X:\\Media\\Softlink",
   "success_output_folder": "D:\\Media\\Input",
@@ -168,6 +168,7 @@
     "7mmtv"
   ],
   "website_fc2": [
+    "fc2ppvdb",
     "fc2",
     "7mmtv",
     "fc2hub",

@@ -154,7 +154,7 @@ def default_field_config(language: Language = Language.UNDEFINED, translate: boo
 class Config(BaseModel):
     model_config = ConfigDict()
     # region: General Settings
-    config_version: int = Field(default=2, title="配置版本")
+    config_version: int = Field(default=3, title="配置版本")
     media_path: str = Field(default="./media", title="媒体路径")
     softlink_path: str = Field(default="softlink", title="软链接路径")
     success_output_folder: str = Field(default="JAV_output", title="成功输出目录")
@@ -377,6 +377,7 @@ class Config(BaseModel):
     )
     website_fc2: list[Website] = Field(
         default_factory=lambda: [
+            Website.FC2PPVDB,
             Website.FC2,
             Website.MMTV,
             Website.FC2HUB,
@@ -756,6 +757,8 @@ class Config(BaseModel):
             sites = [site for site in field_sites if site in type_site_set]
             if not sites:
                 sites = list(type_sites)
+            if scraping_type == FixedScrapingType.FC2 and Website.FC2PPVDB in type_site_set:
+                sites = [Website.FC2PPVDB, *[site for site in sites if site != Website.FC2PPVDB]]
             configs[crawler_field] = FieldPriorityConfig(site_prority=sites)
         return configs
 
@@ -773,6 +776,8 @@ class Config(BaseModel):
                 sites = [site for site in self.parse_sites(old_sites) if site in type_site_set]
             else:
                 sites = default[crawler_field].site_prority
+            if scraping_type == FixedScrapingType.FC2 and Website.FC2PPVDB in type_site_set:
+                sites = [Website.FC2PPVDB, *[site for site in sites if site != Website.FC2PPVDB]]
             normalized[crawler_field] = FieldPriorityConfig(site_prority=sites)
         return normalized
 
