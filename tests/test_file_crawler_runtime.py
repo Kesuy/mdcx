@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from mdcx.auth.fc2cmadb_session import FC2CMADBAuthenticationError
 from mdcx.config.enums import FixedScrapingType, Language, Website
 from mdcx.config.models import Config, FieldConfig, FieldPriorityConfig
 from mdcx.core.file_crawler import (
@@ -107,6 +108,41 @@ class _FakeConfig:
         if field in (CrawlerResultFields.RUNTIME, CrawlerResultFields.RELEASE, CrawlerResultFields.YEAR):
             return FieldConfig(site_prority=[Website.AVBASE, Website.JAVDB])
         return FieldConfig(site_prority=[])
+
+
+@pytest.mark.asyncio
+async def test_call_crawler_propagates_fc2cmadb_authentication_failure():
+    error = FC2CMADBAuthenticationError("FC2CMADB Cookie 自动刷新失败")
+    provider = _FakeCrawlerProvider({Website.FC2PPVDB: (None, error)})
+    scraper = FileScraper(Config(), provider)
+    task_input = CrawlerInput.empty()
+    task_input.number = "FC2-1887986"
+
+    with pytest.raises(FC2CMADBAuthenticationError, match="自动刷新失败"):
+        await scraper._call_crawler(task_input, Website.FC2PPVDB)
+
+
+@pytest.mark.asyncio
+async def test_call_crawlers_stops_fc2_task_after_authentication_failure(monkeypatch):
+    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.TITLE,))
+
+    class Fc2PriorityConfig:
+        def get_field_config(self, field):
+            return FieldConfig(site_prority=[Website.FC2PPVDB, Website.JAVDB])
+
+    error = FC2CMADBAuthenticationError("FC2CMADB Cookie 自动刷新失败")
+    provider = _FakeCrawlerProvider(
+        {
+            Website.FC2PPVDB: (None, error),
+            Website.JAVDB: _build_result(Website.JAVDB),
+        }
+    )
+    scraper = FileScraper(Fc2PriorityConfig(), provider)
+    task_input = CrawlerInput.empty()
+    task_input.number = "FC2-1887986"
+
+    with pytest.raises(FC2CMADBAuthenticationError, match="自动刷新失败"):
+        await scraper._call_crawlers(task_input, {Website.FC2PPVDB, Website.JAVDB})
 
 
 class _TypePriorityConfig(_FakeConfig):

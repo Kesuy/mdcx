@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 )
 
 from mdcx.auth.fc2cmadb import FC2CMADBAuthError, FC2CMADBAuthManager
+from mdcx.auth.fc2cmadb_session import set_fc2cmadb_runtime_credentials
 from mdcx.base.file import (
     check_and_clean_files,
     get_success_list,
@@ -3478,6 +3479,7 @@ class MyMAinWindow(QMainWindow):
     def _login_fc2cmadb(self, username: str, password: str):
         try:
             cookie = executor.run(FC2CMADBAuthManager().login(username, password))
+            set_fc2cmadb_runtime_credentials(username, password)
             self.set_fc2ppvdb_cookie.emit(cookie)
             tips = "✅ 自动登录成功，Cookie 已保存！"
         except FC2CMADBAuthError as exc:

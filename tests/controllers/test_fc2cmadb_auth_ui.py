@@ -40,6 +40,7 @@ def test_fc2cmadb_login_worker_updates_cookie_without_exposing_password(monkeypa
     emitted_cookies = []
     emitted_status = []
     logs = []
+    runtime_credentials = []
 
     class FakeSignal:
         def __init__(self, values):
@@ -63,9 +64,15 @@ def test_fc2cmadb_login_worker_updates_cookie_without_exposing_password(monkeypa
             logs.append(message)
 
     monkeypatch.setattr(main_window_module, "FC2CMADBAuthManager", FakeAuthManager)
+    monkeypatch.setattr(
+        main_window_module,
+        "set_fc2cmadb_runtime_credentials",
+        lambda username, password: runtime_credentials.append((username, password)),
+    )
 
     MyMAinWindow._login_fc2cmadb(FakeWindow(), "test-user", "runtime-password")
 
     assert emitted_cookies == ["fc2cmadb-session=new-session"]
     assert emitted_status == ["✅ 自动登录成功，Cookie 已保存！"]
+    assert runtime_credentials == [("test-user", "runtime-password")]
     assert all("runtime-password" not in message for message in logs)
