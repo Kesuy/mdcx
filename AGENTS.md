@@ -6,106 +6,47 @@
 
 - 仓库通常使用 `origin` 指向 `Kesuy/mdcx`、`upstream` 指向 `Hazard804/mdcx`；操作前仍须用 `git remote -v` 核对。
 - 分支、HEAD、工作树、Tag、Release、Actions 和依赖版本都是实时状态，不在本文固化；开始任务时重新查询。
-- 应用发布版本以 `mdcx/consts.py::LOCAL_VERSION` 为源，发布记录和版本说明以 Git Tag、GitHub Release 与 `changelog.md` 为准。
+- 应用发布版本以 `mdcx/consts.py::LOCAL_VERSION` 为源；当前发布线使用 `3.0` 起的语义版本字符串，发布记录和版本说明以 Git Tag、GitHub Release 与 `changelog.md` 为准。
 - `pyproject.toml` 的 `project.version` 是 Python 包元数据，不应据此猜测 Release Tag。
 
-## 项目用途和主要功能
+## 断续开发与上下文节省
 
-MDCx 是 GPLv3 授权的 PyQt6 桌面媒体元数据刮削、整理和 NFO 管理工具，面向本地影片库。主要能力包括：
+- `AGENTS.md` 只保存长期约束，不记录本轮进度、测试通过数、当前 SHA 或待办；临时状态从 `git status`、`git diff` 和会话记录恢复。
+- 新会话先用一次批量检查获取 `git status --short --branch`、相关文件 diff 和精准符号搜索；不要重新全仓扫描，也不要重复读取已自动注入的本文件。
+- 只加载与当前任务直接相关的 skill/reference，只读取目标函数及调用方；独立的只读查询应并行，避免每个文件单独一轮工具调用。
+- 验证按“单个失败测试 → 相关测试 → 完整离线测试/质量门”递进；完整套件通常在功能稳定或交接前运行一次，不在每个小修改后重复。
+- 优先使用本地 `uv`、pytest、Ruff 和小型脚本验证；只有独立且推理密集的工作才启动 subagent，避免为机械检查消耗额外模型配额。
+- 暂停前确保磁盘代码可恢复、`.ui` 已生成对应 `.py`、新增行为有测试，并在回复中写清“已验证/未验证”；不要把交接日志追加到本文件。
 
-- 按番号识别媒体并从多个网站组合抓取标题、演员、封面、标签、日期等元数据。
-- 下载和处理海报、背景图、预告片、演员图片等资源。
-- 生成、读取和编辑 NFO，支持本地已有 NFO 工作流。
-- 按 Jinja2 命名模板整理目录、视频、字幕和关联素材。
-- 支持多 CD 影片、软链接、成功/失败目录、翻译、网络代理和 Cloudflare/FlareSolverr 处理。
-- 提供图形界面、部分命令行入口以及 Windows/macOS 打包流程。
+## 项目用途
 
-项目仅供学习和技术交流；遵守 `README.md` 中的许可和使用限制。
+MDCx 是 GPLv3 的 PyQt6 本地媒体元数据工具，负责番号识别、多站点刮削、图片/NFO 处理、Jinja2 命名整理、多 CD 与关联素材同步，并提供桌面 UI、少量 CLI 和 Windows/macOS 打包。遵守 `README.md` 的许可和使用限制。
 
 ## 技术栈和运行环境
 
-- Python 版本要求以 `pyproject.toml::requires-python` 为准；目标 runner 版本以当前 workflow 为准。
-- GUI：PyQt6。
-- 依赖管理：uv；锁文件为 `uv.lock`，跨 Linux x86_64、macOS x86_64/arm64、Windows AMD64。
-- 网络：`curl-cffi`、`httpx`、`aiofiles`、`aiolimiter`。
-- 解析：BeautifulSoup、lxml、parsel。
-- 数据模型/配置：Pydantic Settings、JSON；仍支持旧 INI 配置迁移。
-- 图像/视频：Pillow、OpenCV headless、PyAV。
-- 测试：pytest、pytest-asyncio、pytest-cov。
-- 格式和静态检查：Ruff；版本约束见 `pyproject.toml`，CI 使用版本见当前 workflow。
-- 打包：PyInstaller；macOS 可额外使用 `create-dmg`。
+Python/依赖版本以 `pyproject.toml`、`uv.lock` 和 workflow 为准。核心栈为 PyQt6、Pydantic、curl-cffi/httpx、BeautifulSoup/lxml/parsel、Pillow/OpenCV/PyAV、pytest、Ruff 和 PyInstaller。仍需兼容旧 INI 迁移。不要假定系统 Python 可用，优先 `uv run --locked`。
 
-不要假定系统 Python 可用；优先通过 `uv run` 使用项目环境。
+## 主要目录
 
-## 主要目录及职责
+- `main.py` 为 GUI 入口；`mdcx/config/` 管配置与迁移；`controllers/` 管 UI 编排；`core/` 管媒体/NFO/整理；`crawlers/` 管站点；`views/` 保存 `.ui` 与生成代码。
+- `base/`、`models/`、`utils/`、`tools/` 为共享基础；`resources/`、`libs/` 为打包资源；`tests/`、`scripts/`、`.github/workflows/` 分别放测试、维护脚本和 CI。
+- `build/`、`dist/`、`.venv/`、缓存、日志、`userdata/` 是本地产物，不作为源码阅读入口。
 
-- `main.py`：PyQt6 桌面程序入口，设置 DPI 策略、主题并创建 `MyMAinWindow`。
-- `mdcx/config/`：Pydantic 配置模型、默认值、派生配置、V1 转换和版本迁移。
-- `mdcx/controllers/`：主窗口、裁图窗口和 UI 事件/业务编排。
-- `mdcx/core/`：媒体扫描、NFO、命名、文件整理和核心业务逻辑。
-- `mdcx/crawlers/`：站点刮削器、注册表、解析器和统一结果类型。
-- `mdcx/models/`：运行期数据对象和共享类型。
-- `mdcx/views/`：Qt Designer `.ui` 文件及生成的 Python UI 文件。
-- `mdcx/base/`：较底层的共享 Web/任务基础设施。
-- `mdcx/utils/`、`mdcx/tools/`：通用工具及外部服务辅助代码。
-- `resources/`：图标、图片、配置模板和映射资源。
-- `libs/`：打包时一并携带的项目运行资源。
-- `tests/`：按 `controllers/`、`core/`、`crawlers/` 和顶层集成测试组织。
-- `scripts/`：构建、版本更新、changelog、Qt UI 生成及维护脚本。
-- `.github/workflows/`：质量检查和跨平台 Release 构建。
-- `build/`、`dist/`、`.venv/`、缓存、日志、`userdata/`：本地产物或用户数据，不作为源码阅读入口。
-
-## 程序和命令入口
-
-- GUI：`uv run --locked python main.py`
-- 单次刮削 CLI：`uv run crawl --help`
-- 生成枚举：`uv run --locked gen_enums`（会覆写 `mdcx/gen/field_enums.py`）
-- 构建：`uv run build --help` 或 `uv run scripts/build.py --help`
-- 更新版本：`uv run bump --help`
-- 生成 changelog：`uv run changelog --help`
-- 重新生成 Qt UI：`uv run --locked bash scripts/pyuic.sh`
-
-`main.py` 在模块顶层启动 event loop，不适合作为普通库导入。GUI 冒烟测试应使用 `QT_QPA_PLATFORM=offscreen` 并显式控制退出。
-
-## 安装、启动、测试和构建
+## 常用命令
 
 ```bash
-# 安装并严格使用锁文件，包括开发依赖
 uv sync --locked --all-extras --dev
-
-# 启动桌面程序
 uv run --locked python main.py
-
-# 运行完整离线测试
 uv run --locked pytest tests/ -q
-
-# 运行相关测试示例
-uv run --locked pytest tests/crawlers/test_fc2ppvdb.py -q
-uv run --locked pytest tests/controllers/test_responsive_layout.py -q
-
-# 网络爬虫测试默认关闭；仅在明确需要且凭据安全时启用
-uv run --locked pytest tests/crawlers --network --site fc2ppvdb
-
-# 格式、静态检查和语法检查
 uv run --locked ruff format --check
 uv run --locked ruff check --output-format=concise
 uv run --locked python -m compileall -q mdcx main.py scripts
 git diff --check
-
-# 本地 PyInstaller 构建；--debug 保留 build/ 和 .spec 便于诊断
+uv run --locked bash scripts/pyuic.sh
 uv run --locked scripts/build.py --debug
 ```
 
-爬虫测试的 `--network`、`--site`、`--overwrite` 和 `--parser-name` 参数定义于 `tests/crawlers/conftest.py`；参数行为变化时以该文件为准。
-
-## Git 分支和提交规范
-
-- 修改前先运行 `git status --short --branch`，确认分支、未提交文件和是否存在他人改动。
-- 不假定当前分支就是发布分支；提交或发布前核对 branch、remote、保护规则和目标 commit，避免推到错误 remote。
-- 近期提交使用 Conventional Commits 风格：`feat:`、`fix:`、`docs:`、`chore:`；保持提交单一、可审查。
-- 不覆盖、丢弃或混入现有未提交改动，不执行无授权的 hard reset、rebase 或历史重写。
-- 未经明确授权，不提交、推送、创建 Tag 或发布 Release。
-- 提交前检查 staged 与 unstaged 内容，确保测试验证的是将要提交的同一份代码。
+`main.py` 顶层启动 event loop，不应作为普通库导入；GUI 冒烟使用 `QT_QPA_PLATFORM=offscreen` 并显式退出。网络爬虫测试默认关闭，参数以 `tests/crawlers/conftest.py` 为准。`gen_enums` 会覆写 `mdcx/gen/field_enums.py`，只在确需生成时运行。
 
 ## 修改代码时必须遵守的规则
 
@@ -120,7 +61,17 @@ uv run --locked scripts/build.py --debug
 9. 修改 `.ui` 时同步生成对应 `.py`，并检查差异只包含预期 UI 变化。
 10. 文件移动/NFO 整理属于高风险操作：先补失败、冲突和回滚测试，再改实现。
 11. 不把在线网站偶发成功当作单元测试；在线探测与离线行为测试必须分开记录。
-12. 未经明确授权，不提交、推送、创建 Tag 或发布 Release。
+12. 不覆盖现有改动或重写历史；未经明确授权不提交、推送、Tag 或发布。提交采用单一、可审查的 Conventional Commit，并核对 staged/unstaged、branch、remote 与目标 commit。
+13. **所有功能、修复和重构都必须保持现有 INI 配置兼容**；即使任务没有提到配置，也要检查是否改变旧键、默认值、枚举持久化值、迁移顺序或配置文件定位。
+
+## 配置兼容性是每次改动的硬性门槛
+
+- 旧 `.ini`、`MDCx.config` 指针和当前 JSON 配置都属于用户持久数据；不得要求用户删除配置、重建配置或手工补键才能升级。
+- 新配置项必须在当前 `Config`、旧 `ConfigV1`/转换路径、默认配置、设置页加载和保存中形成完整闭环。旧 INI 缺少新键时使用兼容默认值；旧 INI 明确写入的值必须原样迁移并可再次保存。
+- 不重命名或复用已持久化的键、`Website` 枚举值、下载字段值和内部站点标识。确需变更时，先写版本化 migration，并保留旧输入解析。
+- 修改配置模型、默认值、枚举、设置 UI、load/save binding 或路径逻辑时，必须增加转换与 round-trip 测试，至少覆盖“旧配置缺键”和“旧配置显式值”两种情况。
+- 与配置无关的 UI 临时状态（例如裁切比例、旋转次数）不要写入 INI/JSON，避免无必要地扩大配置格式；关闭窗口后恢复默认即可。
+- 发布前使用真实旧版脱敏 INI fixture 做一次迁移验证，并确认用户原文件不被破坏。任何无法解析的字段必须 fail safely 并给出日志，不能静默重置整份配置。
 
 ## 不允许随意修改的兼容逻辑
 
@@ -128,11 +79,9 @@ uv run --locked scripts/build.py --debug
 - `mdcx/config/manager.py` 的 `MDCx.config` 指针文件、JSON 配置加载和旧 `.ini` 到 `.v2.json` 转换。
 - `mdcx/config/v1.py` 与 `mdcx/config/migrations.py` 中旧字段、网站列表、代理和命名模板迁移；修改必须有转换测试。
 - `mdcx/config/enums.py::Website` 的持久化值和 `mdcx/crawlers/__init__.py` 注册关系。枚举值可能已写入用户配置。
-- FC2CMADB 当前仍沿用内部标识/配置字段 `fc2ppvdb`；不要只因站点改名就重命名持久化键。
-- FC2CMADB 从 `/articles/<number>` 的 Inertia `props.article` 读取详情；若 `deferredProps` 声明 `actresses`，需用 partial headers 请求同一 URL，并在有页面版本时传递 `X-Inertia-Version`。无 deferred prop 时保留内联 `article.actresses` 兼容。
-- FC2CMADB 登录使用完整 Cookie 请求头，当前有效会话键为 `fc2cmadb-session`；不得恢复旧 `fc2ppvdb_session` 兼容，也不得把真实 Cookie 放入源码、fixture 或日志。
-- FC2CMADB/Cloudflare Cookie 可能绑定浏览器 TLS fingerprint 与 User-Agent；认证详情页及 Inertia deferred 请求必须保持同一浏览器画像。当前通过 `fingerprint_id="chrome136_win"` 固定画像，不能恢复为随机画像。
-- FC2CMADB 的 `article.censored` 可能为空；类型判断须保留基于“無修正”标签的回退。
+- FC2CMADB 继续使用持久化标识 `fc2ppvdb`；当前 Cookie 键为 `fc2cmadb-session`，不得恢复 `fc2ppvdb_session` 或记录真实 Cookie。
+- 详情从 `/articles/<number>` 的 Inertia `props.article` 读取；声明 deferred `actresses` 时以相同 URL、partial headers、可用的 `X-Inertia-Version` 和同一 `chrome136_win` 浏览器画像请求，未声明时兼容内联 actresses。
+- `article.censored` 为空时保留“無修正”标签回退。修改 FC2CMADB 前先读当前 crawler、测试和调用链，不凭旧站点经验猜协议。
 - `mdcx/crawlers/base/` 的统一 `CrawlerResponse`/`CrawlerResult` 行为及新旧爬虫迁移边界，参见 `docs/crawler-migration.md`。
 - `mdcx/core/media_reorganization.py` 的目标冲突、同文件系统、symlink/junction、防覆盖、大小写改名和回滚保护。
 - 多 CD 分组及关联字幕/NFO/图片路径同步；不能以“简化”为由跳过安全预检查。
@@ -143,6 +92,8 @@ uv run --locked scripts/build.py --debug
 
 - 外部网站会改变 HTML、SPA 数据、登录和 Cloudflare 规则；爬虫问题先检查状态码、最终 URL 和当前响应结构。
 - GUI 有大量固定几何布局；不要用透明拖动条只调整少量坐标来模拟可调三栏。若需可调栏宽，应迁移完整 pane 到 Qt layout/`QSplitter`，并验证所有子控件和 DPI 缩放。
+- 封面裁切窗口的显示坐标必须按当前缩放图换算到实际参与裁切的图像；旋转后宽高、裁切框边界、比例锁定、poster/thumb/fanart 输出必须一致。同路径源图用排他唯一临时文件、保留权限并原子替换，失败时不得破坏源图。修改 `.ui` 后运行 `scripts/pyuic.sh`，不要手改生成文件。
+- 本地同番号图片按规范化番号匹配并在成功整理阶段移动；文件名排序第一张才是艺术图来源。PNG/WebP 生成 `.jpg` 时必须真实转码，水印和裁切继续走既有策略，失败路径不得提前移动或丢失原文件。
 - NFO 保存后的自动整理会移动真实文件；跨盘、路径链接、目标冲突或混合影片目录必须 fail closed。
 - PyInstaller 构建成功不代表目标平台可用；GUI、文件移动、配置路径和 DPI 行为必须在目标系统验证。
 
@@ -156,8 +107,9 @@ uv run --locked scripts/build.py --debug
 
 ## 版本和发布约束
 
-- `LOCAL_VERSION` 是整数，`scripts/build.py` 将其十进制文本用作应用版本；使用 `uv run bump --help` 更新，不手工维护本文中的版本号。
-- `scripts/changelog.py` 和 `.github/workflows/release.yml` 当前以 `220*` 匹配发布 Tag。这只是仓库工具约定，不足以单独证明某个具体 Tag 正确；应结合 `LOCAL_VERSION`、`changelog.md`、目标 commit 和远端未占用状态核对。
+- `LOCAL_VERSION` 是从 `3.0` 起的语义版本字符串；build、更新检查、bump、changelog、workflow 必须共同接受点分版本，不能用浮点、整数或普通字符串比较。
+- `3.x` 高于旧 `220...` 版本线；GitHub Latest Tag 经统一解析后比较，异常 Tag 只记日志，不得让主界面崩溃。读取 `LOCAL_VERSION` 必须完整解析赋值，不能把 `3.1-alpha` 截断成 `3.1`；包括 dry-run 在内的入口都须在提前返回前校验。
+- Release Tag 必须与 `LOCAL_VERSION` 文本完全一致，使用不带 `v` 前缀的点分数字；artifact 名使用已验证的 Tag commit，不能依赖事件语义不同的 `github.sha`。Tag glob 不能单独证明 Tag 正确，仍须核对版本、changelog、目标 commit 和远端占用状态。
 - `changelog.md` 只记录待发布版本的改动，不累积复制历史版本内容；Release workflow 根据当前 Tag 与最近祖先 Tag 的提交范围生成本次说明，避免重复旧更新日志。
 - 版本变更记录只维护在每次发布对应的 `changelog.md`、Git Tag 和 GitHub Release，不在本文复制完整历史。
 - 已存在的发布 Tag 不得移动、覆盖或复用于新代码。发现目标 commit 有缺陷时，先修复、重新验证并更新版本/目标 commit，不得为了沿用旧 SHA 发布已知缺陷。
@@ -165,23 +117,8 @@ uv run --locked scripts/build.py --debug
 
 ### 发布前和发布后检查
 
-1. `git fetch origin --tags`，检查 `git status --short --branch`、remote、目标分支和目标 commit。
-2. 从源码读取 Tag，并检查同名本地/远端 Tag 和 Release；任何已存在或指向不一致的结果都应停止自动发布。
-3. 审查 staged/unstaged diff，扫描敏感信息；运行相关测试、完整离线测试、Ruff、`compileall`、锁文件同步、构建和基本启动检查。
-4. 对 UI、文件系统和打包变更执行对应 Windows/macOS 验证；检查 `changelog.md`、Release notes 与提交内容一致。
-5. 用 `gh auth status` 和 `gh repo view Kesuy/mdcx` 核对身份与权限。只有用户明确授权后才提交、推送、创建 Tag 或发布。
-
-```bash
-TAG=$(uv run --locked python -c 'from mdcx.consts import LOCAL_VERSION; print(LOCAL_VERSION)')
-COMMIT=$(git rev-parse HEAD)
-git ls-remote --tags origin "refs/tags/$TAG"
-gh release view "$TAG" -R Kesuy/mdcx
-
-gh release create "$TAG" -R Kesuy/mdcx \
-  --target "$COMMIT" --title "$TAG" \
-  --generate-notes --latest --fail-on-no-commits
-```
-
-6. 检查 `.github/workflows/release.yml` 是否自动启动；未启动时按其当前 `workflow_dispatch` inputs 手动触发，不猜参数。
-7. 用 `gh run watch <RUN_ID> -R Kesuy/mdcx --exit-status` 等待结束；失败时读取 `--log-failed` 并只修复构建/发布原因。
-8. 最终核对 Tag 指向、正式/预发布状态、Latest、Windows x86_64 `.exe` 和 workflow 承诺的其他附件。未看到 EXE 前不得宣称发布完成。
+1. `git fetch origin --tags` 后核对 status、remote、目标分支/commit；从 `LOCAL_VERSION` 读取 Tag，检查同名本地/远端 Tag 和 Release，已占用或指向不一致则停止。
+2. 审查 staged/unstaged diff与敏感信息；运行相关及完整离线测试、Ruff、`compileall`、锁文件同步、构建和启动冒烟；UI/文件系统改动还需目标平台验证。
+3. 用 `gh auth status`、`gh repo view Kesuy/mdcx` 核对身份权限。只有用户明确授权后才提交、推送、Tag 或发布；Release 必须显式绑定已验证 commit，使用 `--fail-on-no-commits`。
+4. 检查 `release.yml` 是否启动；必要时按现有 `workflow_dispatch` inputs 触发。用 `gh run watch <RUN_ID> -R Kesuy/mdcx --exit-status` 等待，失败时读 `--log-failed`。
+5. 最终核对 Tag 指向、Latest、发布类型和附件；未看到 Windows x86_64 `.exe`（以及 workflow 承诺的其他附件）前不得宣称完成。

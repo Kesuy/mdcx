@@ -89,6 +89,7 @@ from mdcx.utils.file import (
     resolve_link_source_sync,
     resolve_success_record_source_sync,
 )
+from mdcx.versioning import is_newer_version
 from mdcx.views.MDCx import Ui_MDCx
 
 from ..cut_window import CutWindow
@@ -908,7 +909,7 @@ class MyMAinWindow(QMainWindow):
         download_link = ""
         latest_version = check_version()
         if latest_version:
-            if int(self.localversion) < int(latest_version):
+            if is_newer_version(latest_version, self.localversion):
                 self.new_version = f"\n🍉 有新版本了！（{latest_version}）"
                 signal_qt.show_scrape_info()
                 self.Ui.label_show_version.setCursor(Qt.CursorShape.OpenHandCursor)  # 设置鼠标形状为十字形

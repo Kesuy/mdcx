@@ -78,15 +78,16 @@ def get_previous_first_parent_tag(head_tag: str, pattern: str) -> str:
 
 
 def get_latest_tag(pattern: str) -> str | None:
-    """获取匹配模式的最新tag"""
-    command = ["git", "tag", "-l", pattern, "--sort=-v:refname"]
-    output = run_git_command(command)
-
-    if not output:
-        return None
-
-    # 返回第一行（最新的tag）
-    return output.split("\n")[0]
+    """获取当前 first-parent 历史中距离 HEAD 最近的匹配 tag。"""
+    result = subprocess.run(
+        ["git", "describe", "--tags", "--abbrev=0", "--first-parent", "--match", pattern, "HEAD"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def get_commit_log_for_head_tag(head_tag: str, pattern: str) -> str:
@@ -195,7 +196,7 @@ def generate_changelog(commit_log: str, output_file: Path, *, curated_content: s
 
 @app.command()
 def main(
-    pattern: Annotated[str, typer.Option("--pattern", "-p", help="Git tag匹配模式")] = "220*",
+    pattern: Annotated[str, typer.Option("--pattern", "-p", help="Git tag匹配模式")] = "[0-9]*",
     output: Annotated[str, typer.Option("--output", "-o", help="输出文件路径")] = "changelog.md",
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="显示详细信息")] = False,
     tag: Annotated[str, typer.Option("--tag", help="当前发布 tag（用于 release 工作流）")] = "",

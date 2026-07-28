@@ -1,7 +1,6 @@
 import argparse
 import logging
 import platform
-import re
 import shutil
 import subprocess
 import sys
@@ -11,6 +10,8 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.logging import RichHandler
+
+from mdcx.versioning import extract_local_version, parse_version
 
 console = Console(color_system="truecolor", width=200, no_color=False)
 handler = RichHandler(level=logging.DEBUG, console=console)
@@ -40,15 +41,21 @@ EXCLUDED_MODULES = [
 class BuildError(Exception): ...
 
 
+def validate_build_version(version: str) -> str:
+    if parse_version(version) is None:
+        raise BuildError(f"版本号格式无效: {version}")
+    return version
+
+
 def get_version_from_config() -> str:
     p = Path("mdcx/consts.py")
     if not p.exists():
         raise BuildError(f"版本配置文件不存在: {p}")
     try:
         content = p.read_text(encoding="utf-8")
-        match = re.search(r"LOCAL_VERSION\s*=\s*(\d+)", content)
-        if match:
-            return match.group(1)
+        version = extract_local_version(content)
+        if version is not None:
+            return version
         raise BuildError("无法从代码中获取版本号")
     except Exception as e:
         raise BuildError("获取版本号失败") from e
@@ -72,6 +79,7 @@ class BuildManager:
             start_time = time.time()
             if not self.app_version:
                 self.app_version = get_version_from_config()
+            self.app_version = validate_build_version(self.app_version)
 
             self._check_environment()
             self._cleanup()

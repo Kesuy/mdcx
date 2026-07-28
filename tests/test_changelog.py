@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from scripts.changelog import generate_changelog, get_commit_log_for_head_tag
+from scripts.changelog import generate_changelog, get_commit_log_for_head_tag, get_latest_tag
 
 
 def test_generate_changelog_groups_chinese_release_notes_and_omits_empty_categories(tmp_path: Path):
@@ -88,3 +88,27 @@ def test_release_log_uses_previous_first_parent_tag(tmp_path: Path, monkeypatch:
     assert "already released on main" not in log
     assert "side fix" in log
     assert "release merge" in log
+
+
+def test_latest_tag_uses_nearest_release_instead_of_numeric_sort(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+    git("init", "-b", "master")
+    git("config", "user.name", "MDCx Test")
+    git("config", "user.email", "mdcx@example.invalid")
+    marker = repo / "history.txt"
+    marker.write_text("legacy\n", encoding="utf-8")
+    git("add", "history.txt")
+    git("commit", "-m", "legacy release")
+    git("tag", "220260801")
+    marker.write_text("legacy\nsemantic\n", encoding="utf-8")
+    git("commit", "-am", "semantic release")
+    git("tag", "3.0")
+
+    monkeypatch.chdir(repo)
+
+    assert get_latest_tag("[0-9]*") == "3.0"

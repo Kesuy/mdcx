@@ -24,6 +24,7 @@ from ..network_fingerprint import build_amazon_headers
 from ..signals import signal
 from ..utils import executor
 from ..utils.file import check_pic_async
+from ..versioning import parse_version
 
 
 class _AdaptiveRequestThrottle:
@@ -756,7 +757,7 @@ def ping_host(host_address: str) -> str:
     )
 
 
-def check_version() -> int | None:
+def check_version() -> str | None:
     if manager.config.update_check:
         url = GITHUB_RELEASES_API_LATEST
         headers = {
@@ -794,7 +795,9 @@ def check_version() -> int | None:
                 continue
 
             try:
-                latest_version = int(str(response.json()["tag_name"]).strip())
+                latest_version = str(response.json()["tag_name"]).strip()
+                if parse_version(latest_version) is None:
+                    raise ValueError(f"不支持的版本号: {latest_version}")
                 return latest_version
             except Exception:
                 signal.add_log(f"❌ 获取最新版本失败！{response.text}")

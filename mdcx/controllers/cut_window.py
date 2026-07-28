@@ -1,11 +1,13 @@
 import os
+import stat
+import tempfile
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PIL import Image
 from PyQt6.QtCore import QPoint, QRect, Qt
-from PyQt6.QtGui import QCursor, QPixmap
+from PyQt6.QtGui import QCursor, QPixmap, QTransform
 from PyQt6.QtWidgets import QDialog, QFileDialog, QPushButton
 
 from ..base.image import add_mark_thread
@@ -22,6 +24,9 @@ from .main_window.style import get_theme_tokens
 if TYPE_CHECKING:
     from ..models.types import FileInfo
     from .main_window.main_window import MyMAinWindow
+
+
+DEFAULT_CROP_HEIGHT_WIDTH_RATIO = 536.6 / 379
 
 
 class DraggableButton(QPushButton):
@@ -80,6 +85,7 @@ class CutWindow(QDialog):
         self.Ui = Ui_Dialog_cut_poster()  # 实例化 Ui
         self.Ui.setupUi(self)  # 初始化Ui
         self.main_window = parent
+        self._setup_ui_layout()
         self.m_drag = False  # 允许拖动
         self.m_DragPosition = None  # 拖动位置
         self.show_w = self.Ui.label_backgroud_pic.width()  # 图片显示区域的宽高
@@ -89,6 +95,7 @@ class CutWindow(QDialog):
         self.pic_new_h = self.show_h
         self.pic_w = self.show_w
         self.pic_h = self.show_h
+        self.rotation_quarters = 0
         self.pushButton_select_cutrange = DraggableButton("拖动选择裁剪范围", self.Ui.label_backgroud_pic, self)
         self.pushButton_select_cutrange.setObjectName("pushButton_select_cutrange")
         self.pushButton_select_cutrange.setGeometry(QRect(420, 0, 379, 539))
@@ -100,10 +107,52 @@ class CutWindow(QDialog):
         self.Ui.horizontalSlider_left.valueChanged.connect(self.change_postion_left)
         self.Ui.horizontalSlider_right.valueChanged.connect(self.change_postion_right)
         self.Ui.pushButton_open_pic.clicked.connect(self.open_image)
+        self.Ui.pushButton_rotate_left.clicked.connect(self.rotate_left)
+        self.Ui.pushButton_rotate_right.clicked.connect(self.rotate_right)
+        self.Ui.comboBox_cut_ratio.currentTextChanged.connect(self.apply_selected_ratio)
+        self.Ui.checkBox_keep_ratio.toggled.connect(self._keep_ratio_toggled)
         self.Ui.pushButton_cut_close.clicked.connect(self.do_cut_and_close)
         self.Ui.pushButton_cut.clicked.connect(self.do_cut)
         self.Ui.pushButton_close.clicked.connect(self.close)
         self.showimage()
+
+    def _setup_ui_layout(self):
+        """Arrange the fixed-size crop dialog into preview, controls, and actions."""
+        self.setFixedSize(1080, 680)
+        self.Ui.widget_cutimage.setGeometry(0, 0, 800, 600)
+        self.Ui.label_backgroud_pic.setGeometry(0, 0, 800, 600)
+        self.Ui.widget.setGeometry(800, 0, 280, 680)
+        self.Ui.widget_2.setGeometry(0, 600, 800, 80)
+
+        self.Ui.pushButton_open_pic.setGeometry(30, 20, 220, 40)
+        self.Ui.pushButton_rotate_left.setGeometry(30, 70, 105, 40)
+        self.Ui.pushButton_rotate_right.setGeometry(145, 70, 105, 40)
+        detail_positions = {
+            "label_3": (20, 125, 220, 16),
+            "label_origin_size": (40, 145, 190, 20),
+            "label_5": (20, 175, 220, 16),
+            "label_cut_size": (40, 195, 190, 20),
+            "label_7": (20, 225, 220, 16),
+            "label_cut_postion": (40, 245, 200, 20),
+            "label": (20, 275, 220, 16),
+            "label_cut_ratio": (40, 295, 190, 20),
+        }
+        for name, geometry in detail_positions.items():
+            getattr(self.Ui, name).setGeometry(*geometry)
+        self.Ui.label.setText("当前高宽比例：")
+        self.Ui.comboBox_cut_ratio.setGeometry(30, 325, 105, 32)
+        self.Ui.checkBox_keep_ratio.setGeometry(150, 325, 100, 32)
+        self.Ui.label_2.setGeometry(20, 375, 220, 16)
+        self.Ui.gridLayoutWidget.setGeometry(20, 400, 230, 80)
+        self.Ui.widget1.setGeometry(20, 485, 230, 31)
+        self.Ui.pushButton_cut_close.setGeometry(30, 535, 220, 50)
+        self.Ui.pushButton_cut.setGeometry(30, 595, 105, 40)
+        self.Ui.pushButton_close.setGeometry(145, 595, 105, 40)
+
+        self.Ui.label_4.setGeometry(30, 12, 141, 16)
+        self.Ui.horizontalSlider_left.setGeometry(30, 38, 330, 21)
+        self.Ui.label_6.setGeometry(440, 12, 141, 16)
+        self.Ui.horizontalSlider_right.setGeometry(440, 38, 330, 21)
 
     def set_style(self):
         # 控件美化 裁剪弹窗
@@ -196,10 +245,22 @@ class CutWindow(QDialog):
         x, y, width, height = self.pushButton_select_cutrange.geometry().getRect()
         if x is None or y is None or width is None or height is None:
             return
+        center_x = x + width / 2
         center_y = y + height / 2
         height = self._slider_to_size(slider_value, self.pic_new_h)
-        rect = self._constrain_crop_rect(QRect(x, int(round(center_y - height / 2)), width, height))
-        self._apply_crop_rect(rect)
+        if self.Ui.checkBox_keep_ratio.isChecked():
+            aspect = self._selected_aspect_ratio()
+            width = int(round(height * aspect))
+            if width > self.pic_new_w:
+                width = self.pic_new_w
+                height = int(round(width / aspect))
+        rect = QRect(
+            int(round(center_x - width / 2)),
+            int(round(center_y - height / 2)),
+            width,
+            height,
+        )
+        self._apply_crop_rect(rect, sync_sliders=self.Ui.checkBox_keep_ratio.isChecked())
         self.getRealPos()  # 显示裁剪框实际位置
 
     def change_postion_right(self):
@@ -209,9 +270,21 @@ class CutWindow(QDialog):
         if x is None or y is None or width is None or height is None:
             return
         center_x = x + width / 2
+        center_y = y + height / 2
         width = self._slider_to_size(slider_value, self.pic_new_w)
-        rect = self._constrain_crop_rect(QRect(int(round(center_x - width / 2)), y, width, height))
-        self._apply_crop_rect(rect)
+        if self.Ui.checkBox_keep_ratio.isChecked():
+            aspect = self._selected_aspect_ratio()
+            height = int(round(width / aspect))
+            if height > self.pic_new_h:
+                height = self.pic_new_h
+                width = int(round(height * aspect))
+        rect = QRect(
+            int(round(center_x - width / 2)),
+            int(round(center_y - height / 2)),
+            width,
+            height,
+        )
+        self._apply_crop_rect(rect, sync_sliders=self.Ui.checkBox_keep_ratio.isChecked())
         self.getRealPos()  # 显示裁剪框实际位置
 
     def _slider_to_size(self, value: int, max_size: int) -> int:
@@ -254,6 +327,116 @@ class CutWindow(QDialog):
         self.Ui.horizontalSlider_left.blockSignals(False)
         self.Ui.horizontalSlider_right.blockSignals(False)
 
+    def _selected_aspect_ratio(self) -> float:
+        """Return the selected width/height ratio."""
+        selected = self.Ui.comboBox_cut_ratio.currentText()
+        if selected == "原比例" and self.pic_h > 0:
+            return self.pic_w / self.pic_h
+        if selected not in {"默认", "原比例"}:
+            width, height = selected.split(":", 1)
+            return int(width) / int(height)
+        return 1 / DEFAULT_CROP_HEIGHT_WIDTH_RATIO
+
+    def _keep_ratio_toggled(self, checked: bool):
+        if checked:
+            self.apply_selected_ratio()
+
+    def apply_selected_ratio(self, _text: str = ""):
+        if self.pic_new_w <= 0 or self.pic_new_h <= 0:
+            return
+        aspect = self._selected_aspect_ratio()
+        width = self.pic_new_w
+        height = int(round(width / aspect))
+        if height > self.pic_new_h:
+            height = self.pic_new_h
+            width = int(round(height * aspect))
+        current = self.pushButton_select_cutrange.geometry()
+        center_x = current.x() + current.width() / 2
+        center_y = current.y() + current.height() / 2
+        self._apply_crop_rect(
+            QRect(
+                int(round(center_x - width / 2)),
+                int(round(center_y - height / 2)),
+                width,
+                height,
+            ),
+            sync_sliders=True,
+        )
+        self.getRealPos()
+
+    def rotate_left(self):
+        self._rotate_preview(-1)
+
+    def rotate_right(self):
+        self._rotate_preview(1)
+
+    def _rotate_preview(self, quarter_turns: int):
+        if not self.show_image_path or not self.show_image_path.is_file():
+            return
+        self.rotation_quarters = (self.rotation_quarters + quarter_turns) % 4
+        pixmap = QPixmap(self.show_image_path.as_posix())
+        pixmap = pixmap.transformed(QTransform().rotate(90 * self.rotation_quarters))
+        self.pic_w = pixmap.width()
+        self.pic_h = pixmap.height()
+        self.pic_h_w_ratio = self.pic_h / self.pic_w
+        self.Ui.label_origin_size.setText(f"{self.pic_w}, {self.pic_h}")
+        self._display_preview_pixmap(pixmap)
+        self.apply_selected_ratio()
+
+    def _display_preview_pixmap(self, pixmap: QPixmap):
+        if self.pic_h_w_ratio <= self.show_h / self.show_w:
+            self.pic_new_w = self.show_w
+            self.pic_new_h = int(self.pic_new_w * self.pic_h / self.pic_w)
+        else:
+            self.pic_new_h = self.show_h
+            self.pic_new_w = int(self.pic_new_h * self.pic_w / self.pic_h)
+        scaled = pixmap.scaled(
+            self.pic_new_w,
+            self.pic_new_h,
+            aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio,
+        )
+        self.Ui.label_backgroud_pic.setGeometry(0, 0, self.pic_new_w, self.pic_new_h)
+        self.Ui.label_backgroud_pic.setPixmap(scaled)
+
+    def _rotate_pil_image(self, image: Image.Image) -> Image.Image:
+        rotations = {
+            0: None,
+            1: Image.Transpose.ROTATE_270,
+            2: Image.Transpose.ROTATE_180,
+            3: Image.Transpose.ROTATE_90,
+        }
+        transpose = rotations[self.rotation_quarters]
+        return image.copy() if transpose is None else image.transpose(transpose)
+
+    def _save_full_image(self, image: Image.Image, target_path: Path, source_path: Path):
+        if target_path == source_path:
+            source_mode = stat.S_IMODE(source_path.stat().st_mode)
+            image_format = Image.registered_extensions().get(target_path.suffix.lower(), "JPEG")
+            temp_fd, temp_name = tempfile.mkstemp(
+                prefix=f".{target_path.stem}.mdcx-rotate-", suffix=target_path.suffix, dir=target_path.parent
+            )
+            temp_path = Path(temp_name)
+            try:
+                with os.fdopen(temp_fd, "w+b") as temp_file:
+                    if hasattr(os, "fchmod"):
+                        os.fchmod(temp_file.fileno(), source_mode)
+                    else:
+                        os.chmod(temp_path, source_mode)
+                    image.save(temp_file, format=image_format, quality=95, subsampling=0)
+                    temp_file.flush()
+                    os.fsync(temp_file.fileno())
+                if hasattr(os, "listxattr"):
+                    for attribute in os.listxattr(source_path):
+                        os.setxattr(temp_path, attribute, os.getxattr(source_path, attribute))
+                os.replace(temp_path, target_path)
+            finally:
+                if temp_path.exists():
+                    delete_file_sync(temp_path)
+            return
+        if target_path.exists():
+            delete_file_sync(target_path)
+        image.save(target_path, quality=95, subsampling=0)
+
     # 打开图片选择框
     def open_image(self):
         img_path, img_type = QFileDialog.getOpenFileName(
@@ -266,11 +449,13 @@ class CutWindow(QDialog):
     def showimage(self, img_path: Path | None = None, json_data: "FileInfo | None" = None):
         self.Ui.label_backgroud_pic.setText(" ")  # 清空背景
         # 初始化数据
+        self.rotation_quarters = 0
+        self.Ui.comboBox_cut_ratio.setCurrentText("默认")
         self.Ui.checkBox_add_sub.setChecked(False)
         self.Ui.radioButton_add_no.setChecked(True)
         self.Ui.radioButton_add_no_2.setChecked(True)
         self.pic_h_w_ratio = 1.5
-        self.rect_h_w_ratio = 536.6 / 379  # 裁剪框默认高宽比
+        self.rect_h_w_ratio = DEFAULT_CROP_HEIGHT_WIDTH_RATIO  # 裁剪框默认高宽比
         self.show_image_path = img_path
         self.cut_thumb_path = None  # 裁剪后的thumb路径
         self.cut_poster_path = None  # 裁剪后的poster路径
@@ -463,11 +648,15 @@ class CutWindow(QDialog):
 
         # 裁剪poster
         try:
-            img = Image.open(img_path)
+            source_img = Image.open(img_path)
         except Exception:
             self.main_window.show_log_text(f"{traceback.format_exc()}\n Open Pic: {img_path}")
             return False
-        img = img.convert("RGB")
+        img = self._rotate_pil_image(source_img)
+        source_img.close()
+        converted_img = img.convert("RGB")
+        img.close()
+        img = converted_img
         img_new_png = img.crop((self.c_x, self.c_y, self.c_x2, self.c_y2))
         try:
             if os.path.exists(self.cut_poster_path):
@@ -482,10 +671,8 @@ class CutWindow(QDialog):
 
         # 清理旧的thumb
         if DownloadableFile.THUMB in manager.config.download_files:
-            if thumb_path != img_path:
-                if os.path.exists(thumb_path):
-                    delete_file_sync(thumb_path)
-                img.save(thumb_path, quality=95, subsampling=0)
+            if thumb_path != img_path or self.rotation_quarters:
+                self._save_full_image(img, thumb_path, img_path)
             # thumb加水印
             if manager.config.thumb_mark == 1:
                 await add_mark_thread(thumb_path, mark_list)
@@ -494,10 +681,8 @@ class CutWindow(QDialog):
 
         # 清理旧的fanart
         if DownloadableFile.FANART in manager.config.download_files:
-            if self.cut_fanart_path != img_path:
-                if os.path.exists(self.cut_fanart_path):
-                    delete_file_sync(self.cut_fanart_path)
-                img.save(self.cut_fanart_path, quality=95, subsampling=0)
+            if self.cut_fanart_path != img_path or self.rotation_quarters:
+                self._save_full_image(img, self.cut_fanart_path, img_path)
             # fanart加水印
             if manager.config.fanart_mark == 1:
                 await add_mark_thread(self.cut_fanart_path, mark_list)

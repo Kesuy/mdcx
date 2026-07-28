@@ -7,6 +7,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm
 
+from mdcx.versioning import extract_local_version, parse_version
+
 app = typer.Typer(
     name="bump",
     help="MDCx 版本号管理工具",
@@ -36,30 +38,32 @@ def get_consts_file() -> Path:
     return consts_file
 
 
-def get_current_version() -> int:
+def get_current_version() -> str:
     """从 consts.py 中获取当前版本号"""
     consts_file = get_consts_file()
     content = consts_file.read_text(encoding="utf-8")
 
-    # 匹配 LOCAL_VERSION = 数字
-    match = re.search(r"LOCAL_VERSION\s*=\s*(\d+)", content)
-    if not match:
-        raise ValueError("在 consts.py 中找不到 LOCAL_VERSION")
-
-    return int(match.group(1))
+    version = extract_local_version(content)
+    if version is None:
+        raise ValueError("在 consts.py 中找不到有效的 LOCAL_VERSION")
+    return version
 
 
-def update_version(new_version: int) -> None:
+def update_version(new_version: str) -> None:
     """更新 consts.py 中的版本号"""
     consts_file = get_consts_file()
     content = consts_file.read_text(encoding="utf-8")
 
-    # 替换版本号
-    pattern = r"(LOCAL_VERSION\s*=\s*)\d+"
-    replacement = rf"\g<1>{new_version}"
-    new_content = re.sub(pattern, replacement, content)
+    if parse_version(new_version) is None:
+        raise ValueError(f"版本号格式无效: {new_version}")
+    current_version = extract_local_version(content)
+    if current_version is None:
+        raise ValueError("在 consts.py 中找不到有效的 LOCAL_VERSION")
+    pattern = rf"(?m)^(\s*LOCAL_VERSION\s*=\s*)['\"]?{re.escape(current_version)}['\"]?(\s*(?:#.*)?)$"
+    replacement = rf'\g<1>"{new_version}"\g<2>'
+    new_content, replacements = re.subn(pattern, replacement, content, count=1)
 
-    if new_content == content:
+    if replacements != 1:
         raise ValueError("版本号替换失败，请检查 consts.py 文件格式")
 
     consts_file.write_text(new_content, encoding="utf-8")
@@ -67,7 +71,7 @@ def update_version(new_version: int) -> None:
 
 @app.command()
 def main(
-    version: Annotated[int | None, typer.Option("--version", "-v", help="新版本号")] = None,
+    version: Annotated[str | None, typer.Option("--version", "-v", help="新版本号，如 3.1")] = None,
     increment: Annotated[int, typer.Option("--increment", "-i", help="版本号增量")] = 1,
     dry_run: Annotated[bool, typer.Option("--dry-run", "-n", help="预览模式")] = False,
     force: Annotated[bool, typer.Option("--force", "-f", help="强制执行")] = False,
@@ -77,8 +81,8 @@ def main(
 
     [bold green]示例:[/bold green]
 
-    • [cyan]python bump.py[/cyan] - 版本号 +1
-    • [cyan]python bump.py --version 220250902[/cyan] - 设置为指定版本号
+    • [cyan]python bump.py[/cyan] - 语义版本最后一段 +1
+    • [cyan]python bump.py --version 3.1[/cyan] - 设置为指定版本号
     • [cyan]python bump.py --increment 10[/cyan] - 版本号 +10
     • [cyan]python bump.py --dry-run[/cyan] - 预览模式
     """
@@ -90,7 +94,15 @@ def main(
         if version is not None:
             new_version = version
         else:
-            new_version = current_version + increment
+            if "." in current_version and not current_version.startswith("220"):
+                parts = current_version.split(".")
+                parts[-1] = str(int(parts[-1]) + increment)
+                new_version = ".".join(parts)
+            else:
+                new_version = str(int(current_version) + increment)
+
+        if parse_version(new_version) is None:
+            raise ValueError(f"版本号格式无效: {new_version}")
 
         # 显示版本信息
         console.print(
