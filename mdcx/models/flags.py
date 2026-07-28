@@ -1,3 +1,4 @@
+import threading
 from asyncio import Event
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,8 @@ class _Flags:
     count_claw: int = 0  # 批量刮削次数
     can_save_remain: bool = False  # 保存剩余任务
     remain_list: list[Path] = field(default_factory=list)
+    _remain_lock: Any = field(default_factory=threading.RLock, repr=False)
+    _remain_version: int = field(default=0, repr=False)
     new_again_dic: dict[Path, tuple[str, str, str]] = field(default_factory=dict)
     again_dic: dict[Path, tuple[str, str, str]] = field(default_factory=dict)  # 待重新刮削的字典
     start_time: float = 0.0
@@ -75,6 +78,31 @@ class _Flags:
     success_list: set[Path] = field(default_factory=set)
     stop_other: bool = True  # 非刮削线程停止标识
     stop_requested: bool = False  # 手动停止刮削请求标识
+
+    def replace_remain_list(self, paths: list[Path], *, mark_dirty: bool = True) -> None:
+        with self._remain_lock:
+            self.remain_list = list(paths)
+            self._remain_version += 1
+            self.can_save_remain = mark_dirty
+
+    def remove_remain_path(self, path: Path) -> bool:
+        with self._remain_lock:
+            try:
+                self.remain_list.remove(path)
+            except ValueError:
+                return False
+            self._remain_version += 1
+            self.can_save_remain = True
+            return True
+
+    def remain_snapshot(self) -> tuple[list[Path], int, bool]:
+        with self._remain_lock:
+            return list(self.remain_list), self._remain_version, self.can_save_remain
+
+    def mark_remain_saved(self, version: int) -> None:
+        with self._remain_lock:
+            if self._remain_version == version:
+                self.can_save_remain = False
 
     # show
     log_txt: Any = None  # 日志文件对象

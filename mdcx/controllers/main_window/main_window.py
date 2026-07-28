@@ -73,6 +73,7 @@ from mdcx.tools.emby_actor_info import creat_kodi_actors, show_emby_actor_list, 
 from mdcx.tools.missing import check_missing_number
 from mdcx.tools.subtitle import add_sub_for_all_video
 from mdcx.utils import (
+    SCRAPE_TASK_GROUP,
     add_html,
     add_html_plain_text,
     executor,
@@ -197,6 +198,7 @@ class MyMAinWindow(QMainWindow):
 
         # region 其它属性声明
         self.threads_list: list[threading.Thread] = []  # 启动的线程列表
+        self._thread_stop_event = threading.Event()
         self.start_click_time = 0
         self.start_click_pos: QPoint
         self.window_marjin = None
@@ -1042,7 +1044,7 @@ class MyMAinWindow(QMainWindow):
             self.Ui.pushButton_start_cap.setText(" ■ 停止中 ")
             self.Ui.pushButton_start_cap2.setText(" ■ 停止中 ")
             signal_qt.show_scrape_info("⛔️ 刮削停止中...")
-            executor.cancel_async()  # 取消异步任务
+            executor.cancel_async(group=SCRAPE_TASK_GROUP)  # 仅取消刮削任务，不中断连接池关闭等后台工作
             if not self.threads_list:
                 self.stop_used_time = 0.0
                 self.show_stop_info_thread()
@@ -1118,15 +1120,22 @@ class MyMAinWindow(QMainWindow):
             "线程正在停止中，请稍后...\n 🍯 停止时间与线程数量及线程正在执行的任务有关，比如正在执行网络请求、文件下载等IO操作时，需要等待其释放资源。。。\n"
         )
         signal_qt.stop = True
-        for each in self.threads_list:  # 线程池的线程
-            kill_a_thread(each)
-            while each.is_alive():
-                pass
+        self._thread_stop_event.set()
+        alive_threads: list[threading.Thread] = []
+        for each in self.threads_list:  # 等待线程协作式停止，不在任意文件操作中注入异常
+            if not kill_a_thread(each):
+                alive_threads.append(each)
 
         self.stop_used_time = get_used_time(start_time)
-        signal_qt.show_log_text(f" 🕷 {get_current_time()} 已停止线程：{Flags.total_kills}/{Flags.total_kills}")
-        signal_qt.show_traceback_log(f"所有线程已停止！！！({self.stop_used_time}s)\n ⛔️ 刮削已手动停止！\n")
-        signal_qt.show_log_text(f" ⛔️ {get_current_time()} 所有线程已停止！({self.stop_used_time}s)")
+        stopped_count = Flags.total_kills - len(alive_threads)
+        signal_qt.show_log_text(f" 🕷 {get_current_time()} 已停止线程：{stopped_count}/{Flags.total_kills}")
+        if alive_threads:
+            alive_names = ", ".join(each.name for each in alive_threads)
+            signal_qt.show_traceback_log(f"线程仍在完成当前操作，将不再强制终止：{alive_names}")
+            signal_qt.show_log_text(f" 🟡 以下线程仍在完成当前操作：{alive_names}")
+        else:
+            signal_qt.show_traceback_log(f"所有线程已停止！！！({self.stop_used_time}s)\n ⛔️ 刮削已手动停止！\n")
+            signal_qt.show_log_text(f" ⛔️ {get_current_time()} 所有线程已停止！({self.stop_used_time}s)")
         thread_remain_list = []
         [thread_remain_list.append(t.name) for t in threading.enumerate()]  # 剩余线程名字列表
         thread_remain = ", ".join(thread_remain_list)
@@ -2714,6 +2723,12 @@ class MyMAinWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.pushButton_show_log_clicked()  # 点击开始移动按钮后跳转到日志页面
             try:
+                active_threads = [thread for thread in self.threads_list if thread.is_alive()]
+                if active_threads:
+                    signal_qt.show_log_text("上一次移动任务仍在完成当前文件操作，未启动新的移动任务。")
+                    return
+                self.threads_list = []
+                self._thread_stop_event.clear()
                 t = threading.Thread(target=self._move_file_thread)
                 self.threads_list.append(t)
                 t.start()  # 启动线程,即让线程开始执行
@@ -2743,6 +2758,9 @@ class MyMAinWindow(QMainWindow):
         signal_qt.show_log_text("Start move movies...")
         skip_list = []
         for movie_path, file_path in movie_items:
+            if self._thread_stop_event.is_set() or signal_qt.stop or Flags.stop_requested:
+                signal_qt.show_log_text("移动任务已停止；当前文件操作已安全完成。")
+                break
             des_path = movie_path / "Movie_moved"
             if not des_path.exists():
                 signal_qt.show_log_text(f"Created folder: {des_path}")
@@ -3534,7 +3552,7 @@ class MyMAinWindow(QMainWindow):
             "QPushButton#pushButton_start_cap2{color: white;background-color:#4C6EFF;}QPushButton:hover#pushButton_start_cap2{color: white;background-color: rgba(76,110,255,240)}QPushButton:pressed#pushButton_start_cap2{color: white;background-color:#4C6EE0}"
         )
         Flags.file_mode = FileMode.Default
-        self.threads_list = []
+        self.threads_list = [thread for thread in self.threads_list if thread.is_alive()]
         if len(Flags.failed_list):
             self.Ui.pushButton_scraper_failed_list.setText(f"一键重新刮削当前 {len(Flags.failed_list)} 个失败文件")
         else:

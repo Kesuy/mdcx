@@ -33,7 +33,7 @@ from ..models.types import CrawlersResult, FileInfo, OtherInfo, ScrapeResult, Sh
 from ..signals import signal
 from ..tools.emby_actor_image import update_emby_actor_photo
 from ..tools.emby_actor_info import creat_kodi_actors
-from ..utils import executor, get_current_time, get_real_time, get_used_time, split_path
+from ..utils import SCRAPE_TASK_GROUP, executor, get_current_time, get_real_time, get_used_time, split_path
 from ..utils.dataclass import update
 from ..utils.file import copy_file_async, move_file_async
 from ..utils.path import is_any_descendant
@@ -231,8 +231,7 @@ class Scraper:
                 movie_list.extend(await get_movie_list(file_mode, scan_path, scan_ignore_dirs))
         else:
             signal.show_log_text("\n ⏰ Start time: " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-        Flags.remain_list = movie_list.copy()
-        Flags.can_save_remain = True
+        Flags.replace_remain_list(movie_list)
 
         task_count = len(movie_list)
         Flags.total_count = task_count
@@ -508,8 +507,8 @@ class Scraper:
         # 更新剩余任务
         try:
             try:
-                Flags.remain_list.remove(file_path)
-                Flags.can_save_remain = True
+                if not Flags.remove_remain_path(file_path):
+                    raise ValueError(f"remaining task not found: {file_path}")
             except Exception as e1:
                 signal.show_log_text(f"remove:  {file_path}\n {str(e1)}\n {traceback.format_exc()}")
         except Exception as e:
@@ -949,7 +948,7 @@ def start_new_scrape(file_mode: FileMode, movie_list: list[Path] | None = None) 
                 manager.config, computed.async_client, config_getter=lambda: manager.config
             )
         scraper = Scraper(crawler_provider)
-        executor.submit(scraper.run(file_mode, movie_list))
+        executor.submit(scraper.run(file_mode, movie_list), group=SCRAPE_TASK_GROUP)
     except Exception:
         signal.show_traceback_log(traceback.format_exc())
         signal.show_log_text(traceback.format_exc())
@@ -962,8 +961,9 @@ def get_remain_list() -> bool:
         return False
     with open(remain_list_path, encoding="utf-8", errors="ignore") as f:
         remains = [p for path in f if (line := path.strip()) and (p := Path(line)).suffix]
-    Flags.remain_list = remains
-    if not len(Flags.remain_list) or Switch.REMAIN_TASK not in manager.config.switch_on:
+    Flags.replace_remain_list(remains, mark_dirty=False)
+    remain_list, _, _ = Flags.remain_snapshot()
+    if not remain_list or Switch.REMAIN_TASK not in manager.config.switch_on:
         return False
     box = QMessageBox(QMessageBox.Icon.Information, "继续刮削", "上次刮削未完成，是否继续刮削剩余任务？")
     box.setStandardButtons(
@@ -985,7 +985,7 @@ def get_remain_list() -> bool:
 
     movie_paths = parse_media_paths()
 
-    p = Flags.remain_list[0]
+    p = remain_list[0]
     if not is_any_descendant(p, *movie_paths):
         box = QMessageBox(
             QMessageBox.Icon.Warning,
@@ -1001,8 +1001,8 @@ def get_remain_list() -> bool:
         reply = box.exec()
         if reply == QMessageBox.StandardButton.No:
             return True
-    signal.show_log_text(f"🍯 🍯 🍯 NOTE: 继续刮削未完成任务！！！ 剩余未刮削文件数量（{len(Flags.remain_list)})")
-    start_new_scrape(FileMode.Default, Flags.remain_list)
+    signal.show_log_text(f"🍯 🍯 🍯 NOTE: 继续刮削未完成任务！！！ 剩余未刮削文件数量（{len(remain_list)})")
+    start_new_scrape(FileMode.Default, remain_list)
     return True
 
 

@@ -2,14 +2,11 @@ import asyncio
 import concurrent
 import concurrent.futures
 import contextlib
-import ctypes
 import html
-import inspect
 import random
 import re
 import threading
 import time
-import traceback
 import unicodedata
 from collections.abc import Coroutine
 from concurrent.futures import Future
@@ -21,6 +18,7 @@ from ..consts import IS_NFC
 from ..manual import ManualConfig
 
 T = TypeVar("T")
+SCRAPE_TASK_GROUP = "scrape"
 
 
 class AsyncBackgroundExecutor:
@@ -32,6 +30,7 @@ class AsyncBackgroundExecutor:
         self._loop_started: threading.Event | None = None
         self._startup_error: BaseException | None = None
         self._pending_futures: set[Future] = set()
+        self._future_groups: dict[Future, object | None] = {}
         self._lock = threading.RLock()
         self._running = False
 
@@ -40,17 +39,18 @@ class AsyncBackgroundExecutor:
         """获取后台事件循环, 首次使用时再启动后台线程。"""
         return self._ensure_started()
 
-    def submit(self, coro: Coroutine[Any, Any, T]) -> Future[T]:
+    def submit(self, coro: Coroutine[Any, Any, T], *, group: object | None = None) -> Future[T]:
         """提交一个协程到后台线程执行, 返回一个 Future 对象. 此方法线程安全且非阻塞."""
         try:
             loop = self._ensure_started()
         except Exception:
             coro.close()
             raise
-        future = asyncio.run_coroutine_threadsafe(coro, loop)
-        future.add_done_callback(self._remove_future)
         with self._lock:
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
             self._pending_futures.add(future)
+            self._future_groups[future] = group
+        future.add_done_callback(self._remove_future)
         return future
 
     def run(self, coro: Coroutine[Any, Any, T]) -> T:
@@ -84,41 +84,23 @@ class AsyncBackgroundExecutor:
                     future.cancel()
             raise
 
-    def cancel(self):
-        """取消所有任务"""
+    def cancel(self, *, group: object | None = None):
+        """取消指定任务组；未指定任务组时取消所有任务。"""
         with self._lock:
             if not self._running:
                 return
-            self._running = False
-            _pending_futures = list(self._pending_futures)
+            _pending_futures = [
+                future for future in self._pending_futures if group is None or self._future_groups.get(future) == group
+            ]
 
         # 取消所有待处理的任务
         for future in _pending_futures:
             if not future.done():
                 future.cancel()  # 此处会运行 callback _remove_future
-        self._running = True  # 此方法不关闭后台线程和事件循环, 仅取消任务
 
-    def cancel_async(self):
-        """取消所有任务. cancel 的非阻塞版本
-
-        提交一个新的任务到事件循环中去取消其他任务
-        """
-        with self._lock:
-            if not self._running:
-                return
-            _pending_futures = list(self._pending_futures)
-            if not _pending_futures:
-                return
-
-        # 创建一个异步任务来取消所有待处理任务
-        async def _cancel_all():
-            for future in _pending_futures:
-                if not future.done():
-                    future.cancel()
-            return True
-
-        # 提交取消任务到事件循环
-        return self.submit(_cancel_all())
+    def cancel_async(self, *, group: object | None = None) -> None:
+        """非阻塞地取消指定任务组；Future.cancel 本身是线程安全的。"""
+        self.cancel(group=group)
 
     def _run_event_loop(self):
         """运行事件循环的线程函数"""
@@ -151,6 +133,7 @@ class AsyncBackgroundExecutor:
         """自动移除已完成的任务"""
         with self._lock:
             self._pending_futures.discard(future)
+            self._future_groups.pop(future, None)
 
     def _start_background_thread(self):
         with self._lock:
@@ -263,33 +246,12 @@ def clean_list(a: str) -> str:
     return ",".join(dict.fromkeys(w.strip() for w in a.split(",") if w.strip()).keys())
 
 
-# todo 此方法调用 c api 强制终止线程, 在异步版本中应该不需要
-def _async_raise(tid, exctype):
-    """raises the exception, performs cleanup if needed"""
-    tid = ctypes.c_long(tid)
-    if not inspect.isclass(exctype):
-        exctype = type(exctype)
-    res = 1
-    while res == 1:
-        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
-    if res == 0:
-        # raise ValueError("invalid thread id")
-        pass
-    elif res != 1:
-        # """if it returns a number greater than one, you're in trouble,
-        # and you should call it again with exc=NULL to revert the effect"""
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
-        raise SystemError("PyThreadState_SetAsyncExc failed")
-
-
-# todo 同上, 应该优雅的退出线程
-def kill_a_thread(t: Thread):
-    try:
-        while t.is_alive():
-            _async_raise(t.ident, SystemExit)
-    except Exception:
-        print(traceback.format_exc())
-        _async_raise(t.ident, SystemExit)
+def kill_a_thread(t: Thread, timeout: float = 5.0) -> bool:
+    """Boundedly wait for a cooperatively-stopped thread without injecting exceptions."""
+    if t is threading.current_thread():
+        return False
+    t.join(timeout=max(float(timeout), 0.0))
+    return not t.is_alive()
 
 
 def get_random_headers() -> dict:

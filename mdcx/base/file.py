@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import stat
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -27,6 +28,7 @@ from ..utils.file import copy_file_async, copy_file_sync, delete_file_async, del
 LARGE_LIST_SORT_THRESHOLD = 50000
 _large_list_warned: set[str] = set()
 _success_list_save_lock = asyncio.Lock()
+_remain_list_save_lock = threading.Lock()
 _SUCCESS_REPLACE_RETRY_MAX = 8
 _SUCCESS_REPLACE_RETRY_BASE_SLEEP = 0.15
 
@@ -235,13 +237,27 @@ async def save_success_list(old_path: Path | None = None, new_path: Path | None 
 
 def save_remain_list() -> None:
     """This function is intended to be sync."""
-    if Flags.can_save_remain and Switch.REMAIN_TASK in manager.config.switch_on:
+    with _remain_list_save_lock:
+        remain_list, version, can_save = Flags.remain_snapshot()
+        if not can_save or Switch.REMAIN_TASK not in manager.config.switch_on:
+            return
+
+        remain_path = resources.u("remain.txt")
+        remain_tmp_path = remain_path.with_name(f"{remain_path.name}.{os.getpid()}.{uuid4().hex}.tmp")
         try:
-            with open(resources.u("remain.txt"), "w", encoding="utf-8", errors="ignore") as f:
-                f.writelines(_path_lines_for_write(Flags.remain_list, "剩余任务列表"))
-                Flags.can_save_remain = False
+            with open(remain_tmp_path, "w", encoding="utf-8", errors="ignore") as f:
+                f.writelines(_path_lines_for_write(remain_list, "剩余任务列表"))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(remain_tmp_path, remain_path)
+            Flags.mark_remain_saved(version)
         except Exception as e:
             signal.show_log_text(f"save remain list error: {str(e)}\n {traceback.format_exc()}")
+        finally:
+            try:
+                remain_tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 async def _clean_empty_fodlers(path: Path, file_mode: FileMode) -> None:
