@@ -1,11 +1,8 @@
-## 新功能
-- FC2CMADB 自动登录现在优先调用系统已安装的 Microsoft Edge，未安装时自动改用 Google Chrome。
-- Windows 与 macOS 安装包内置 Playwright 控制组件，用户无需另外安装 Python、Playwright 或 Chromium。
-
 ## 优化
-- 自动登录沿用 MDCx 当前代理配置，使浏览器登录与后续 Cookie 验证保持一致的网络出口。
-- 登录按钮明确显示浏览器选择顺序；未检测到 Edge 或 Chrome 时给出可操作的提示。
-- 用户名和密码仍仅在当前进程内存中使用，密码输入后立即清除，不写入配置或日志。
+- 设置 → 网络中的 Cookie 配置现在按 JavDB、JavBus、FC2CMADB 分区显示，FC2CMADB 的认证方式和登录控件归属更清晰。
+- FC2CMADB 自动登录会在 Cloudflare 验证先于登录表单出现时保持浏览器打开，等待用户完成验证后再自动填写并提交账号信息。
 
 ## 修复
-- 修复 3.1 安装包中 FC2CMADB 自动登录因缺少 Playwright 控制组件而无法启动浏览器的问题。
+- 修复启动或打开设置时自动检测 JavDB、JavBus Cookie 并产生不必要网络请求的问题；Cookie 现在仅在用户主动点击检查时验证。
+- 修复 JavBus Cookie 为空仍可能显示“连接正常”的误导状态；空内容现在直接提示未填写且不会访问网络。
+- 修复 FC2CMADB 登录页出现 Cloudflare 验证时，Playwright 等待不到登录输入框并提前关闭 Edge 的问题。

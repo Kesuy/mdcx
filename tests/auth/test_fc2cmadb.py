@@ -343,3 +343,67 @@ async def test_default_browser_login_omits_disabled_proxy(monkeypatch):
     await auth.login("test-user", "runtime-password")
 
     assert browser_calls == [("test-user", "runtime-password", None)]
+
+
+@pytest.mark.asyncio
+async def test_cloudflare_challenge_waits_for_login_form_before_autofill():
+    events = []
+
+    class FakeLocator:
+        def __init__(self, kind, page):
+            self.kind = kind
+            self.page = page
+            self.first = self
+
+        async def count(self):
+            return int(self.page.elapsed_ms >= 2_000)
+
+        async def fill(self, value):
+            events.append(("fill", self.kind, value))
+
+        async def click(self):
+            events.append(("click", self.kind))
+            self.page.url = "https://fc2cmadb.com/"
+
+    class FakePage:
+        url = "https://fc2cmadb.com/login"
+        elapsed_ms = 0
+
+        def locator(self, selector):
+            if "password" in selector:
+                kind = "password"
+            elif "submit" in selector:
+                kind = "submit"
+            else:
+                kind = "username"
+            return FakeLocator(kind, self)
+
+        def is_closed(self):
+            return False
+
+        async def wait_for_timeout(self, timeout_ms):
+            self.elapsed_ms += timeout_ms
+            events.append(("wait", timeout_ms))
+
+    class FakeContext:
+        def __init__(self, page):
+            self.page = page
+
+        async def cookies(self):
+            if self.page.url.endswith("/login"):
+                return [{"name": "fc2cmadb-session", "value": "anonymous"}]
+            return [{"name": "fc2cmadb-session", "value": "authenticated"}]
+
+    page = FakePage()
+    cookies = await FC2CMADBAuthManager._complete_browser_login(
+        page,
+        FakeContext(page),
+        "test-user",
+        "runtime-password",
+        timeout_ms=5_000,
+    )
+
+    assert events[:2] == [("wait", 1_000), ("wait", 1_000)]
+    assert ("fill", "username", "test-user") in events
+    assert ("fill", "password", "runtime-password") in events
+    assert cookies == [{"name": "fc2cmadb-session", "value": "authenticated"}]

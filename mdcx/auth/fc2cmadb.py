@@ -115,6 +115,51 @@ class FC2CMADBAuthManager:
         return await type(self)._login_with_playwright(username, password, proxy_server)
 
     @staticmethod
+    async def _complete_browser_login(
+        page,
+        context,
+        username: str,
+        password: str,
+        *,
+        timeout_ms: int = 300_000,
+    ) -> list[dict[str, Any]]:
+        username_input = page.locator('input[name="email"], input[name="username"], input[type="email"]').first
+        password_input = page.locator('input[name="password"], input[type="password"]').first
+        submit_button = page.locator('button[type="submit"], input[type="submit"]').first
+        autofill_attempted = False
+        elapsed_ms = 0
+
+        while elapsed_ms < timeout_ms:
+            if page.is_closed():
+                break
+
+            cookies = await context.cookies()
+            if "/login" not in page.url and any(
+                cookie.get("name") == "fc2cmadb-session" and cookie.get("value") for cookie in cookies
+            ):
+                return cookies
+
+            if not autofill_attempted:
+                fields_ready = all(
+                    [await locator.count() for locator in (username_input, password_input, submit_button)]
+                )
+                if fields_ready:
+                    autofill_attempted = True
+                    try:
+                        await username_input.fill(username)
+                        await password_input.fill(password)
+                        await submit_button.click()
+                    except Exception:
+                        # The page may transition back to Cloudflare while submitting. Keep the
+                        # headed browser open so the user can complete verification manually.
+                        pass
+
+            await page.wait_for_timeout(1_000)
+            elapsed_ms += 1_000
+
+        raise FC2CMADBAuthError("登录未完成；如出现验证码，请在浏览器中完成后重试")
+
+    @staticmethod
     async def _login_with_playwright(
         username: str, password: str, proxy_server: str | None = None
     ) -> list[dict[str, Any]]:
@@ -130,27 +175,12 @@ class FC2CMADBAuthManager:
                     context = await browser.new_context()
                     page = await context.new_page()
                     await page.goto("https://fc2cmadb.com/login", wait_until="domcontentloaded")
-                    username_input = page.locator(
-                        'input[name="email"], input[name="username"], input[type="email"]'
-                    ).first
-                    await username_input.fill(username)
-                    await page.locator('input[name="password"], input[type="password"]').first.fill(password)
-                    await page.locator('button[type="submit"], input[type="submit"]').first.click()
-
-                    # Keep the headed browser open so the user can complete a CAPTCHA when one is shown.
-                    deadline_ms = 300_000
-                    elapsed_ms = 0
-                    while elapsed_ms < deadline_ms:
-                        cookies = await context.cookies()
-                        if "/login" not in page.url and any(
-                            cookie.get("name") == "fc2cmadb-session" for cookie in cookies
-                        ):
-                            return cookies
-                        if page.is_closed():
-                            break
-                        await page.wait_for_timeout(1_000)
-                        elapsed_ms += 1_000
-                    raise FC2CMADBAuthError("登录未完成；如出现验证码，请在浏览器中完成后重试")
+                    return await FC2CMADBAuthManager._complete_browser_login(
+                        page,
+                        context,
+                        username,
+                        password,
+                    )
                 finally:
                     await browser.close()
         except FC2CMADBAuthError:

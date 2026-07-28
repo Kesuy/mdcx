@@ -45,6 +45,26 @@ def test_fc2cmadb_auto_login_explains_installed_browser_selection():
     assert "Google Chrome" in tooltip
 
 
+def test_cookie_settings_visually_separate_each_website():
+    window = _setup_fc2cmadb_ui()
+
+    section_titles = [
+        window.Ui.label_javdb_cookie_section,
+        window.Ui.label_javbus_cookie_section,
+        window.Ui.label_fc2cmadb_cookie_section,
+    ]
+
+    assert [label.text() for label in section_titles] == ["JavDB", "JavBus", "FC2CMADB"]
+    assert all(label.styleSheet() for label in section_titles)
+    assert [
+        window.Ui.gridLayout_10.getItemPosition(window.Ui.gridLayout_10.indexOf(label))[0] for label in section_titles
+    ] == [
+        0,
+        4,
+        8,
+    ]
+
+
 def test_fc2cmadb_login_worker_updates_cookie_without_exposing_password(monkeypatch):
     emitted_cookies = []
     emitted_status = []
