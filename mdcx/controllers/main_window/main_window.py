@@ -26,12 +26,14 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QRadioButton,
     QSizePolicy,
     QSystemTrayIcon,
     QTreeWidgetItem,
     QWidget,
 )
 
+from mdcx.auth.fc2cmadb import FC2CMADBAuthError, FC2CMADBAuthManager
 from mdcx.base.file import (
     check_and_clean_files,
     get_success_list,
@@ -128,6 +130,7 @@ class MyMAinWindow(QMainWindow):
     net_logs_show = pyqtSignal(str)  # 显示网络检测日志信号
     set_javdb_cookie = pyqtSignal(str)  # 加载javdb cookie文本内容到设置页面
     set_javdb_status = pyqtSignal(str)  # javdb 检查状态更新
+    set_fc2ppvdb_cookie = pyqtSignal(str)  # 更新 fc2cmadb Cookie 输入框
     set_fc2ppvdb_status = pyqtSignal(str)  # fc2ppvdb 检查状态更新
     set_javbus_cookie = pyqtSignal(str)  # 加载javbus cookie文本内容到设置页面
     set_javbus_status = pyqtSignal(str)  # javbus 检查状态更新
@@ -315,7 +318,7 @@ class MyMAinWindow(QMainWindow):
     # region Init
     def _setup_fc2ppvdb_cookie_ui(self):
         # 扩展 cookie 设置区域，并把下面分组整体下移，避免重叠
-        delta_y = 140
+        delta_y = 280
         group_geo = self.Ui.groupBox_10.geometry()
         old_group_bottom = group_geo.y() + group_geo.height()
         self.Ui.groupBox_10.setGeometry(group_geo.x(), group_geo.y(), group_geo.width(), group_geo.height() + delta_y)
@@ -338,10 +341,28 @@ class MyMAinWindow(QMainWindow):
                     child_geo.height(),
                 )
         grid_geo = self.Ui.gridLayoutWidget_10.geometry()
-        self.Ui.gridLayoutWidget_10.setGeometry(grid_geo.x(), grid_geo.y(), grid_geo.width(), 400)
-        self.Ui.label_75.setGeometry(60, 450, 611, 141)
-        self.Ui.label_get_cookie_url.setGeometry(130, 600, 430, 21)
-        self.Ui.label_7.setGeometry(60, 600, 71, 21)
+        self.Ui.gridLayoutWidget_10.setGeometry(grid_geo.x(), grid_geo.y(), grid_geo.width(), 540)
+        self.Ui.label_75.setGeometry(60, 590, 611, 141)
+        self.Ui.label_get_cookie_url.setGeometry(130, 740, 430, 21)
+        self.Ui.label_7.setGeometry(60, 740, 71, 21)
+
+        self.Ui.label_fc2cmadb_auth_mode = QLabel(self.Ui.gridLayoutWidget_10)
+        self.Ui.label_fc2cmadb_auth_mode.setText("认证方式：")
+        self.Ui.label_fc2cmadb_auth_mode.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTrailing | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2cmadb_auth_mode, 4, 0, 1, 1)
+
+        self.Ui.horizontalLayout_fc2cmadb_auth_mode = QHBoxLayout()
+        self.Ui.radioButton_fc2cmadb_manual = QRadioButton("手动 Cookie", self.Ui.gridLayoutWidget_10)
+        self.Ui.radioButton_fc2cmadb_manual.setObjectName("radioButton_fc2cmadb_manual")
+        self.Ui.radioButton_fc2cmadb_manual.setChecked(True)
+        self.Ui.radioButton_fc2cmadb_auto = QRadioButton("自动登录", self.Ui.gridLayoutWidget_10)
+        self.Ui.radioButton_fc2cmadb_auto.setObjectName("radioButton_fc2cmadb_auto")
+        self.Ui.horizontalLayout_fc2cmadb_auth_mode.addWidget(self.Ui.radioButton_fc2cmadb_manual)
+        self.Ui.horizontalLayout_fc2cmadb_auth_mode.addWidget(self.Ui.radioButton_fc2cmadb_auto)
+        self.Ui.horizontalLayout_fc2cmadb_auth_mode.addStretch()
+        self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2cmadb_auth_mode, 4, 1, 1, 1)
 
         self.Ui.label_fc2ppvdb_cookie = QLabel(self.Ui.gridLayoutWidget_10)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
@@ -357,7 +378,7 @@ class MyMAinWindow(QMainWindow):
         )
         self.Ui.label_fc2ppvdb_cookie.setText("fc2cmadb：\n（登录状态）")
         self.Ui.label_fc2ppvdb_cookie.setObjectName("label_fc2ppvdb_cookie")
-        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2ppvdb_cookie, 4, 0, 1, 1)
+        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2ppvdb_cookie, 5, 0, 1, 1)
 
         self.Ui.plainTextEdit_cookie_fc2ppvdb = QPlainTextEdit(self.Ui.gridLayoutWidget_10)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -375,7 +396,7 @@ class MyMAinWindow(QMainWindow):
             "登录 fc2cmadb 后，从浏览器开发者工具的 Request Headers 复制完整 Cookie（不要填写账号密码）"
         )
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setObjectName("plainTextEdit_cookie_fc2ppvdb")
-        self.Ui.gridLayout_10.addWidget(self.Ui.plainTextEdit_cookie_fc2ppvdb, 4, 1, 1, 1)
+        self.Ui.gridLayout_10.addWidget(self.Ui.plainTextEdit_cookie_fc2ppvdb, 5, 1, 1, 1)
 
         self.Ui.horizontalLayout_fc2ppvdb_cookie = QHBoxLayout()
         self.Ui.horizontalLayout_fc2ppvdb_cookie.setObjectName("horizontalLayout_fc2ppvdb_cookie")
@@ -404,7 +425,48 @@ class MyMAinWindow(QMainWindow):
         )
         self.Ui.label_fc2ppvdb_cookie_result.setObjectName("label_fc2ppvdb_cookie_result")
         self.Ui.horizontalLayout_fc2ppvdb_cookie.addWidget(self.Ui.label_fc2ppvdb_cookie_result)
-        self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2ppvdb_cookie, 5, 1, 1, 1)
+        self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2ppvdb_cookie, 6, 1, 1, 1)
+
+        self.Ui.label_fc2cmadb_username = QLabel("用户名：", self.Ui.gridLayoutWidget_10)
+        self.Ui.label_fc2cmadb_username.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTrailing | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.Ui.lineEdit_fc2cmadb_username = QLineEdit(self.Ui.gridLayoutWidget_10)
+        self.Ui.lineEdit_fc2cmadb_username.setObjectName("lineEdit_fc2cmadb_username")
+        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2cmadb_username, 7, 0, 1, 1)
+        self.Ui.gridLayout_10.addWidget(self.Ui.lineEdit_fc2cmadb_username, 7, 1, 1, 1)
+
+        self.Ui.label_fc2cmadb_password = QLabel("密码：", self.Ui.gridLayoutWidget_10)
+        self.Ui.label_fc2cmadb_password.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTrailing | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.Ui.lineEdit_fc2cmadb_password = QLineEdit(self.Ui.gridLayoutWidget_10)
+        self.Ui.lineEdit_fc2cmadb_password.setObjectName("lineEdit_fc2cmadb_password")
+        self.Ui.lineEdit_fc2cmadb_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.Ui.lineEdit_fc2cmadb_password.setPlaceholderText("仅本次登录使用，不会保存到配置或日志")
+        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2cmadb_password, 8, 0, 1, 1)
+        self.Ui.gridLayout_10.addWidget(self.Ui.lineEdit_fc2cmadb_password, 8, 1, 1, 1)
+
+        self.Ui.pushButton_fc2cmadb_login = QPushButton("登录获取 Cookie", self.Ui.gridLayoutWidget_10)
+        self.Ui.pushButton_fc2cmadb_login.setObjectName("pushButton_fc2cmadb_login")
+        self.Ui.pushButton_fc2cmadb_login.setToolTip("将打开 Chromium；如出现验证码，请在浏览器窗口中手动完成")
+        self.Ui.gridLayout_10.addWidget(self.Ui.pushButton_fc2cmadb_login, 9, 1, 1, 1)
+
+        self.Ui.radioButton_fc2cmadb_auto.toggled.connect(
+            lambda _checked: MyMAinWindow._update_fc2cmadb_auth_mode_ui(self)
+        )
+        MyMAinWindow._update_fc2cmadb_auth_mode_ui(self)
+
+    def _update_fc2cmadb_auth_mode_ui(self):
+        automatic = self.Ui.radioButton_fc2cmadb_auto.isChecked()
+        for widget in (
+            self.Ui.label_fc2cmadb_username,
+            self.Ui.lineEdit_fc2cmadb_username,
+            self.Ui.label_fc2cmadb_password,
+            self.Ui.lineEdit_fc2cmadb_password,
+            self.Ui.pushButton_fc2cmadb_login,
+        ):
+            widget.setVisible(automatic)
 
     def _setup_baidu_translate_ui(self):
         delta_y = 70
@@ -3396,6 +3458,34 @@ class MyMAinWindow(QMainWindow):
         self.set_fc2ppvdb_status.emit(tips)
         self.show_log_text(tips.replace("❌", " ❌ FC2CMADB").replace("✅", " ✅ FC2CMADB"))
         return tips
+
+    def pushButton_fc2cmadb_login_clicked(self):
+        username = self.Ui.lineEdit_fc2cmadb_username.text().strip()
+        password = self.Ui.lineEdit_fc2cmadb_password.text()
+        self.Ui.lineEdit_fc2cmadb_password.clear()
+        if not username or not password:
+            self.set_fc2ppvdb_status.emit("❌ 用户名和密码不能为空")
+            return
+
+        self.set_fc2ppvdb_status.emit("⏳ 正在打开浏览器登录；如出现验证码，请在浏览器中手动完成...")
+        thread = threading.Thread(
+            target=self._login_fc2cmadb,
+            args=(username, password),
+            daemon=True,
+        )
+        thread.start()
+
+    def _login_fc2cmadb(self, username: str, password: str):
+        try:
+            cookie = executor.run(FC2CMADBAuthManager().login(username, password))
+            self.set_fc2ppvdb_cookie.emit(cookie)
+            tips = "✅ 自动登录成功，Cookie 已保存！"
+        except FC2CMADBAuthError as exc:
+            tips = f"❌ 自动登录失败：{exc}"
+        except Exception:
+            tips = "❌ FC2CMADB 自动登录失败，请检查浏览器组件和网络设置"
+        self.set_fc2ppvdb_status.emit(tips)
+        self.show_log_text(tips.replace("❌", " ❌ FC2CMADB").replace("✅", " ✅ FC2CMADB"))
 
     # javbus cookie
     def pushButton_check_javbus_cookie_clicked(self):

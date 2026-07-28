@@ -923,6 +923,10 @@ def load_config(self: "MyMAinWindow"):
         self.set_javdb_cookie.emit(manager.config.javdb)
         # fc2cmadb Cookie
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlainText(manager.config.fc2ppvdb)
+        self.Ui.radioButton_fc2cmadb_auto.setChecked(manager.config.fc2cmadb_auth_mode == "auto")
+        self.Ui.radioButton_fc2cmadb_manual.setChecked(manager.config.fc2cmadb_auth_mode != "auto")
+        self.Ui.lineEdit_fc2cmadb_password.clear()
+        self._update_fc2cmadb_auth_mode_ui()
         # javbus cookie
         self.set_javbus_cookie.emit(manager.config.javbus)
         # endregion

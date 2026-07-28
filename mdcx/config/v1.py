@@ -283,6 +283,7 @@ class ConfigV1:
     # Cookies
     javdb: str = r""
     fc2ppvdb: str = r""
+    fc2cmadb_auth_mode: str = "manual"
     javbus: str = r""
 
     # other

@@ -127,6 +127,29 @@ def test_legacy_ini_without_local_number_image_switch_keeps_compatible_default()
     assert config.use_local_number_images is True
 
 
+def test_fc2cmadb_auth_defaults_to_manual_without_password_field():
+    config = Config.model_validate({"fc2cmadb_password": "runtime-password"})
+    serialized = config.model_dump_json()
+
+    assert config.fc2cmadb_auth_mode == "manual"
+    assert not any("password" in key.lower() for key in config.model_dump())
+    assert "runtime-password" not in serialized
+
+
+def test_fc2cmadb_auth_mode_round_trips_without_password():
+    config = Config.model_validate({"fc2cmadb_auth_mode": "auto"})
+    dumped = config.model_dump(mode="json")
+
+    assert dumped["fc2cmadb_auth_mode"] == "auto"
+    assert not any("password" in key.lower() for key in dumped)
+
+
+def test_legacy_config_defaults_fc2cmadb_auth_to_manual():
+    config = ConfigV1().to_pydantic_model()
+
+    assert config.fc2cmadb_auth_mode == "manual"
+
+
 def test_config_update_removes_old_youma_poster_option_without_enabling_new_option():
     data = {"download_files": ["poster", "youma_use_poster"]}
 

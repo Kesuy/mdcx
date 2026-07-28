@@ -618,6 +618,7 @@ class Config(BaseModel):
     theporndb_api_token: str = Field(default="", title="Theporndb API令牌")
     javdb: str = Field(default="", title="Javdb")
     fc2ppvdb: str = Field(default="", title="FC2PPVDB")
+    fc2cmadb_auth_mode: Literal["manual", "auto"] = Field(default="manual", title="FC2CMADB认证方式")
     javbus: str = Field(default="", title="Javbus")
     # endregion
 

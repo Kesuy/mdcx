@@ -803,6 +803,7 @@
   "retry": 5,
   "theporndb_api_token": "",
   "javdb": "",
+  "fc2cmadb_auth_mode": "manual",
   "javbus": "",
   "show_web_log": true,
   "show_from_log": true,
