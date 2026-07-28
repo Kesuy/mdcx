@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 from ..config.manager import manager
 from ..crawlers.fc2ppvdb import cookie_dict_to_str, validate_fc2cmadb_cookie
@@ -16,6 +17,40 @@ class PlaywrightUnavailableError(FC2CMADBAuthError):
     """Raised when optional Playwright browser components are unavailable."""
 
 
+def _build_playwright_proxy(proxy_server: str | None) -> dict[str, str] | None:
+    if not proxy_server:
+        return None
+
+    try:
+        parsed = urlsplit(proxy_server)
+        scheme = parsed.scheme.lower()
+        if scheme and scheme not in {"http", "https", "socks4", "socks5", "socks5h"}:
+            raise ValueError
+        if parsed.username is None and parsed.password is None:
+            return {"server": proxy_server}
+        if not parsed.scheme or not parsed.hostname or parsed.path not in {"", "/"}:
+            raise ValueError
+        if scheme.startswith("socks"):
+            raise FC2CMADBAuthError(
+                "系统浏览器不支持需要用户名或密码的 SOCKS 代理，请改用 HTTP/HTTPS 认证代理"
+            ) from None
+
+        host = parsed.hostname
+        if ":" in host:
+            host = f"[{host}]"
+        if parsed.port is not None:
+            host = f"{host}:{parsed.port}"
+
+        proxy = {"server": urlunsplit((scheme, host, "", "", ""))}
+        if parsed.username is not None:
+            proxy["username"] = unquote(parsed.username)
+        if parsed.password is not None:
+            proxy["password"] = unquote(parsed.password)
+        return proxy
+    except (TypeError, ValueError) as exc:
+        raise FC2CMADBAuthError("MDCx 代理配置无效，无法启动自动登录浏览器") from exc
+
+
 class FC2CMADBAuthManager:
     def __init__(
         self,
@@ -25,7 +60,7 @@ class FC2CMADBAuthManager:
         cookie_validator: CookieValidator | None = None,
     ) -> None:
         self._config_manager = config_manager
-        self._browser_login = browser_login or self._login_with_playwright
+        self._browser_login = browser_login or self._login_with_configured_browser
         self._cookie_validator = cookie_validator
 
     def get_cookie(self) -> str:
@@ -61,15 +96,36 @@ class FC2CMADBAuthManager:
         return cookie
 
     @staticmethod
-    async def _login_with_playwright(username: str, password: str) -> list[dict[str, Any]]:
+    async def _launch_installed_browser(chromium, proxy_server: str | None = None):
+        playwright_proxy = _build_playwright_proxy(proxy_server)
+        for channel in ("msedge", "chrome"):
+            try:
+                launch_options = {"channel": channel, "headless": False}
+                if playwright_proxy is not None:
+                    launch_options["proxy"] = playwright_proxy
+                return await chromium.launch(**launch_options)
+            except Exception as exc:
+                if "is not found" not in str(exc):
+                    raise
+        raise PlaywrightUnavailableError("未检测到 Microsoft Edge 或 Google Chrome，请先安装其中一个浏览器")
+
+    async def _login_with_configured_browser(self, username: str, password: str) -> list[dict[str, Any]]:
+        config = self._config_manager.config
+        proxy_server = config.proxy if config.use_proxy else None
+        return await type(self)._login_with_playwright(username, password, proxy_server)
+
+    @staticmethod
+    async def _login_with_playwright(
+        username: str, password: str, proxy_server: str | None = None
+    ) -> list[dict[str, Any]]:
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc:
-            raise PlaywrightUnavailableError("自动登录功能需要安装浏览器组件") from exc
+            raise PlaywrightUnavailableError("自动登录组件缺失，请重新安装 MDCx") from exc
 
         try:
             async with async_playwright() as playwright:
-                browser = await playwright.chromium.launch(headless=False)
+                browser = await FC2CMADBAuthManager._launch_installed_browser(playwright.chromium, proxy_server)
                 try:
                     context = await browser.new_context()
                     page = await context.new_page()
@@ -101,5 +157,5 @@ class FC2CMADBAuthManager:
             raise
         except Exception as exc:
             if "Executable doesn't exist" in str(exc):
-                raise PlaywrightUnavailableError("自动登录功能需要安装浏览器组件") from exc
-            raise FC2CMADBAuthError(f"FC2CMADB 自动登录失败：{exc}") from exc
+                raise PlaywrightUnavailableError("自动登录组件缺失，请重新安装 MDCx") from None
+            raise FC2CMADBAuthError("FC2CMADB 自动登录失败，请检查浏览器、网络或代理设置") from None

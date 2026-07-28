@@ -1,11 +1,15 @@
+import builtins
+from types import SimpleNamespace
+
 import pytest
 
-from mdcx.auth.fc2cmadb import FC2CMADBAuthError, FC2CMADBAuthManager
+from mdcx.auth.fc2cmadb import FC2CMADBAuthError, FC2CMADBAuthManager, PlaywrightUnavailableError
 
 
 class FakeConfig:
     fc2ppvdb = "old-cookie"
     use_proxy = False
+    proxy = "http://127.0.0.1:7890"
 
 
 class FakeConfigManager:
@@ -100,3 +104,242 @@ def test_manager_initialization_does_not_start_playwright():
 
     assert auth.get_cookie() == "old-cookie"
     assert browser_calls == []
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_prefers_microsoft_edge():
+    launch_calls = []
+    expected_browser = object()
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            return expected_browser
+
+    browser = await FC2CMADBAuthManager._launch_installed_browser(FakeChromium())
+
+    assert browser is expected_browser
+    assert launch_calls == [{"channel": "msedge", "headless": False}]
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_falls_back_to_google_chrome():
+    launch_calls = []
+    expected_browser = object()
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            if kwargs["channel"] == "msedge":
+                raise RuntimeError("Chromium distribution 'msedge' is not found")
+            return expected_browser
+
+    browser = await FC2CMADBAuthManager._launch_installed_browser(FakeChromium())
+
+    assert browser is expected_browser
+    assert launch_calls == [
+        {"channel": "msedge", "headless": False},
+        {"channel": "chrome", "headless": False},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_reports_when_edge_and_chrome_are_missing():
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            raise RuntimeError(f"Chromium distribution '{kwargs['channel']}' is not found")
+
+    with pytest.raises(PlaywrightUnavailableError, match="Microsoft Edge 或 Google Chrome"):
+        await FC2CMADBAuthManager._launch_installed_browser(FakeChromium())
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_does_not_hide_non_missing_edge_error():
+    launch_calls = []
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            raise RuntimeError("browser process crashed: policy denied")
+
+    with pytest.raises(RuntimeError, match="policy denied"):
+        await FC2CMADBAuthManager._launch_installed_browser(FakeChromium())
+
+    assert launch_calls == [{"channel": "msedge", "headless": False}]
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_passes_plain_proxy():
+    launch_calls = []
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            return object()
+
+    await FC2CMADBAuthManager._launch_installed_browser(
+        FakeChromium(),
+        "http://proxy.example:8080",
+    )
+
+    assert launch_calls == [
+        {
+            "channel": "msedge",
+            "headless": False,
+            "proxy": {"server": "http://proxy.example:8080"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_passes_plain_socks5h_proxy():
+    launch_calls = []
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            return object()
+
+    await FC2CMADBAuthManager._launch_installed_browser(
+        FakeChromium(),
+        "socks5h://proxy.example:1080",
+    )
+
+    assert launch_calls == [
+        {
+            "channel": "msedge",
+            "headless": False,
+            "proxy": {"server": "socks5h://proxy.example:1080"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scheme", ["socks4", "socks5", "socks5h"])
+async def test_installed_browser_launcher_rejects_authenticated_socks_proxy(scheme):
+    launch_calls = []
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            return object()
+
+    with pytest.raises(FC2CMADBAuthError, match="不支持需要用户名或密码的 SOCKS 代理"):
+        await FC2CMADBAuthManager._launch_installed_browser(
+            FakeChromium(),
+            f"{scheme}://test-user:p%40ssword@proxy.example:1080",
+        )
+
+    assert launch_calls == []
+
+
+@pytest.mark.asyncio
+async def test_installed_browser_launcher_splits_authenticated_proxy_credentials():
+    launch_calls = []
+
+    class FakeChromium:
+        async def launch(self, **kwargs):
+            launch_calls.append(kwargs)
+            return object()
+
+    await FC2CMADBAuthManager._launch_installed_browser(
+        FakeChromium(),
+        "http://test-user:p%40ssword@proxy.example:8080",
+    )
+
+    assert launch_calls == [
+        {
+            "channel": "msedge",
+            "headless": False,
+            "proxy": {
+                "server": "http://proxy.example:8080",
+                "username": "test-user",
+                "password": "p@ssword",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_browser_login_tells_packaged_users_to_reinstall_when_playwright_is_missing(monkeypatch):
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "playwright.async_api":
+            raise ImportError("missing packaged dependency")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(PlaywrightUnavailableError, match="重新安装 MDCx"):
+        await FC2CMADBAuthManager._login_with_playwright("test-user", "runtime-password")
+
+
+@pytest.mark.asyncio
+async def test_browser_login_does_not_expose_proxy_credentials_in_errors(monkeypatch):
+    import playwright.async_api as playwright_api
+
+    secret = "proxy-secret"
+
+    class FakePlaywrightContext:
+        async def __aenter__(self):
+            return SimpleNamespace(chromium=object())
+
+        async def __aexit__(self, *_args):
+            return False
+
+    async def fail_launch(_chromium, _proxy_server=None):
+        raise RuntimeError(f"launch failed with password={secret}")
+
+    monkeypatch.setattr(playwright_api, "async_playwright", FakePlaywrightContext)
+    monkeypatch.setattr(FC2CMADBAuthManager, "_launch_installed_browser", fail_launch)
+
+    with pytest.raises(FC2CMADBAuthError) as exc_info:
+        await FC2CMADBAuthManager._login_with_playwright(
+            "test-user",
+            "runtime-password",
+            f"http://proxy-user:{secret}@proxy.example:8080",
+        )
+
+    assert secret not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_default_browser_login_uses_the_configured_proxy(monkeypatch):
+    config_manager = FakeConfigManager()
+    config_manager.config.use_proxy = True
+    browser_calls = []
+
+    async def fake_browser_login(username, password, proxy_server):
+        browser_calls.append((username, password, proxy_server))
+        return [{"name": "fc2cmadb-session", "value": "new-session"}]
+
+    async def validate(_cookie):
+        return True, ""
+
+    monkeypatch.setattr(FC2CMADBAuthManager, "_login_with_playwright", fake_browser_login)
+    auth = FC2CMADBAuthManager(config_manager=config_manager, cookie_validator=validate)
+
+    await auth.login("test-user", "runtime-password")
+
+    assert browser_calls == [("test-user", "runtime-password", "http://127.0.0.1:7890")]
+
+
+@pytest.mark.asyncio
+async def test_default_browser_login_omits_disabled_proxy(monkeypatch):
+    config_manager = FakeConfigManager()
+    browser_calls = []
+
+    async def fake_browser_login(username, password, proxy_server):
+        browser_calls.append((username, password, proxy_server))
+        return [{"name": "fc2cmadb-session", "value": "new-session"}]
+
+    async def validate(_cookie):
+        return True, ""
+
+    monkeypatch.setattr(FC2CMADBAuthManager, "_login_with_playwright", fake_browser_login)
+    auth = FC2CMADBAuthManager(config_manager=config_manager, cookie_validator=validate)
+
+    await auth.login("test-user", "runtime-password")
+
+    assert browser_calls == [("test-user", "runtime-password", None)]

@@ -36,6 +36,15 @@ def test_fc2cmadb_auto_mode_shows_runtime_login_fields():
     assert window.Ui.pushButton_fc2cmadb_login.isHidden() is False
 
 
+def test_fc2cmadb_auto_login_explains_installed_browser_selection():
+    window = _setup_fc2cmadb_ui()
+
+    tooltip = window.Ui.pushButton_fc2cmadb_login.toolTip()
+
+    assert "Microsoft Edge" in tooltip
+    assert "Google Chrome" in tooltip
+
+
 def test_fc2cmadb_login_worker_updates_cookie_without_exposing_password(monkeypatch):
     emitted_cookies = []
     emitted_status = []

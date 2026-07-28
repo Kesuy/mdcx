@@ -450,7 +450,9 @@ class MyMAinWindow(QMainWindow):
 
         self.Ui.pushButton_fc2cmadb_login = QPushButton("登录获取 Cookie", self.Ui.gridLayoutWidget_10)
         self.Ui.pushButton_fc2cmadb_login.setObjectName("pushButton_fc2cmadb_login")
-        self.Ui.pushButton_fc2cmadb_login.setToolTip("将打开 Chromium；如出现验证码，请在浏览器窗口中手动完成")
+        self.Ui.pushButton_fc2cmadb_login.setToolTip(
+            "将优先打开 Microsoft Edge，未安装时尝试 Google Chrome；如出现验证码，请在浏览器窗口中手动完成"
+        )
         self.Ui.gridLayout_10.addWidget(self.Ui.pushButton_fc2cmadb_login, 9, 1, 1, 1)
 
         self.Ui.radioButton_fc2cmadb_auto.toggled.connect(
