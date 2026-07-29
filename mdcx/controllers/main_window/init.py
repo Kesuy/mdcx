@@ -26,6 +26,7 @@ from mdcx.signals import signal_qt
 from .responsive_layout import setup_responsive_ui
 from .site_priority_dialog import setup_site_priority_ui
 from .style import build_menu_style, build_tree_widget_style
+from .usage_guide import setup_usage_guide
 
 if TYPE_CHECKING:
     from .main_window import MyMAinWindow
@@ -129,6 +130,7 @@ def Init_Ui(self: "MyMAinWindow"):
     _setup_combo_boxes(self)
     self.Ui.textBrowser_log_main.document().setMaximumBlockCount(6000)
     self.Ui.textBrowser_log_main_2.document().setMaximumBlockCount(3000)
+    setup_usage_guide(self)
     self.Ui.textBrowser_log_main.viewport().installEventFilter(self)  # 注册事件用于识别点击控件时隐藏失败列表面板
     self.Ui.textBrowser_log_main_2.viewport().installEventFilter(self)
     self.Ui.pushButton_save_failed_list.setIcon(QIcon(resources.save_failed_list_icon))

@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 
 def _run_import_probe(code: str) -> list[str]:
@@ -26,6 +27,12 @@ def test_importing_entrypoint_does_not_start_ui_or_load_business_tree():
     )
 
     assert loaded == ["False", "False", "False"]
+
+
+def test_entrypoint_does_not_create_a_splash_screen():
+    entrypoint = Path(__file__).parents[1] / "main.py"
+
+    assert "QSplashScreen" not in entrypoint.read_text(encoding="utf-8")
 
 
 def test_config_initialization_does_not_import_openai_sdk():

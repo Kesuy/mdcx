@@ -24,8 +24,8 @@ def show_constants():
 
 def run(argv: list[str] | None = None) -> int:
     from PyQt6.QtCore import Qt
-    from PyQt6.QtGui import QColor, QIcon, QPixmap
-    from PyQt6.QtWidgets import QApplication, QSplashScreen
+    from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import QApplication
 
     # Qt 6 使用 logical pixel；明确保留 125%/150% 等非整数缩放，避免固定布局被取整放大。
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
@@ -35,18 +35,7 @@ def run(argv: list[str] | None = None) -> int:
     if platform.system() != "Windows":
         app.setWindowIcon(QIcon("resources/Img/MDCx.ico"))  # 设置任务栏图标
 
-    splash_pixmap = QPixmap(420, 120)
-    splash_pixmap.fill(QColor("#F8FAFC"))
-    splash = QSplashScreen(splash_pixmap)
-    splash.showMessage(
-        "MDCx 正在启动…",
-        Qt.AlignmentFlag.AlignCenter,
-        QColor("#111827"),
-    )
-    splash.show()
-    app.processEvents()
-
-    # QApplication 已可响应并显示启动反馈后，再加载业务树和可选媒体后端。
+    # QApplication 建立后再加载业务树和可选媒体后端，保留延迟导入带来的启动优化。
     from PIL import ImageFile
 
     from mdcx.controllers.main_window.main_window import MyMAinWindow
@@ -58,7 +47,6 @@ def run(argv: list[str] | None = None) -> int:
 
     ui = MyMAinWindow()
     ui.show()
-    splash.finish(ui)
     app.installEventFilter(ui)
     try:
         return app.exec()
