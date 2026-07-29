@@ -82,6 +82,52 @@ def _make_container(parent: QWidget, object_name: str, layout_type=QVBoxLayout) 
     return container, layout
 
 
+def _set_fixed_size(widget: QWidget, width: int, height: int) -> None:
+    widget.setMinimumSize(width, height)
+    widget.setMaximumSize(width, height)
+
+
+def _add_underlined_field(
+    layout: QGridLayout,
+    parent: QWidget,
+    caption: QWidget,
+    value: QWidget,
+    line: QWidget,
+    row: int,
+    column: int,
+) -> None:
+    field, field_layout = _make_container(parent, f"{value.objectName()}_field")
+    field_layout.setSpacing(0)
+    field_layout.addWidget(value)
+    field_layout.addWidget(line)
+    caption.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+    value.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    layout.addWidget(caption, row, column)
+    layout.addWidget(field, row, column + 1)
+
+
+def _setup_shell_splitter(window: "MyMAinWindow") -> None:
+    if hasattr(window, "_shell_splitter"):
+        return
+
+    ui = window.Ui
+    splitter = QSplitter(Qt.Orientation.Horizontal, ui.centralwidget)
+    splitter.setObjectName("window_shell_splitter")
+    splitter.setChildrenCollapsible(False)
+    splitter.setHandleWidth(5)
+    splitter.addWidget(ui.widget_setting)
+    splitter.addWidget(ui.stackedWidget)
+    ui.widget_setting.setMinimumWidth(180)
+    ui.widget_setting.setMaximumWidth(280)
+    ui.stackedWidget.setMinimumWidth(760)
+    splitter.setStretchFactor(0, 0)
+    splitter.setStretchFactor(1, 1)
+    splitter.setCollapsible(0, False)
+    splitter.setCollapsible(1, False)
+    splitter.setSizes([STACKED_LEFT, BASE_WINDOW_WIDTH - STACKED_LEFT])
+    window._shell_splitter = splitter
+
+
 def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     if hasattr(window, "_main_splitter"):
         return
@@ -91,13 +137,10 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     page_layout.setContentsMargins(18, 8, 10, 8)
     page_layout.setSpacing(6)
 
-    # The designer separators belonged to the old absolute two-column grid.
-    # Leaving them at their original coordinates would draw across splitter panes.
-    for separator_name in ("line_6", "line_7", "line_8", "line_9", "line_10", "line_11", "line_12", "line_13"):
-        getattr(ui, separator_name).hide()
-
     window._main_top_bar, top_layout = _make_container(ui.page_main, "main_top_bar", QHBoxLayout)
     top_layout.addWidget(ui.label_file_path, 1)
+    _set_fixed_size(ui.pushButton_select_media_folder, 101, 40)
+    _set_fixed_size(ui.pushButton_start_cap, 120, 40)
     top_layout.addWidget(ui.pushButton_select_media_folder)
     top_layout.addWidget(ui.pushButton_start_cap)
     page_layout.addWidget(window._main_top_bar)
@@ -109,30 +152,23 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     splitter.setHandleWidth(5)
     window._main_splitter = splitter
 
-    window._main_left_pane, left_layout = _make_container(splitter, "main_left_pane", QGridLayout)
-    left_layout.setColumnStretch(1, 1)
-    left_rows = (
-        (ui.label_number1, ui.label_number),
-        (ui.label_title1, ui.label_title),
-        (ui.label_actor1, ui.label_actor),
-        (ui.label_13, ui.label_release),
-        (ui.label_22, ui.label_runtime),
-        (ui.label_23, ui.label_director),
-        (ui.label_31, ui.label_series),
-        (ui.label_30, ui.label_studio),
-        (ui.label_24, ui.label_publish),
-    )
-    for row, (caption, value) in enumerate(left_rows):
-        caption.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
-        value.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        left_layout.addWidget(caption, row, 0)
-        left_layout.addWidget(value, row, 1)
-    left_layout.addWidget(ui.label_source, len(left_rows), 0, 1, 2)
-    left_layout.setRowStretch(len(left_rows) + 1, 1)
+    # Keep the original movie-detail composition together as the middle column.
+    # Splitting metadata and artwork into separate panes creates an unintended
+    # fourth visual column once the navigation sidebar is counted.
+    window._main_detail_pane, detail_pane_layout = _make_container(splitter, "main_detail_pane")
 
-    window._main_middle_pane, middle_layout = _make_container(splitter, "main_middle_pane")
-    action_bar, action_layout = _make_container(window._main_middle_pane, "main_preview_actions", QHBoxLayout)
-    action_layout.addStretch(1)
+    summary_panel, summary_layout = _make_container(window._main_detail_pane, "main_summary_panel", QGridLayout)
+    summary_layout.setColumnStretch(1, 2)
+    summary_layout.setColumnStretch(3, 2)
+    summary_layout.addWidget(ui.label_number1, 0, 0)
+    summary_layout.addWidget(ui.label_number, 0, 1)
+    summary_layout.addWidget(ui.label_actor1, 0, 2)
+    summary_layout.addWidget(ui.label_actor, 0, 3)
+    summary_layout.addWidget(ui.label_source, 0, 4)
+    summary_layout.addWidget(ui.label_title1, 1, 0)
+    summary_layout.addWidget(ui.label_title, 1, 1)
+
+    action_bar, action_layout = _make_container(summary_panel, "main_preview_actions", QHBoxLayout)
     for button in (
         ui.pushButton_load_nfo,
         ui.pushButton_open_nfo,
@@ -140,51 +176,57 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
         ui.pushButton_play,
         ui.pushButton_right_menu,
     ):
+        _set_fixed_size(button, 40, 40)
         action_layout.addWidget(button)
-    middle_layout.addWidget(action_bar)
+    summary_layout.addWidget(action_bar, 1, 2, 1, 3, Qt.AlignmentFlag.AlignRight)
+    detail_pane_layout.addWidget(summary_panel)
 
-    image_title_bar, image_title_layout = _make_container(window._main_middle_pane, "main_image_title_bar", QHBoxLayout)
-    image_title_layout.addWidget(ui.label_poster1)
-    image_title_layout.addStretch(1)
-    image_title_layout.addWidget(ui.checkBox_cover)
-    middle_layout.addWidget(image_title_bar)
-
-    image_row, image_layout = _make_container(window._main_middle_pane, "main_image_row", QHBoxLayout)
+    image_row, image_layout = _make_container(window._main_detail_pane, "main_image_row", QGridLayout)
     image_row.setMinimumHeight(220)
-    image_row.setMaximumHeight(280)
+    image_row.setMaximumHeight(320)
+    image_layout.setColumnStretch(1, 1)
+    image_layout.setColumnStretch(2, 2)
+    image_layout.addWidget(ui.label_poster1, 0, 0, Qt.AlignmentFlag.AlignTop)
     for image_label, stretch, minimum_width in (
         (ui.label_poster, 1, 100),
         (ui.label_thumb, 2, 180),
     ):
-        image_label.setMinimumSize(minimum_width, 220)
+        image_label.setMinimumSize(minimum_width, 200)
         image_label.setMaximumHeight(280)
         image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        image_layout.addWidget(image_label, stretch)
-    middle_layout.addWidget(image_row)
-
-    image_info, image_info_layout = _make_container(window._main_middle_pane, "main_image_info", QHBoxLayout)
-    image_info_layout.addWidget(ui.label_poster_size, 1)
+        image_layout.addWidget(image_label, 0, stretch)
+    image_layout.addWidget(ui.label_poster_size, 1, 1)
+    image_info, image_info_layout = _make_container(image_row, "main_image_info", QHBoxLayout)
     image_info_layout.addWidget(ui.label_thumb_size, 1)
-    middle_layout.addWidget(image_info)
+    image_info_layout.addWidget(ui.checkBox_cover)
+    image_layout.addWidget(image_info, 1, 2)
+    detail_pane_layout.addWidget(image_row)
 
-    detail_panel, detail_layout = _make_container(window._main_middle_pane, "main_detail_panel", QGridLayout)
+    detail_panel, detail_layout = _make_container(window._main_detail_pane, "main_text_detail_panel", QGridLayout)
     detail_layout.setColumnStretch(1, 1)
-    for row, (caption, value) in enumerate(
-        (
-            (ui.label_18, ui.label_outline),
-            (ui.label_33, ui.label_tag),
-        )
+    _add_underlined_field(detail_layout, detail_panel, ui.label_18, ui.label_outline, ui.line_6, 0, 0)
+    _add_underlined_field(detail_layout, detail_panel, ui.label_33, ui.label_tag, ui.line_7, 1, 0)
+    detail_pane_layout.addWidget(detail_panel)
+
+    metadata_panel, metadata_layout = _make_container(window._main_detail_pane, "main_metadata_panel", QGridLayout)
+    metadata_layout.setColumnStretch(1, 1)
+    metadata_layout.setColumnStretch(3, 1)
+    for row, left_field, right_field in (
+        (0, (ui.label_13, ui.label_release, ui.line_8), (ui.label_22, ui.label_runtime, ui.line_9)),
+        (1, (ui.label_23, ui.label_director, ui.line_12), (ui.label_31, ui.label_series, ui.line_10)),
+        (2, (ui.label_30, ui.label_studio, ui.line_13), (ui.label_24, ui.label_publish, ui.line_11)),
     ):
-        caption.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
-        value.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        detail_layout.addWidget(caption, row, 0)
-        detail_layout.addWidget(value, row, 1)
-    middle_layout.addWidget(detail_panel)
-    middle_layout.addStretch(1)
+        _add_underlined_field(metadata_layout, metadata_panel, *left_field, row, 0)
+        _add_underlined_field(metadata_layout, metadata_panel, *right_field, row, 2)
+    detail_pane_layout.addWidget(metadata_panel)
+    detail_pane_layout.addStretch(1)
 
     window._main_result_pane, result_layout = _make_container(splitter, "main_result_pane")
     result_layout.addWidget(ui.label_result)
     result_sort_bar, result_sort_layout = _make_container(window._main_result_pane, "main_result_sort_bar", QHBoxLayout)
+    _set_fixed_size(window.result_sort_combo, 130, 26)
+    _set_fixed_size(window.result_sort_order_button, 34, 26)
+    _set_fixed_size(ui.pushButton_tree_clear, 20, 20)
     result_sort_layout.addWidget(window.result_sort_combo)
     result_sort_layout.addWidget(window.result_sort_order_button)
     result_sort_layout.addStretch(1)
@@ -193,13 +235,12 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     ui.treeWidget_number.setMinimumWidth(220)
     result_layout.addWidget(ui.treeWidget_number, 1)
 
-    window._main_left_pane.setMinimumWidth(190)
-    window._main_middle_pane.setMinimumWidth(280)
+    window._main_detail_pane.setMinimumWidth(520)
     window._main_result_pane.setMinimumWidth(220)
-    for index, factor in enumerate((2, 4, 3)):
+    for index, factor in enumerate((5, 2)):
         splitter.setStretchFactor(index, factor)
         splitter.setCollapsible(index, False)
-    splitter.setSizes([220, 340, 260])
+    splitter.setSizes([570, 240])
     page_layout.addWidget(splitter, 1)
 
 
@@ -212,9 +253,10 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     log_layout.setContentsMargins(18, 8, 10, 8)
     log_layout.setSpacing(6)
     log_toolbar, log_toolbar_layout = _make_container(ui.page_log, "log_toolbar", QHBoxLayout)
-    log_toolbar_layout.addWidget(ui.pushButton_show_hide_logs)
-    log_toolbar_layout.addWidget(ui.pushButton_view_failed_list)
     log_toolbar_layout.addStretch(1)
+    _set_fixed_size(ui.pushButton_view_failed_list, 101, 40)
+    _set_fixed_size(ui.pushButton_start_cap2, 120, 40)
+    log_toolbar_layout.addWidget(ui.pushButton_view_failed_list)
     log_toolbar_layout.addWidget(ui.pushButton_start_cap2)
     log_layout.addWidget(log_toolbar)
     window._log_splitter = QSplitter(Qt.Orientation.Vertical, ui.page_log)
@@ -226,6 +268,11 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     window._log_splitter.setStretchFactor(1, 2)
     window._log_splitter.setSizes([420, 270])
     log_layout.addWidget(window._log_splitter, 1)
+    log_footer, log_footer_layout = _make_container(ui.page_log, "log_footer", QHBoxLayout)
+    _set_fixed_size(ui.pushButton_show_hide_logs, 40, 40)
+    log_footer_layout.addWidget(ui.pushButton_show_hide_logs)
+    log_footer_layout.addStretch(1)
+    log_layout.addWidget(log_footer)
 
     net_layout = QVBoxLayout(ui.page_net)
     net_layout.setContentsMargins(18, 8, 10, 8)
@@ -283,6 +330,7 @@ def setup_responsive_ui(window: "MyMAinWindow") -> None:
         "treeWidget_number",
     )
     if all(hasattr(window.Ui, name) for name in required_main_widgets) and hasattr(window, "result_sort_combo"):
+        _setup_shell_splitter(window)
         _setup_main_page_layout(window)
         _setup_simple_page_layouts(window)
 
@@ -300,18 +348,27 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
     metrics = calculate_layout_metrics(central.width(), central.height())
     ui = window.Ui
 
-    _set_geometry(
-        ui.stackedWidget,
-        STACKED_LEFT,
-        STACKED_TOP,
-        metrics.stacked_width,
-        metrics.stacked_height,
-    )
-    _set_geometry(ui.widget_setting, 0, 0, STACKED_LEFT, metrics.window_height)
-    _set_geometry(ui.left_backgroud_widget, 0, 0, STACKED_LEFT, metrics.window_height)
-    _set_geometry(ui.label_show_version, 0, 489 + metrics.height_delta, STACKED_LEFT, 201)
-    _set_geometry(ui.label_local_number, 0, 680 + metrics.height_delta, 21, 21)
-    _set_geometry(ui.progressBar_scrape, 209, -1, metrics.stacked_width + 3, 7)
+    if hasattr(window, "_shell_splitter"):
+        _set_geometry(window._shell_splitter, 0, 0, central.width(), central.height())
+        sidebar_width = ui.widget_setting.width()
+        content_width = max(1, central.width() - sidebar_width)
+        _set_geometry(ui.left_backgroud_widget, 0, 0, sidebar_width, central.height())
+        _set_geometry(ui.label_show_version, 0, max(0, central.height() - 211), sidebar_width, 201)
+        _set_geometry(ui.label_local_number, 0, max(0, central.height() - 21), 21, 21)
+        _set_geometry(ui.progressBar_scrape, sidebar_width - 1, -1, content_width + 3, 7)
+    else:
+        _set_geometry(
+            ui.stackedWidget,
+            STACKED_LEFT,
+            STACKED_TOP,
+            metrics.stacked_width,
+            metrics.stacked_height,
+        )
+        _set_geometry(ui.widget_setting, 0, 0, STACKED_LEFT, metrics.window_height)
+        _set_geometry(ui.left_backgroud_widget, 0, 0, STACKED_LEFT, metrics.window_height)
+        _set_geometry(ui.label_show_version, 0, 489 + metrics.height_delta, STACKED_LEFT, 201)
+        _set_geometry(ui.label_local_number, 0, 680 + metrics.height_delta, 21, 21)
+        _set_geometry(ui.progressBar_scrape, 209, -1, metrics.stacked_width + 3, 7)
 
     if not hasattr(window, "_main_splitter"):
         _set_geometry(ui.label_file_path, 30, 10, metrics.path_width, 50)

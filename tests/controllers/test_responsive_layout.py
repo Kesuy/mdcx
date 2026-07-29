@@ -184,20 +184,39 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
     apply_responsive_layout(window)
     APP.processEvents()
 
-    splitter = window._main_splitter
-    assert isinstance(splitter, QSplitter)
-    assert splitter.orientation() == Qt.Orientation.Horizontal
-    assert splitter.count() == 3
-    assert [splitter.widget(index).sizePolicy().horizontalStretch() for index in range(3)] == [2, 4, 3]
-    assert all(not splitter.isCollapsible(index) for index in range(3))
+    shell_splitter = window._shell_splitter
+    assert isinstance(shell_splitter, QSplitter)
+    assert shell_splitter.orientation() == Qt.Orientation.Horizontal
+    assert shell_splitter.count() == 2
+    assert shell_splitter.widget(0) is window.Ui.widget_setting
+    assert shell_splitter.widget(1) is window.Ui.stackedWidget
+    assert all(not shell_splitter.isCollapsible(index) for index in range(2))
 
-    assert window.Ui.label_number.parentWidget() is window._main_left_pane
-    assert window._main_middle_pane.isAncestorOf(window.Ui.label_poster)
+    content_splitter = window._main_splitter
+    assert isinstance(content_splitter, QSplitter)
+    assert content_splitter.orientation() == Qt.Orientation.Horizontal
+    assert content_splitter.count() == 2
+    assert [content_splitter.widget(index).sizePolicy().horizontalStretch() for index in range(2)] == [5, 2]
+    assert all(not content_splitter.isCollapsible(index) for index in range(2))
+
+    assert window._main_detail_pane.isAncestorOf(window.Ui.label_number)
+    assert window._main_detail_pane.isAncestorOf(window.Ui.label_poster)
+    assert window._main_detail_pane.isAncestorOf(window.Ui.label_release)
+    assert window._main_detail_pane.isAncestorOf(window.Ui.label_publish)
     assert window.Ui.treeWidget_number.parentWidget() is window._main_result_pane
     assert window.Ui.pushButton_start_cap.parentWidget() is window._main_top_bar
+    assert window.Ui.pushButton_select_media_folder.size().width() == 101
+    assert window.Ui.pushButton_start_cap.size().width() == 120
     assert window.Ui.treeWidget_number.width() >= window.Ui.treeWidget_number.minimumWidth()
     assert 200 <= window.Ui.label_poster.height() <= 300
     assert 200 <= window.Ui.label_thumb.height() <= 300
+
+    window.resize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    APP.processEvents()
+    assert window._main_detail_pane.width() >= window._main_detail_pane.minimumWidth()
+    assert window._main_result_pane.width() >= window._main_result_pane.minimumWidth()
+    assert window.Ui.pushButton_select_media_folder.width() == 101
+    assert window.Ui.pushButton_start_cap.width() == 120
 
     visible_direct_children = {
         child.objectName()
@@ -241,6 +260,13 @@ def test_simple_pages_expand_with_their_layouts_and_log_detail_collapses():
 
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_log)
     APP.processEvents()
+    assert window.Ui.pushButton_view_failed_list.parentWidget().objectName() == "log_toolbar"
+    assert window.Ui.pushButton_start_cap2.parentWidget().objectName() == "log_toolbar"
+    assert window.Ui.pushButton_show_hide_logs.parentWidget().objectName() == "log_footer"
+    assert window.Ui.pushButton_view_failed_list.size().width() == 101
+    assert window.Ui.pushButton_start_cap2.size().width() == 120
+    assert window.Ui.pushButton_show_hide_logs.size().width() == 40
+    assert window.Ui.pushButton_view_failed_list.x() < window.Ui.pushButton_start_cap2.x()
     expanded_height = window.Ui.textBrowser_log_main.height()
     window.Ui.textBrowser_log_main_2.hide()
     APP.processEvents()
