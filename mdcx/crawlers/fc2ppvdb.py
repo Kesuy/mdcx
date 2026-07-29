@@ -7,11 +7,6 @@ from typing import Any, override
 
 from bs4 import BeautifulSoup
 
-from ..auth.fc2cmadb_session import (
-    FC2CMADBAuthenticationError,
-    FC2CMADBSessionManager,
-    is_fc2cmadb_authentication_failure,
-)
 from ..config.manager import manager
 from ..config.models import Website
 from .base import BaseCrawler, Context, CralwerException, CrawlerData
@@ -304,9 +299,8 @@ async def fetch_article_info(
 
 
 class Fc2ppvdbCrawler(BaseCrawler):
-    def __init__(self, client, base_url: str = "", browser=None, auth_session=None):
+    def __init__(self, client, base_url: str = "", browser=None):
         super().__init__(client=client, base_url=base_url, browser=browser)
-        self.auth_session = auth_session or FC2CMADBSessionManager()
 
     @classmethod
     @override
@@ -320,7 +314,6 @@ class Fc2ppvdbCrawler(BaseCrawler):
 
     @override
     async def _run(self, ctx: Context):
-        await self.auth_session.ensure_cookie_valid()
         number = normalize_fc2_number(ctx.input.number)
         article_url = f"{self.base_url}/articles/{number}"
         ctx.debug(f"番号地址: {article_url}")
@@ -336,18 +329,6 @@ class Fc2ppvdbCrawler(BaseCrawler):
             cookies=cookies,
             use_proxy=use_proxy,
         )
-        if html_info is None and is_fc2cmadb_authentication_failure(error):
-            refreshed_cookie = await self.auth_session.recover_after_authentication_failure(cookie_string)
-            cookies = cookie_str_to_dict(refreshed_cookie)
-            html_info, error = await fetch_article_info(
-                self.async_client,
-                base_url=self.base_url,
-                number=number,
-                cookies=cookies,
-                use_proxy=use_proxy,
-            )
-            if html_info is None and is_fc2cmadb_authentication_failure(error):
-                raise FC2CMADBAuthenticationError(f"FC2CMADB Cookie 刷新后认证仍然失败：{error}")
         if html_info is None:
             raise CralwerException(error)
         persist_fc2cmadb_cookies(cookies)

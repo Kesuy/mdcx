@@ -639,7 +639,6 @@ def save_config(self: "MyMAinWindow"):
 
     manager.config.javdb = self.Ui.plainTextEdit_cookie_javdb.toPlainText()  # javdb cookie
     manager.config.fc2ppvdb = self.Ui.plainTextEdit_cookie_fc2ppvdb.toPlainText()  # fc2ppvdb cookie
-    manager.config.fc2cmadb_auth_mode = "auto" if self.Ui.radioButton_fc2cmadb_auto.isChecked() else "manual"
     manager.config.javbus = self.Ui.plainTextEdit_cookie_javbus.toPlainText()  # javbus cookie
     manager.config.theporndb_api_token = self.Ui.lineEdit_api_token_theporndb.text()  # api token
     if manager.config.javdb:

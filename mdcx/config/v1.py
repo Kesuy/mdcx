@@ -283,6 +283,7 @@ class ConfigV1:
     # Cookies
     javdb: str = r""
     fc2ppvdb: str = r""
+    # 仅用于兼容读取曾发布的旧 INI；转换为当前 Config 时会被忽略。
     fc2cmadb_auth_mode: str = "manual"
     javbus: str = r""
 

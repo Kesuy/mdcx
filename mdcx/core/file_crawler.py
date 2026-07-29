@@ -4,7 +4,6 @@ from datetime import date
 from itertools import chain
 from typing import TYPE_CHECKING
 
-from ..auth.fc2cmadb_session import FC2CMADBAuthenticationError
 from ..config.enums import FixedScrapingType
 from ..config.models import Language, Website
 from ..gen.field_enums import CrawlerResultFields
@@ -285,8 +284,6 @@ class FileScraper:
             # 移除外层超时限制，让内层的 GatherGroup 处理超时和重试
             # 原有的超时机制已由各个 HTTP 请求单独处理
             response = await c.run(task_input)
-            if isinstance(response.debug_info.error, FC2CMADBAuthenticationError):
-                raise response.debug_info.error
             return response
         finally:
             task_input.number = original_number
@@ -366,8 +363,6 @@ class FileScraper:
                         # 多语言网站, 如果 undefined 尚不存在, 也使用当前语言数据
                         if site in MULTI_LANGUAGE_WEBSITES and (site, Language.UNDEFINED) not in all_res:
                             all_res[(site, Language.UNDEFINED)] = web_data.data
-                    except FC2CMADBAuthenticationError:
-                        raise
                     except TimeoutError:
                         reduced.field_log += f"\n    🔴 {site:<15} (请求超时)"
                         failed.add(key)
@@ -560,8 +555,6 @@ class FileScraper:
             task_input.org_language = org_language
             try:
                 web_data = await self._call_crawler(task_input, website)
-            except FC2CMADBAuthenticationError:
-                raise
             except TimeoutError:
                 failed_info.append(f"{website.value}(请求超时)")
                 continue

@@ -1,9 +1,7 @@
-## 优化
-- FC2CMADB 自动登录改用 MDCx 专用的持久 Edge/Chrome 浏览器资料目录，复用 Cloudflare clearance 与站点信任状态，避免每次登录都从全新的临时浏览器环境开始。
-- 自动填充后会读取账号和密码输入框确认填写成功；页面被 Cloudflare 临时替换时会继续等待并重试。
-- 检测登录表单内的 Cloudflare Turnstile，只有验证 token 已生成且登录按钮可用时才提交，不再抢先点击登录。
+## 变更
+- 移除 FC2CMADB 自动登录和自动获取 Cookie 功能；设置页恢复为仅支持用户手动填写并检查 Cookie。
+- 移除 Cookie 失效后的浏览器自动重新登录；刮削失败时会直接提示用户更新手动 Cookie。
+- 保留 FC2CMADB Cookie 检查、数据刮削，以及服务端响应 Cookie 更新并保存的现有行为。
 
-## 修复
-- 修复点击“登录获取 Cookie”后 MDCx 密码框被立即清空的问题；账号密码现在仅在当前软件进程内保留，设置重新加载或登录失败后仍可重试，且不会写入配置文件或日志。
-- 修复 FC2CMADB 每次自动登录创建全新浏览器 context，导致 Cloudflare 状态丢失并反复触发验证的问题。
-- 修复首次自动填充遇到临时 DOM 变化后不再重试的问题。
+## 构建
+- 移除 Playwright 依赖以及 Edge/Chrome 浏览器自动化代码，降低 Windows EXE 和 macOS DMG 的打包体积。

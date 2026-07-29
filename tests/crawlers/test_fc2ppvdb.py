@@ -3,7 +3,6 @@ import json
 
 import pytest
 
-from mdcx.auth.fc2cmadb_session import FC2CMADBAuthenticationError
 from mdcx.config.enums import Language
 from mdcx.config.manager import manager
 from mdcx.crawlers.fc2ppvdb import (
@@ -54,8 +53,12 @@ class FakeFc2ppvdbClient:
 
 
 class FakeFc2ppvdbHtmlClient:
+    def __init__(self):
+        self.requests = 0
+
     async def request(self, method, url, **kwargs):
         assert method == "GET"
+        self.requests += 1
 
         class ArticleResponse:
             status_code = 200
@@ -63,22 +66,6 @@ class FakeFc2ppvdbHtmlClient:
             text = "<!DOCTYPE html><html><title>FC2PPVDB</title><body>ログイン</body></html>"
 
         return ArticleResponse(), ""
-
-
-class NoopAuthSession:
-    async def ensure_cookie_valid(self):
-        return None
-
-    async def recover_after_authentication_failure(self, failed_cookie):
-        raise FC2CMADBAuthenticationError("fc2cmadb Cookie 可能无效或已过期")
-
-
-def test_fc2ppvdb_crawler_construction_does_not_validate_cookie():
-    class ConstructionSession:
-        async def ensure_cookie_valid(self):
-            raise AssertionError("Cookie validation must not run while constructing the crawler")
-
-    Fc2ppvdbCrawler(client=object(), auth_session=ConstructionSession())
 
 
 def make_article_page(*, deferred: bool = True) -> str:
@@ -108,7 +95,7 @@ def make_article_page(*, deferred: bool = True) -> str:
 async def test_fc2ppvdb_crawler_reads_article_from_detail_page(monkeypatch):
     monkeypatch.setattr(manager.config, "fields_rule", "fc2_seller")
     client = FakeFc2ppvdbClient()
-    crawler = Fc2ppvdbCrawler(client=client, auth_session=NoopAuthSession())
+    crawler = Fc2ppvdbCrawler(client=client)
     res = await crawler.run(
         CrawlerInput(
             appoint_number="",
@@ -221,7 +208,7 @@ async def test_fc2ppvdb_crawler_persists_rotated_cookie(monkeypatch):
     )
     monkeypatch.setattr(manager, "save", lambda: save_calls.append(True))
 
-    crawler = Fc2ppvdbCrawler(client=RotatingInlineClient(), auth_session=NoopAuthSession())
+    crawler = Fc2ppvdbCrawler(client=RotatingInlineClient())
     res = await crawler.run(
         CrawlerInput(
             appoint_number="",
@@ -358,7 +345,8 @@ async def test_fetch_article_info_keeps_inline_actresses_without_partial_request
 @pytest.mark.asyncio
 async def test_fc2ppvdb_crawler_reports_login_page(monkeypatch):
     monkeypatch.setattr(manager.config, "fields_rule", "")
-    crawler = Fc2ppvdbCrawler(client=FakeFc2ppvdbHtmlClient(), auth_session=NoopAuthSession())
+    client = FakeFc2ppvdbHtmlClient()
+    crawler = Fc2ppvdbCrawler(client=client)
     res = await crawler.run(
         CrawlerInput(
             appoint_number="",
@@ -374,118 +362,12 @@ async def test_fc2ppvdb_crawler_reports_login_page(monkeypatch):
 
     assert res.data is None
     assert res.debug_info.error is not None
-    assert "fc2cmadb Cookie 可能无效或已过期" in str(res.debug_info.error)
+    assert "登录" in str(res.debug_info.error)
+    assert client.requests == 1
 
 
 @pytest.mark.asyncio
-async def test_fc2ppvdb_crawler_runs_cookie_preflight_before_detail_request(monkeypatch):
-    events = []
-
-    class PreflightSession:
-        async def ensure_cookie_valid(self):
-            events.append("preflight")
-
-    class InlineClient:
-        async def request(self, method, url, **kwargs):
-            events.append("request")
-
-            class Response:
-                status_code = 200
-                headers = {"content-type": "text/html; charset=utf-8"}
-                text = make_article_page(deferred=False)
-
-            return Response(), ""
-
-    monkeypatch.setattr(manager.config, "fields_rule", "")
-    crawler = Fc2ppvdbCrawler(client=InlineClient(), auth_session=PreflightSession())
-
-    res = await crawler.run(
-        CrawlerInput(
-            appoint_number="",
-            appoint_url="",
-            file_path=None,
-            mosaic="",
-            number="FC2-1887986",
-            short_number="FC2-1887986",
-            language=Language.UNDEFINED,
-            org_language=Language.UNDEFINED,
-        )
-    )
-
-    assert res.data is not None
-    assert events == ["preflight", "request"]
-
-
-@pytest.mark.asyncio
-async def test_fc2ppvdb_crawler_refreshes_cookie_and_retries_current_request(monkeypatch):
-    class RecoveringSession:
-        def __init__(self):
-            self.recover_calls = []
-
-        async def ensure_cookie_valid(self):
-            return None
-
-        async def recover_after_authentication_failure(self, failed_cookie):
-            self.recover_calls.append(failed_cookie)
-            manager.config.fc2ppvdb = "fc2cmadb-session=new-session"
-            return manager.config.fc2ppvdb
-
-    class ExpireThenSucceedClient:
-        def __init__(self):
-            self.cookies = []
-
-        async def request(self, method, url, **kwargs):
-            self.cookies.append(dict(kwargs["cookies"]))
-
-            class Response:
-                status_code = 200
-                headers = {"content-type": "text/html; charset=utf-8"}
-
-            response = Response()
-            if len(self.cookies) == 1:
-                response.url = "https://fc2cmadb.com/login"
-                response.text = "<html>ログイン</html>"
-            else:
-                response.url = url
-                response.text = make_article_page(deferred=False)
-            return response, ""
-
-    monkeypatch.setattr(manager.config, "fields_rule", "")
-    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=expired-session")
-    auth_session = RecoveringSession()
-    client = ExpireThenSucceedClient()
-    crawler = Fc2ppvdbCrawler(client=client, auth_session=auth_session)
-
-    res = await crawler.run(
-        CrawlerInput(
-            appoint_number="",
-            appoint_url="",
-            file_path=None,
-            mosaic="",
-            number="FC2-1887986",
-            short_number="FC2-1887986",
-            language=Language.UNDEFINED,
-            org_language=Language.UNDEFINED,
-        )
-    )
-
-    assert res.data is not None
-    assert auth_session.recover_calls == ["fc2cmadb-session=expired-session"]
-    assert client.cookies == [
-        {"fc2cmadb-session": "expired-session"},
-        {"fc2cmadb-session": "new-session"},
-    ]
-
-
-@pytest.mark.asyncio
-async def test_fc2ppvdb_crawler_does_not_refresh_on_cloudflare_403(monkeypatch):
-    class NoRefreshSession:
-        async def ensure_cookie_valid(self):
-            return None
-
-        async def recover_after_authentication_failure(self, failed_cookie):
-            raise AssertionError("Cloudflare 403 must not trigger browser login")
-
+async def test_fc2ppvdb_crawler_does_not_run_auth_recovery_on_cloudflare_403(monkeypatch):
     class CloudflareClient:
         def __init__(self):
             self.requests = 0
@@ -502,7 +384,7 @@ async def test_fc2ppvdb_crawler_does_not_refresh_on_cloudflare_403(monkeypatch):
 
     monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=current-session")
     client = CloudflareClient()
-    crawler = Fc2ppvdbCrawler(client=client, auth_session=NoRefreshSession())
+    crawler = Fc2ppvdbCrawler(client=client)
 
     res = await crawler.run(
         CrawlerInput(
@@ -520,56 +402,3 @@ async def test_fc2ppvdb_crawler_does_not_refresh_on_cloudflare_403(monkeypatch):
     assert res.data is None
     assert "HTTP 403" in str(res.debug_info.error)
     assert client.requests == 1
-
-
-@pytest.mark.asyncio
-async def test_fc2ppvdb_crawler_stops_after_refreshed_cookie_is_still_unauthenticated(monkeypatch):
-    class OneRefreshSession:
-        def __init__(self):
-            self.recover_calls = 0
-
-        async def ensure_cookie_valid(self):
-            return None
-
-        async def recover_after_authentication_failure(self, failed_cookie):
-            self.recover_calls += 1
-            return "fc2cmadb-session=refreshed-session"
-
-    class AlwaysLoginClient:
-        def __init__(self):
-            self.requests = 0
-
-        async def request(self, method, url, **kwargs):
-            self.requests += 1
-
-            class Response:
-                status_code = 200
-                headers = {"content-type": "text/html; charset=utf-8"}
-                text = "<html>ログイン</html>"
-                url = "https://fc2cmadb.com/login"
-
-            return Response(), ""
-
-    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=expired-session")
-    auth_session = OneRefreshSession()
-    client = AlwaysLoginClient()
-    crawler = Fc2ppvdbCrawler(client=client, auth_session=auth_session)
-
-    res = await crawler.run(
-        CrawlerInput(
-            appoint_number="",
-            appoint_url="",
-            file_path=None,
-            mosaic="",
-            number="FC2-1887986",
-            short_number="FC2-1887986",
-            language=Language.UNDEFINED,
-            org_language=Language.UNDEFINED,
-        )
-    )
-
-    assert res.data is None
-    assert isinstance(res.debug_info.error, FC2CMADBAuthenticationError)
-    assert "刷新后认证仍然失败" in str(res.debug_info.error)
-    assert auth_session.recover_calls == 1
-    assert client.requests == 2

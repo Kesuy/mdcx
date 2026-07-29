@@ -127,27 +127,34 @@ def test_legacy_ini_without_local_number_image_switch_keeps_compatible_default()
     assert config.use_local_number_images is True
 
 
-def test_fc2cmadb_auth_defaults_to_manual_without_password_field():
-    config = Config.model_validate({"fc2cmadb_password": "runtime-password"})
-    serialized = config.model_dump_json()
-
-    assert config.fc2cmadb_auth_mode == "manual"
-    assert not any("password" in key.lower() for key in config.model_dump())
-    assert "runtime-password" not in serialized
-
-
-def test_fc2cmadb_auth_mode_round_trips_without_password():
-    config = Config.model_validate({"fc2cmadb_auth_mode": "auto"})
+def test_removed_fc2cmadb_auto_login_config_is_ignored_while_cookie_is_preserved():
+    config = Config.model_validate(
+        {
+            "fc2ppvdb": "fc2cmadb-session=manual-cookie",
+            "fc2cmadb_auth_mode": "auto",
+            "fc2cmadb_password": "obsolete-password",
+        }
+    )
     dumped = config.model_dump(mode="json")
 
-    assert dumped["fc2cmadb_auth_mode"] == "auto"
-    assert not any("password" in key.lower() for key in dumped)
+    assert config.fc2ppvdb == "fc2cmadb-session=manual-cookie"
+    assert "fc2cmadb_auth_mode" not in dumped
+    assert "fc2cmadb_password" not in dumped
 
 
-def test_legacy_config_defaults_fc2cmadb_auth_to_manual():
-    config = ConfigV1().to_pydantic_model()
+def test_legacy_ini_auto_login_mode_is_accepted_and_dropped(tmp_path: Path):
+    ini_path = tmp_path / "legacy-fc2cmadb.ini"
+    ini_path.write_text(
+        "[cookies]\nfc2ppvdb = fc2cmadb-session=manual-cookie\nfc2cmadb_auth_mode = auto\n",
+        encoding="utf-8",
+    )
 
-    assert config.fc2cmadb_auth_mode == "manual"
+    data, errors = load_v1(ini_path)
+    config = ConfigV1(**data).to_pydantic_model()
+
+    assert errors == []
+    assert config.fc2ppvdb == "fc2cmadb-session=manual-cookie"
+    assert "fc2cmadb_auth_mode" not in config.model_dump()
 
 
 def test_config_update_removes_old_youma_poster_option_without_enabling_new_option():
