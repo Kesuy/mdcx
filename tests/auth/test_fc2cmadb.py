@@ -1,4 +1,5 @@
 import builtins
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +16,7 @@ class FakeConfig:
 class FakeConfigManager:
     def __init__(self):
         self.config = FakeConfig()
+        self.data_folder = Path("runtime-data")
         self.save_calls = 0
 
     def save(self):
@@ -120,6 +122,87 @@ async def test_installed_browser_launcher_prefers_microsoft_edge():
 
     assert browser is expected_browser
     assert launch_calls == [{"channel": "msedge", "headless": False}]
+
+
+@pytest.mark.asyncio
+async def test_persistent_browser_launcher_reuses_dedicated_profile():
+    launch_calls = []
+    expected_context = object()
+
+    class FakeChromium:
+        async def launch_persistent_context(self, user_data_dir, **kwargs):
+            launch_calls.append((user_data_dir, kwargs))
+            return expected_context
+
+    profile_dir = Path("runtime-data") / ".fc2cmadb-browser"
+    context = await FC2CMADBAuthManager._launch_persistent_browser_context(
+        FakeChromium(),
+        profile_dir,
+    )
+
+    assert context is expected_context
+    assert launch_calls == [
+        (
+            str(profile_dir),
+            {
+                "channel": "msedge",
+                "headless": False,
+                "no_viewport": True,
+                "ignore_default_args": ["--enable-automation"],
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_persistent_browser_launcher_falls_back_to_chrome():
+    launch_calls = []
+    expected_context = object()
+
+    class FakeChromium:
+        async def launch_persistent_context(self, user_data_dir, **kwargs):
+            launch_calls.append((user_data_dir, kwargs))
+            if kwargs["channel"] == "msedge":
+                raise RuntimeError("Chromium distribution 'msedge' is not found")
+            return expected_context
+
+    profile_dir = Path("runtime-data") / ".fc2cmadb-browser"
+    context = await FC2CMADBAuthManager._launch_persistent_browser_context(
+        FakeChromium(),
+        profile_dir,
+        "http://proxy.example:8080",
+    )
+
+    assert context is expected_context
+    assert [options["channel"] for _path, options in launch_calls] == ["msedge", "chrome"]
+    assert all(path == str(profile_dir) for path, _options in launch_calls)
+    assert all(options["proxy"] == {"server": "http://proxy.example:8080"} for _path, options in launch_calls)
+
+
+@pytest.mark.asyncio
+async def test_persistent_browser_launcher_does_not_hide_launch_failure():
+    class FakeChromium:
+        async def launch_persistent_context(self, _user_data_dir, **_kwargs):
+            raise RuntimeError("browser process crashed: policy denied")
+
+    with pytest.raises(RuntimeError, match="policy denied"):
+        await FC2CMADBAuthManager._launch_persistent_browser_context(
+            FakeChromium(),
+            Path("runtime-data") / ".fc2cmadb-browser",
+        )
+
+
+@pytest.mark.asyncio
+async def test_persistent_browser_launcher_reports_when_edge_and_chrome_are_missing():
+    class FakeChromium:
+        async def launch_persistent_context(self, _user_data_dir, **kwargs):
+            raise RuntimeError(f"Chromium distribution '{kwargs['channel']}' is not found")
+
+    with pytest.raises(PlaywrightUnavailableError, match="Microsoft Edge 或 Google Chrome"):
+        await FC2CMADBAuthManager._launch_persistent_browser_context(
+            FakeChromium(),
+            Path("runtime-data") / ".fc2cmadb-browser",
+        )
 
 
 @pytest.mark.asyncio
@@ -288,11 +371,11 @@ async def test_browser_login_does_not_expose_proxy_credentials_in_errors(monkeyp
         async def __aexit__(self, *_args):
             return False
 
-    async def fail_launch(_chromium, _proxy_server=None):
+    async def fail_launch(_chromium, _user_data_dir, _proxy_server=None):
         raise RuntimeError(f"launch failed with password={secret}")
 
     monkeypatch.setattr(playwright_api, "async_playwright", FakePlaywrightContext)
-    monkeypatch.setattr(FC2CMADBAuthManager, "_launch_installed_browser", fail_launch)
+    monkeypatch.setattr(FC2CMADBAuthManager, "_launch_persistent_browser_context", fail_launch)
 
     with pytest.raises(FC2CMADBAuthError) as exc_info:
         await FC2CMADBAuthManager._login_with_playwright(
@@ -310,8 +393,8 @@ async def test_default_browser_login_uses_the_configured_proxy(monkeypatch):
     config_manager.config.use_proxy = True
     browser_calls = []
 
-    async def fake_browser_login(username, password, proxy_server):
-        browser_calls.append((username, password, proxy_server))
+    async def fake_browser_login(username, password, proxy_server, user_data_dir):
+        browser_calls.append((username, password, proxy_server, user_data_dir))
         return [{"name": "fc2cmadb-session", "value": "new-session"}]
 
     async def validate(_cookie):
@@ -322,7 +405,14 @@ async def test_default_browser_login_uses_the_configured_proxy(monkeypatch):
 
     await auth.login("test-user", "runtime-password")
 
-    assert browser_calls == [("test-user", "runtime-password", "http://127.0.0.1:7890")]
+    assert browser_calls == [
+        (
+            "test-user",
+            "runtime-password",
+            "http://127.0.0.1:7890",
+            Path("runtime-data") / ".fc2cmadb-browser",
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -330,8 +420,8 @@ async def test_default_browser_login_omits_disabled_proxy(monkeypatch):
     config_manager = FakeConfigManager()
     browser_calls = []
 
-    async def fake_browser_login(username, password, proxy_server):
-        browser_calls.append((username, password, proxy_server))
+    async def fake_browser_login(username, password, proxy_server, user_data_dir):
+        browser_calls.append((username, password, proxy_server, user_data_dir))
         return [{"name": "fc2cmadb-session", "value": "new-session"}]
 
     async def validate(_cookie):
@@ -342,7 +432,14 @@ async def test_default_browser_login_omits_disabled_proxy(monkeypatch):
 
     await auth.login("test-user", "runtime-password")
 
-    assert browser_calls == [("test-user", "runtime-password", None)]
+    assert browser_calls == [
+        (
+            "test-user",
+            "runtime-password",
+            None,
+            Path("runtime-data") / ".fc2cmadb-browser",
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -360,16 +457,33 @@ async def test_cloudflare_challenge_waits_for_login_form_before_autofill():
 
         async def fill(self, value):
             events.append(("fill", self.kind, value))
+            self.page.values[self.kind] = value
+
+        async def input_value(self):
+            return self.page.values.get(self.kind, "")
+
+        async def is_enabled(self):
+            return True
 
         async def click(self):
             events.append(("click", self.kind))
             self.page.url = "https://fc2cmadb.com/"
 
+    class FakeMissingLocator:
+        def __init__(self):
+            self.first = self
+
+        async def count(self):
+            return 0
+
     class FakePage:
         url = "https://fc2cmadb.com/login"
         elapsed_ms = 0
+        values = {}
 
         def locator(self, selector):
+            if "cf-turnstile-response" in selector:
+                return FakeMissingLocator()
             if "password" in selector:
                 kind = "password"
             elif "submit" in selector:
@@ -407,3 +521,164 @@ async def test_cloudflare_challenge_waits_for_login_form_before_autofill():
     assert ("fill", "username", "test-user") in events
     assert ("fill", "password", "runtime-password") in events
     assert cookies == [{"name": "fc2cmadb-session", "value": "authenticated"}]
+
+
+@pytest.mark.asyncio
+async def test_login_waits_for_turnstile_token_before_submitting():
+    events = []
+
+    class FakeLocator:
+        def __init__(self, kind, page):
+            self.kind = kind
+            self.page = page
+            self.first = self
+
+        async def count(self):
+            return 1
+
+        async def fill(self, value):
+            events.append(("fill", self.kind, value, self.page.elapsed_ms))
+            self.page.values[self.kind] = value
+
+        async def input_value(self):
+            if self.kind == "turnstile":
+                return "verified-token" if self.page.elapsed_ms >= 2_000 else ""
+            return self.page.values.get(self.kind, "")
+
+        async def is_enabled(self):
+            return self.page.elapsed_ms >= 2_000
+
+        async def click(self):
+            events.append(("click", self.kind, self.page.elapsed_ms))
+            self.page.url = "https://fc2cmadb.com/"
+
+    class FakePage:
+        url = "https://fc2cmadb.com/login"
+        elapsed_ms = 0
+        values = {}
+
+        def locator(self, selector):
+            if "cf-turnstile-response" in selector:
+                kind = "turnstile"
+            elif "password" in selector:
+                kind = "password"
+            elif "submit" in selector:
+                kind = "submit"
+            else:
+                kind = "username"
+            return FakeLocator(kind, self)
+
+        def is_closed(self):
+            return False
+
+        async def wait_for_timeout(self, timeout_ms):
+            self.elapsed_ms += timeout_ms
+            events.append(("wait", timeout_ms))
+
+    class FakeContext:
+        async def cookies(self):
+            if page.url.endswith("/login"):
+                return []
+            return [{"name": "fc2cmadb-session", "value": "authenticated"}]
+
+    page = FakePage()
+    await FC2CMADBAuthManager._complete_browser_login(
+        page,
+        FakeContext(),
+        "test-user",
+        "runtime-password",
+        timeout_ms=5_000,
+    )
+
+    submit_events = [event for event in events if event[:2] == ("click", "submit")]
+    assert submit_events == [("click", "submit", 2_000)]
+
+
+@pytest.mark.asyncio
+async def test_login_refills_credentials_after_cloudflare_replaces_the_form():
+    events = []
+
+    class FakeLocator:
+        def __init__(self, kind, page):
+            self.kind = kind
+            self.page = page
+            self.first = self
+
+        async def count(self):
+            return 1
+
+        async def fill(self, value):
+            events.append(("fill", self.kind, value, self.page.elapsed_ms))
+            self.page.values[self.kind] = value
+
+        async def input_value(self):
+            if self.kind == "turnstile":
+                return "verified-token" if self.page.elapsed_ms >= 2_000 else ""
+            return self.page.values.get(self.kind, "")
+
+        async def is_enabled(self):
+            return self.page.elapsed_ms >= 2_000
+
+        async def click(self):
+            events.append(
+                (
+                    "click",
+                    self.kind,
+                    self.page.elapsed_ms,
+                    self.page.values.get("username", ""),
+                    self.page.values.get("password", ""),
+                )
+            )
+            if self.page.values == {
+                "username": "test-user",
+                "password": "runtime-password",
+            }:
+                self.page.url = "https://fc2cmadb.com/"
+
+    class FakePage:
+        url = "https://fc2cmadb.com/login"
+        elapsed_ms = 0
+
+        def __init__(self):
+            self.values = {}
+
+        def locator(self, selector):
+            if "cf-turnstile-response" in selector:
+                kind = "turnstile"
+            elif "password" in selector:
+                kind = "password"
+            elif "submit" in selector:
+                kind = "submit"
+            else:
+                kind = "username"
+            return FakeLocator(kind, self)
+
+        def is_closed(self):
+            return False
+
+        async def wait_for_timeout(self, timeout_ms):
+            self.elapsed_ms += timeout_ms
+            if self.elapsed_ms == 1_000:
+                self.values = {}
+
+    class FakeContext:
+        async def cookies(self):
+            if page.url.endswith("/login"):
+                return []
+            return [{"name": "fc2cmadb-session", "value": "authenticated"}]
+
+    page = FakePage()
+    await FC2CMADBAuthManager._complete_browser_login(
+        page,
+        FakeContext(),
+        "test-user",
+        "runtime-password",
+        timeout_ms=5_000,
+    )
+
+    username_fills = [event for event in events if event[:2] == ("fill", "username")]
+    password_fills = [event for event in events if event[:2] == ("fill", "password")]
+    submit_events = [event for event in events if event[:2] == ("click", "submit")]
+    assert [event[3] for event in username_fills] == [0, 1_000]
+    assert [event[3] for event in password_fills] == [0, 1_000]
+    assert submit_events == [("click", "submit", 2_000, "test-user", "runtime-password")]

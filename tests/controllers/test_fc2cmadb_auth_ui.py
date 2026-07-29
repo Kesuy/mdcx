@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QApplication, QLineEdit, QMainWindow
 
+from mdcx.controllers.main_window import load_config as load_config_module
 from mdcx.controllers.main_window import main_window as main_window_module
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.views.MDCx import Ui_MDCx
@@ -43,6 +44,87 @@ def test_fc2cmadb_auto_login_explains_installed_browser_selection():
 
     assert "Microsoft Edge" in tooltip
     assert "Google Chrome" in tooltip
+    assert "复用专用浏览器资料" in tooltip
+
+
+def test_fc2cmadb_login_click_keeps_password_for_the_app_session(monkeypatch):
+    runtime_credentials = []
+    started_threads = []
+
+    class FakeLineEdit:
+        def __init__(self, value):
+            self.value = value
+
+        def text(self):
+            return self.value
+
+        def clear(self):
+            self.value = ""
+
+    class FakeSignal:
+        def emit(self, _value):
+            pass
+
+    class FakeThread:
+        def __init__(self, *, target, args, daemon):
+            started_threads.append((target, args, daemon))
+
+        def start(self):
+            pass
+
+    class FakeWindow:
+        Ui = type(
+            "FakeUi",
+            (),
+            {
+                "lineEdit_fc2cmadb_username": FakeLineEdit("test-user"),
+                "lineEdit_fc2cmadb_password": FakeLineEdit("runtime-password"),
+            },
+        )()
+        set_fc2ppvdb_status = FakeSignal()
+
+        @staticmethod
+        def _login_fc2cmadb(_username, _password):
+            pass
+
+    monkeypatch.setattr(main_window_module.threading, "Thread", FakeThread)
+    monkeypatch.setattr(
+        main_window_module,
+        "set_fc2cmadb_runtime_credentials",
+        lambda username, password: runtime_credentials.append((username, password)),
+    )
+
+    MyMAinWindow.pushButton_fc2cmadb_login_clicked(FakeWindow())
+
+    assert FakeWindow.Ui.lineEdit_fc2cmadb_password.text() == "runtime-password"
+    assert runtime_credentials == [("test-user", "runtime-password")]
+    assert len(started_threads) == 1
+
+
+def test_fc2cmadb_config_reload_keeps_runtime_password_in_the_widget():
+    window = _setup_fc2cmadb_ui()
+    window.Ui.lineEdit_fc2cmadb_password.setText("runtime-password")
+    window._update_fc2cmadb_auth_mode_ui = lambda: None
+    manager = type(
+        "FakeConfigManager",
+        (),
+        {
+            "config": type(
+                "FakeConfig",
+                (),
+                {
+                    "fc2ppvdb": "fc2cmadb-session=test-cookie",
+                    "fc2cmadb_auth_mode": "auto",
+                },
+            )()
+        },
+    )()
+
+    load_config_module._load_fc2cmadb_auth_config(window, manager)
+
+    assert window.Ui.lineEdit_fc2cmadb_password.text() == "runtime-password"
+    assert window.Ui.radioButton_fc2cmadb_auto.isChecked() is True
+    assert window.Ui.plainTextEdit_cookie_fc2ppvdb.toPlainText() == "fc2cmadb-session=test-cookie"
 
 
 def test_cookie_settings_visually_separate_each_website():

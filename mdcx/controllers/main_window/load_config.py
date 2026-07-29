@@ -42,6 +42,13 @@ if TYPE_CHECKING:
     from .main_window import MyMAinWindow
 
 
+def _load_fc2cmadb_auth_config(self: "MyMAinWindow", config_manager) -> None:
+    self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlainText(config_manager.config.fc2ppvdb)
+    self.Ui.radioButton_fc2cmadb_auto.setChecked(config_manager.config.fc2cmadb_auth_mode == "auto")
+    self.Ui.radioButton_fc2cmadb_manual.setChecked(config_manager.config.fc2cmadb_auth_mode != "auto")
+    self._update_fc2cmadb_auth_mode_ui()
+
+
 def load_config(self: "MyMAinWindow"):
     """
     读取配置文件并绑定到 UI 组件
@@ -922,11 +929,7 @@ def load_config(self: "MyMAinWindow"):
         # javdb cookie
         self.set_javdb_cookie.emit(manager.config.javdb)
         # fc2cmadb Cookie
-        self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlainText(manager.config.fc2ppvdb)
-        self.Ui.radioButton_fc2cmadb_auto.setChecked(manager.config.fc2cmadb_auth_mode == "auto")
-        self.Ui.radioButton_fc2cmadb_manual.setChecked(manager.config.fc2cmadb_auth_mode != "auto")
-        self.Ui.lineEdit_fc2cmadb_password.clear()
-        self._update_fc2cmadb_auth_mode_ui()
+        _load_fc2cmadb_auth_config(self, manager)
         # javbus cookie
         self.set_javbus_cookie.emit(manager.config.javbus)
         # endregion

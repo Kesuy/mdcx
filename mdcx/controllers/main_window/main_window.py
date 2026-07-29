@@ -482,7 +482,8 @@ class MyMAinWindow(QMainWindow):
         self.Ui.pushButton_fc2cmadb_login = QPushButton("登录获取 Cookie", self.Ui.gridLayoutWidget_10)
         self.Ui.pushButton_fc2cmadb_login.setObjectName("pushButton_fc2cmadb_login")
         self.Ui.pushButton_fc2cmadb_login.setToolTip(
-            "将优先打开 Microsoft Edge，未安装时尝试 Google Chrome；如出现验证码，请在浏览器窗口中手动完成"
+            "将优先打开 Microsoft Edge，未安装时尝试 Google Chrome；"
+            "复用专用浏览器资料以保留 Cloudflare 登录状态，如出现验证码请在浏览器窗口中手动完成"
         )
         self.Ui.gridLayout_10.addWidget(self.Ui.pushButton_fc2cmadb_login, 14, 1, 1, 1)
 
@@ -3494,11 +3495,11 @@ class MyMAinWindow(QMainWindow):
     def pushButton_fc2cmadb_login_clicked(self):
         username = self.Ui.lineEdit_fc2cmadb_username.text().strip()
         password = self.Ui.lineEdit_fc2cmadb_password.text()
-        self.Ui.lineEdit_fc2cmadb_password.clear()
         if not username or not password:
             self.set_fc2ppvdb_status.emit("❌ 用户名和密码不能为空")
             return
 
+        set_fc2cmadb_runtime_credentials(username, password)
         self.set_fc2ppvdb_status.emit("⏳ 正在打开浏览器登录；如出现验证码，请在浏览器中手动完成...")
         thread = threading.Thread(
             target=self._login_fc2cmadb,

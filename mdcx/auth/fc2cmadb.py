@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -109,10 +110,42 @@ class FC2CMADBAuthManager:
                     raise
         raise PlaywrightUnavailableError("未检测到 Microsoft Edge 或 Google Chrome，请先安装其中一个浏览器")
 
+    @staticmethod
+    async def _launch_persistent_browser_context(
+        chromium,
+        user_data_dir: Path,
+        proxy_server: str | None = None,
+    ):
+        playwright_proxy = _build_playwright_proxy(proxy_server)
+        for channel in ("msedge", "chrome"):
+            try:
+                launch_options = {
+                    "channel": channel,
+                    "headless": False,
+                    "no_viewport": True,
+                    "ignore_default_args": ["--enable-automation"],
+                }
+                if playwright_proxy is not None:
+                    launch_options["proxy"] = playwright_proxy
+                return await chromium.launch_persistent_context(
+                    str(user_data_dir),
+                    **launch_options,
+                )
+            except Exception as exc:
+                if "is not found" not in str(exc):
+                    raise
+        raise PlaywrightUnavailableError("未检测到 Microsoft Edge 或 Google Chrome，请先安装其中一个浏览器")
+
     async def _login_with_configured_browser(self, username: str, password: str) -> list[dict[str, Any]]:
         config = self._config_manager.config
         proxy_server = config.proxy if config.use_proxy else None
-        return await type(self)._login_with_playwright(username, password, proxy_server)
+        user_data_dir = self._config_manager.data_folder / ".fc2cmadb-browser"
+        return await type(self)._login_with_playwright(
+            username,
+            password,
+            proxy_server,
+            user_data_dir,
+        )
 
     @staticmethod
     async def _complete_browser_login(
@@ -126,7 +159,11 @@ class FC2CMADBAuthManager:
         username_input = page.locator('input[name="email"], input[name="username"], input[type="email"]').first
         password_input = page.locator('input[name="password"], input[type="password"]').first
         submit_button = page.locator('button[type="submit"], input[type="submit"]').first
-        autofill_attempted = False
+        turnstile_response = page.locator(
+            'input[name="cf-turnstile-response"], textarea[name="cf-turnstile-response"]'
+        ).first
+        credentials_filled = False
+        submit_attempted = False
         elapsed_ms = 0
 
         while elapsed_ms < timeout_ms:
@@ -139,20 +176,38 @@ class FC2CMADBAuthManager:
             ):
                 return cookies
 
-            if not autofill_attempted:
-                fields_ready = all(
-                    [await locator.count() for locator in (username_input, password_input, submit_button)]
-                )
-                if fields_ready:
-                    autofill_attempted = True
-                    try:
+            fields_ready = all([await locator.count() for locator in (username_input, password_input, submit_button)])
+            if fields_ready:
+                try:
+                    credentials_filled = (
+                        await username_input.input_value() == username
+                        and await password_input.input_value() == password
+                    )
+                    if not credentials_filled:
                         await username_input.fill(username)
                         await password_input.fill(password)
+                        credentials_filled = (
+                            await username_input.input_value() == username
+                            and await password_input.input_value() == password
+                        )
+                except Exception:
+                    # Cloudflare may replace the login DOM while it verifies the browser.
+                    # Mark the old fill stale so the next stable form is populated again.
+                    credentials_filled = False
+            else:
+                credentials_filled = False
+
+            if credentials_filled and not submit_attempted:
+                try:
+                    has_turnstile = bool(await turnstile_response.count())
+                    turnstile_ready = not has_turnstile or bool(await turnstile_response.input_value())
+                    if turnstile_ready and await submit_button.is_enabled():
                         await submit_button.click()
-                    except Exception:
-                        # The page may transition back to Cloudflare while submitting. Keep the
-                        # headed browser open so the user can complete verification manually.
-                        pass
+                        submit_attempted = True
+                except Exception:
+                    # A challenge can replace the form between readiness checks and click.
+                    # Leave the browser open and retry only after the form becomes stable.
+                    pass
 
             await page.wait_for_timeout(1_000)
             elapsed_ms += 1_000
@@ -161,7 +216,10 @@ class FC2CMADBAuthManager:
 
     @staticmethod
     async def _login_with_playwright(
-        username: str, password: str, proxy_server: str | None = None
+        username: str,
+        password: str,
+        proxy_server: str | None = None,
+        user_data_dir: Path | None = None,
     ) -> list[dict[str, Any]]:
         try:
             from playwright.async_api import async_playwright
@@ -170,10 +228,14 @@ class FC2CMADBAuthManager:
 
         try:
             async with async_playwright() as playwright:
-                browser = await FC2CMADBAuthManager._launch_installed_browser(playwright.chromium, proxy_server)
+                profile_dir = user_data_dir or manager.data_folder / ".fc2cmadb-browser"
+                context = await FC2CMADBAuthManager._launch_persistent_browser_context(
+                    playwright.chromium,
+                    profile_dir,
+                    proxy_server,
+                )
                 try:
-                    context = await browser.new_context()
-                    page = await context.new_page()
+                    page = context.pages[0] if context.pages else await context.new_page()
                     await page.goto("https://fc2cmadb.com/login", wait_until="domcontentloaded")
                     return await FC2CMADBAuthManager._complete_browser_login(
                         page,
@@ -182,7 +244,7 @@ class FC2CMADBAuthManager:
                         password,
                     )
                 finally:
-                    await browser.close()
+                    await context.close()
         except FC2CMADBAuthError:
             raise
         except Exception as exc:

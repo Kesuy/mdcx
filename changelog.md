@@ -1,8 +1,9 @@
 ## 优化
-- 设置 → 网络中的 Cookie 配置现在按 JavDB、JavBus、FC2CMADB 分区显示，FC2CMADB 的认证方式和登录控件归属更清晰。
-- FC2CMADB 自动登录会在 Cloudflare 验证先于登录表单出现时保持浏览器打开，等待用户完成验证后再自动填写并提交账号信息。
+- FC2CMADB 自动登录改用 MDCx 专用的持久 Edge/Chrome 浏览器资料目录，复用 Cloudflare clearance 与站点信任状态，避免每次登录都从全新的临时浏览器环境开始。
+- 自动填充后会读取账号和密码输入框确认填写成功；页面被 Cloudflare 临时替换时会继续等待并重试。
+- 检测登录表单内的 Cloudflare Turnstile，只有验证 token 已生成且登录按钮可用时才提交，不再抢先点击登录。
 
 ## 修复
-- 修复启动或打开设置时自动检测 JavDB、JavBus Cookie 并产生不必要网络请求的问题；Cookie 现在仅在用户主动点击检查时验证。
-- 修复 JavBus Cookie 为空仍可能显示“连接正常”的误导状态；空内容现在直接提示未填写且不会访问网络。
-- 修复 FC2CMADB 登录页出现 Cloudflare 验证时，Playwright 等待不到登录输入框并提前关闭 Edge 的问题。
+- 修复点击“登录获取 Cookie”后 MDCx 密码框被立即清空的问题；账号密码现在仅在当前软件进程内保留，设置重新加载或登录失败后仍可重试，且不会写入配置文件或日志。
+- 修复 FC2CMADB 每次自动登录创建全新浏览器 context，导致 Cloudflare 状态丢失并反复触发验证的问题。
+- 修复首次自动填充遇到临时 DOM 变化后不再重试的问题。
