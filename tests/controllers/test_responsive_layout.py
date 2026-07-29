@@ -25,6 +25,7 @@ from mdcx.controllers.main_window.responsive_layout import (
     apply_responsive_layout,
     calculate_layout_metrics,
     setup_responsive_ui,
+    show_responsive_overlay,
 )
 from mdcx.views.MDCx import Ui_MDCx
 
@@ -302,9 +303,17 @@ def test_simple_pages_expand_with_their_layouts_and_log_detail_collapses():
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_net)
     APP.processEvents()
     assert window.Ui.textBrowser_net_main.height() > 700
+    assert window.Ui.pushButton_check_net.parentWidget().objectName() == "network_toolbar"
+    assert window.Ui.pushButton_check_net.size().width() == 120
+    assert window.Ui.pushButton_check_net.size().height() == 40
+    button_pos = window.Ui.pushButton_check_net.mapTo(window.Ui.page_net, QPoint())
+    assert button_pos.x() + window.Ui.pushButton_check_net.width() == window.Ui.page_net.width() - 10
+    assert window.Ui.textBrowser_net_main.geometry().top() > button_pos.y() + window.Ui.pushButton_check_net.height()
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_about)
     APP.processEvents()
     assert window.Ui.textBrowser_about.height() > 700
+    assert window.Ui.textBrowser_about.font().family() == window.Ui.textBrowser_log_main.font().family()
+    assert window.Ui.textBrowser_about.font().pixelSize() == window.Ui.textBrowser_log_main.font().pixelSize()
 
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
     APP.processEvents()
@@ -376,6 +385,66 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     assert window.Ui.pushButton_save_config.size().width() == 200
     assert window.Ui.pushButton_save_config.size().height() == 50
     assert window.Ui.pushButton_save_config.geometry().right() <= window.Ui.label_config.rect().right() - 12
+    window.close()
+
+
+def test_tool_page_centers_its_fixed_width_forms_and_keeps_scrollbar_at_right():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_tool)
+    window.resize(1600, 900)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    scroll_area = window.Ui.scrollArea_10
+    content = scroll_area.widget()
+    assert content.width() == scroll_area.viewport().width()
+    for group in (window.Ui.groupBox_7, window.Ui.groupBox_13, window.Ui.groupBox_19):
+        assert abs(group.geometry().center().x() - content.rect().center().x()) <= 1
+    scrollbar_x = scroll_area.verticalScrollBar().mapTo(window.Ui.page_tool, QPoint()).x()
+    assert scrollbar_x >= window.Ui.page_tool.width() - 30
+    window.close()
+
+
+def test_responsive_overlays_are_centered_fit_and_raise_above_page_content():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.resize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    for overlay in (window.Ui.widget_show_success, window.Ui.widget_show_tips):
+        parent = overlay.parentWidget()
+        assert overlay.width() <= parent.width() - 16
+        assert overlay.height() <= parent.height() - 16
+        assert abs(overlay.geometry().center().x() - parent.rect().center().x()) <= 1
+        assert abs(overlay.geometry().center().y() - parent.rect().center().y()) <= 1
+
+    nfo = window.Ui.widget_nfo
+    assert nfo.height() <= window.Ui.centralwidget.height() - 16
+    assert nfo.layout() is not None
+    assert window.Ui.scrollArea_nfo.height() > 400
+
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    show_responsive_overlay(window, window.Ui.widget_show_tips)
+    APP.processEvents()
+    center = window.Ui.widget_show_tips.geometry().center()
+    child = window.Ui.page_setting.childAt(center)
+    while child is not None and child.parentWidget() is not window.Ui.page_setting:
+        child = child.parentWidget()
+    assert child is window.Ui.widget_show_tips
+
+    show_responsive_overlay(window, nfo)
+    APP.processEvents()
+    center = nfo.geometry().center()
+    child = window.Ui.centralwidget.childAt(center)
+    while child is not None and child.parentWidget() is not window.Ui.centralwidget:
+        child = child.parentWidget()
+    assert child is nfo
     window.close()
 
 

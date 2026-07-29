@@ -245,6 +245,7 @@ def _apply_log_document_style(self: "MyMAinWindow", dark: bool) -> None:
         self.Ui.textBrowser_log_main_2,
         self.Ui.textBrowser_log_main_3,
         self.Ui.textBrowser_net_main,
+        self.Ui.textBrowser_about,
         self.Ui.textBrowser_show_success_list,
         self.Ui.textBrowser_show_tips,
     ):
@@ -469,7 +470,7 @@ def set_style(self: "MyMAinWindow"):
             border: {self.window_border}px solid rgba(20,20,20,50);
             border-radius: {self.window_radius}px;
        }}
-        QTextBrowser#textBrowser_log_main,#textBrowser_net_main{{
+        QTextBrowser#textBrowser_log_main,#textBrowser_net_main,#textBrowser_about{{
             font-size:13px;
             border: 0px solid #BEBEBE;
             background-color: rgba(246,246,246,0);
@@ -938,7 +939,7 @@ def set_dark_style(self: "MyMAinWindow"):
             border: {self.window_border}px solid rgba(20,20,20,50);
             border-radius: {self.window_radius}px;
        }}
-        QTextBrowser#textBrowser_log_main,#textBrowser_net_main{{
+        QTextBrowser#textBrowser_log_main,#textBrowser_net_main,#textBrowser_about{{
             font-size:13px;
             border: 0px solid #BEBEBE;
             background-color: rgba(246,246,246,0);

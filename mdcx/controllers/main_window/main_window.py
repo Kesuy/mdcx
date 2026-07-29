@@ -97,7 +97,7 @@ from ..cut_window import CutWindow
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
-from .responsive_layout import apply_responsive_layout
+from .responsive_layout import apply_responsive_layout, show_responsive_overlay
 from .save_config import save_config
 from .site_priority_dialog import apply_site_priority_theme
 from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
@@ -1915,7 +1915,7 @@ class MyMAinWindow(QMainWindow):
         event = QHoverEvent(QEvent.Type.HoverLeave, QPointF(40, 40), QPointF(0, 0))
         QApplication.sendEvent(self.Ui.pushButton_open_nfo, event)
         if self._check_main_file_path():
-            self.Ui.widget_nfo.show()
+            show_responsive_overlay(self, self.Ui.widget_nfo)
             self._show_nfo_info()
 
     def main_load_nfo_click(self):
@@ -2468,7 +2468,7 @@ class MyMAinWindow(QMainWindow):
             self.Ui.widget_show_success.hide()
 
     def pushButton_view_success_file_clicked(self):
-        self.Ui.widget_show_success.show()
+        show_responsive_overlay(self, self.Ui.widget_show_success)
         info = "暂无成功刮削的文件"
         if len(Flags.success_list):
             info = "\n".join(sorted(str(p) for p in Flags.success_list))
@@ -2914,7 +2914,7 @@ class MyMAinWindow(QMainWindow):
     # 设置-显示说明信息
     def _show_tips(self, msg):
         self.Ui.textBrowser_show_tips.setText(msg)
-        self.Ui.widget_show_tips.show()
+        show_responsive_overlay(self, self.Ui.widget_show_tips)
 
     # 设置-刮削网站和字段中的详细说明弹窗
     def pushButton_scrape_note_clicked(self):
@@ -3276,17 +3276,11 @@ class MyMAinWindow(QMainWindow):
         self.network_check_future = None
         self.Ui.pushButton_check_net.setEnabled(True)
         self.Ui.pushButton_check_net.setText("开始检测")
-        self.Ui.pushButton_check_net.setStyleSheet(
-            "QPushButton#pushButton_check_net{background-color:#4C6EFF}QPushButton:hover#pushButton_check_net{background-color: rgba(76,110,255,240)}QPushButton:pressed#pushButton_check_net{#4C6EE0}"
-        )
 
     # 网络检查
     def pushButton_check_net_clicked(self):
         if self.Ui.pushButton_check_net.text() == "开始检测":
             self.Ui.pushButton_check_net.setText("停止检测")
-            self.Ui.pushButton_check_net.setStyleSheet(
-                "QPushButton#pushButton_check_net{color: white;background-color:#3758D8;}QPushButton:hover#pushButton_check_net{color: white;background-color:#4C6EFF;}QPushButton:pressed#pushButton_check_net{color: white;background-color:#2F49B8;}"
-            )
             try:
                 self.t_net = threading.Thread(target=self.network_check)
                 self.t_net.start()  # 启动线程,即让线程开始执行
@@ -3294,14 +3288,9 @@ class MyMAinWindow(QMainWindow):
                 signal_qt.show_traceback_log(traceback.format_exc())
                 signal_qt.show_net_info(traceback.format_exc())
         elif self.Ui.pushButton_check_net.text() == "停止检测":
-            self.Ui.pushButton_check_net.setText(" 停止检测 ")
-            self.Ui.pushButton_check_net.setText(" 停止检测 ")
             if self.network_check_cancel_event:
                 self.network_check_cancel_event.set()
             signal_qt.show_net_info("\n⛔️ 正在停止网络检测...")
-            self.Ui.pushButton_check_net.setStyleSheet(
-                "QPushButton#pushButton_check_net{color: white;background-color:#4C6EFF;}QPushButton:hover#pushButton_check_net{color: white;background-color: rgba(76,110,255,240)}QPushButton:pressed#pushButton_check_net{color: white;background-color:#4C6EE0}"
-            )
             self.Ui.pushButton_check_net.setText("开始检测")
         else:
             try:

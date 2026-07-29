@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRect, Qt, QTimer
+from PyQt6.QtCore import QRect, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QGridLayout,
     QGroupBox,
@@ -145,6 +145,7 @@ def _sync_after_shell_splitter_move(window: "MyMAinWindow") -> None:
 def _sync_content_panes(window: "MyMAinWindow") -> None:
     _sync_main_image_sizes(window)
     _sync_settings_scroll_areas(window)
+    _sync_tool_scroll_area(window)
 
 
 def _schedule_content_pane_sync(window: "MyMAinWindow") -> None:
@@ -414,6 +415,114 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
                 )
 
 
+def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
+    scroll_area = window.Ui.scrollArea_10
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    content = scroll_area.widget()
+    groups = content.findChildren(
+        QGroupBox,
+        options=Qt.FindChildOption.FindDirectChildrenOnly,
+    )
+    window._tool_scroll_metrics = (
+        scroll_area,
+        content,
+        content.width(),
+        content.height(),
+        [(group, group.y(), group.width()) for group in groups],
+    )
+
+
+def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
+    metrics = getattr(window, "_tool_scroll_metrics", None)
+    if metrics is None:
+        return
+
+    scroll_area, content, base_width, base_height, groups = metrics
+    content_width = max(base_width, scroll_area.viewport().width())
+    content.resize(content_width, base_height)
+    for group, y, width in groups:
+        group.move(max(0, (content_width - width) // 2), y)
+
+
+def _setup_overlay_layouts(window: "MyMAinWindow") -> None:
+    if hasattr(window, "_responsive_overlay_sizes"):
+        return
+
+    ui = window.Ui
+
+    success_layout = QVBoxLayout(ui.widget_show_success)
+    success_layout.setContentsMargins(10, 6, 10, 10)
+    success_layout.setSpacing(6)
+    success_layout.addWidget(ui.label_success_title)
+    success_layout.addWidget(ui.textBrowser_show_success_list, 1)
+    success_footer = QHBoxLayout()
+    success_footer.addStretch(1)
+    for button in (
+        ui.pushButton_success_list_clear,
+        ui.pushButton_success_list_save,
+        ui.pushButton_success_list_close,
+    ):
+        _set_fixed_size(button, 91, 40)
+        success_footer.addWidget(button)
+    success_footer.addStretch(1)
+    success_layout.addLayout(success_footer)
+
+    tips_layout = QVBoxLayout(ui.widget_show_tips)
+    tips_layout.setContentsMargins(10, 6, 10, 10)
+    tips_layout.setSpacing(6)
+    tips_layout.addWidget(ui.label_show_tips_title)
+    tips_layout.addWidget(ui.textBrowser_show_tips, 1)
+    tips_footer = QHBoxLayout()
+    tips_footer.addStretch(1)
+    _set_fixed_size(ui.pushButton_show_tips_close, 91, 40)
+    tips_footer.addWidget(ui.pushButton_show_tips_close)
+    tips_footer.addStretch(1)
+    tips_layout.addLayout(tips_footer)
+
+    nfo_layout = QVBoxLayout(ui.widget_nfo)
+    nfo_layout.setContentsMargins(10, 6, 10, 10)
+    nfo_layout.setSpacing(6)
+    nfo_layout.addWidget(ui.label_4)
+    nfo_layout.addWidget(ui.scrollArea_nfo, 1)
+    nfo_footer = QHBoxLayout()
+    nfo_footer.addWidget(ui.label_save_tips, 1)
+    _set_fixed_size(ui.pushButton_nfo_save, 91, 40)
+    _set_fixed_size(ui.pushButton_nfo_close, 91, 40)
+    nfo_footer.addWidget(ui.pushButton_nfo_save)
+    nfo_footer.addWidget(ui.pushButton_nfo_close)
+    nfo_layout.addLayout(nfo_footer)
+
+    window._responsive_overlay_sizes = {
+        ui.widget_show_success: QSize(811, 511),
+        ui.widget_show_tips: QSize(811, 511),
+        ui.widget_nfo: QSize(791, 681),
+    }
+    for widget in window._responsive_overlay_sizes:
+        widget.hide()
+
+
+def _sync_overlay_widgets(window: "MyMAinWindow") -> None:
+    for widget, preferred_size in getattr(window, "_responsive_overlay_sizes", {}).items():
+        parent = widget.parentWidget()
+        width = min(preferred_size.width(), max(1, parent.width() - 16))
+        height = min(preferred_size.height(), max(1, parent.height() - 16))
+        _set_geometry(
+            widget,
+            max(0, (parent.width() - width) // 2),
+            max(0, (parent.height() - height) // 2),
+            width,
+            height,
+        )
+        if not widget.isHidden():
+            widget.raise_()
+
+
+def show_responsive_overlay(window: "MyMAinWindow", widget: QWidget) -> None:
+    _sync_overlay_widgets(window)
+    widget.show()
+    widget.raise_()
+
+
 def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     if hasattr(window, "_simple_page_layouts_ready"):
         return
@@ -446,8 +555,10 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
 
     net_layout = QVBoxLayout(ui.page_net)
     net_layout.setContentsMargins(18, 8, 10, 8)
+    net_layout.setSpacing(6)
     net_toolbar, net_toolbar_layout = _make_container(ui.page_net, "network_toolbar", QHBoxLayout)
     net_toolbar_layout.addStretch(1)
+    _set_fixed_size(ui.pushButton_check_net, 120, 40)
     net_toolbar_layout.addWidget(ui.pushButton_check_net)
     net_layout.addWidget(net_toolbar)
     net_layout.addWidget(ui.textBrowser_net_main, 1)
@@ -455,6 +566,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     tool_layout = QVBoxLayout(ui.page_tool)
     tool_layout.setContentsMargins(10, 0, 8, 4)
     tool_layout.addWidget(ui.scrollArea_10)
+    _setup_tool_scroll_area(window)
 
     settings_layout = QVBoxLayout(ui.page_setting)
     settings_layout.setContentsMargins(18, 8, 10, 8)
@@ -480,7 +592,8 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     window._settings_page_layout_ready = True
 
     about_layout = QVBoxLayout(ui.page_about)
-    about_layout.setContentsMargins(18, 0, 10, 4)
+    about_layout.setContentsMargins(18, 8, 10, 8)
+    ui.textBrowser_about.setFont(ui.textBrowser_log_main.font())
     about_layout.addWidget(ui.textBrowser_about)
 
     window._simple_page_layouts_ready = True
@@ -504,6 +617,7 @@ def setup_responsive_ui(window: "MyMAinWindow") -> None:
         _setup_shell_splitter(window)
         _setup_main_page_layout(window)
         _setup_simple_page_layouts(window)
+        _setup_overlay_layouts(window)
 
     if not hasattr(window, "_resize_grip"):
         window._resize_grip = QSizeGrip(window.Ui.centralwidget)
@@ -578,6 +692,8 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
         _sync_settings_scroll_areas(window)
 
     _sync_main_image_sizes(window)
+    _sync_tool_scroll_area(window)
+    _sync_overlay_widgets(window)
     _schedule_content_pane_sync(window)
 
     grip = window._resize_grip
