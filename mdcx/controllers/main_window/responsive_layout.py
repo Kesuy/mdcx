@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRect, Qt
+from PyQt6.QtCore import QRect, Qt, QTimer
 from PyQt6.QtWidgets import (
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QScrollArea,
     QSizeGrip,
     QSizePolicy,
     QSplitter,
@@ -26,6 +28,14 @@ STACKED_RIGHT_MARGIN = 59
 STACKED_BOTTOM_MARGIN = 2
 RESULT_LEFT = 590
 RESULT_RIGHT_MARGIN = 10
+DETAIL_FIELD_ROW_HEIGHT = 50
+MAIN_SUMMARY_HEIGHT = 80
+IMAGE_FOOTER_HEIGHT = 30
+IMAGE_MIN_HEIGHT = 160
+IMAGE_MAX_HEIGHT = 280
+POSTER_ASPECT_WIDTH = 156
+THUMB_ASPECT_WIDTH = 328
+IMAGE_ASPECT_HEIGHT = 220
 
 
 @dataclass(frozen=True)
@@ -98,12 +108,53 @@ def _add_underlined_field(
 ) -> None:
     field, field_layout = _make_container(parent, f"{value.objectName()}_field")
     field_layout.setSpacing(0)
-    field_layout.addWidget(value)
+    field.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
+    caption.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
+    value.setMinimumHeight(30)
+    value.setMaximumHeight(32)
+    line.setMinimumHeight(18)
+    line.setMaximumHeight(18)
+    field_layout.addWidget(value, 1)
     field_layout.addWidget(line)
     caption.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
     value.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    layout.setRowMinimumHeight(row, DETAIL_FIELD_ROW_HEIGHT)
     layout.addWidget(caption, row, column)
     layout.addWidget(field, row, column + 1)
+
+
+def _sync_shell_sidebar(window: "MyMAinWindow") -> None:
+    if not hasattr(window, "_shell_splitter"):
+        return
+
+    ui = window.Ui
+    splitter = window._shell_splitter
+    sidebar_width = ui.widget_setting.width()
+    content_width = max(1, splitter.width() - sidebar_width)
+    _set_geometry(ui.left_backgroud_widget, 0, 0, sidebar_width, splitter.height())
+    _set_geometry(ui.label_show_version, 0, max(0, splitter.height() - 211), sidebar_width, 201)
+    _set_geometry(ui.label_local_number, 0, max(0, splitter.height() - 21), 21, 21)
+    _set_geometry(ui.progressBar_scrape, sidebar_width - 1, -1, content_width + 3, 7)
+
+
+def _sync_after_shell_splitter_move(window: "MyMAinWindow") -> None:
+    _sync_shell_sidebar(window)
+    _schedule_content_pane_sync(window)
+
+
+def _sync_content_panes(window: "MyMAinWindow") -> None:
+    _sync_main_image_sizes(window)
+    _sync_settings_scroll_areas(window)
+
+
+def _schedule_content_pane_sync(window: "MyMAinWindow") -> None:
+    timer = getattr(window, "_responsive_content_sync_timer", None)
+    if timer is None:
+        timer = QTimer(window)
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda: _sync_content_panes(window))
+        window._responsive_content_sync_timer = timer
+    timer.start(0)
 
 
 def _setup_shell_splitter(window: "MyMAinWindow") -> None:
@@ -114,7 +165,8 @@ def _setup_shell_splitter(window: "MyMAinWindow") -> None:
     splitter = QSplitter(Qt.Orientation.Horizontal, ui.centralwidget)
     splitter.setObjectName("window_shell_splitter")
     splitter.setChildrenCollapsible(False)
-    splitter.setHandleWidth(5)
+    splitter.setHandleWidth(3)
+    splitter.setStyleSheet("QSplitter#window_shell_splitter::handle:horizontal { background: transparent; }")
     splitter.addWidget(ui.widget_setting)
     splitter.addWidget(ui.stackedWidget)
     ui.widget_setting.setMinimumWidth(180)
@@ -125,7 +177,46 @@ def _setup_shell_splitter(window: "MyMAinWindow") -> None:
     splitter.setCollapsible(0, False)
     splitter.setCollapsible(1, False)
     splitter.setSizes([STACKED_LEFT, BASE_WINDOW_WIDTH - STACKED_LEFT])
+    splitter.splitterMoved.connect(lambda *_: _sync_after_shell_splitter_move(window))
     window._shell_splitter = splitter
+
+
+def _sync_main_image_sizes(window: "MyMAinWindow") -> None:
+    if not hasattr(window, "_main_image_row"):
+        return
+
+    ui = window.Ui
+    detail_pane = window._main_detail_pane
+    image_layout = window._main_image_row.layout()
+    spacing = max(0, image_layout.horizontalSpacing())
+    caption_width = max(50, ui.label_poster1.sizeHint().width())
+    available_width = max(
+        1,
+        detail_pane.width() - caption_width - spacing * 3,
+    )
+    height_from_width = available_width * IMAGE_ASPECT_HEIGHT // (POSTER_ASPECT_WIDTH + THUMB_ASPECT_WIDTH)
+    available_height = (
+        detail_pane.height()
+        - MAIN_SUMMARY_HEIGHT
+        - DETAIL_FIELD_ROW_HEIGHT * 5
+        - IMAGE_FOOTER_HEIGHT
+        - detail_pane.layout().spacing() * 3
+    )
+    height_limits = [IMAGE_MAX_HEIGHT, height_from_width]
+    if available_height >= IMAGE_MIN_HEIGHT:
+        height_limits.append(available_height)
+    image_height = max(
+        IMAGE_MIN_HEIGHT,
+        min(height_limits),
+    )
+    poster_width = round(image_height * POSTER_ASPECT_WIDTH / IMAGE_ASPECT_HEIGHT)
+    thumb_width = round(image_height * THUMB_ASPECT_WIDTH / IMAGE_ASPECT_HEIGHT)
+
+    _set_fixed_size(ui.label_poster, poster_width, image_height)
+    _set_fixed_size(ui.label_thumb, thumb_width, image_height)
+    _set_fixed_size(ui.label_poster_size, poster_width, IMAGE_FOOTER_HEIGHT)
+    _set_fixed_size(window._main_image_info, thumb_width, IMAGE_FOOTER_HEIGHT)
+    window._main_image_row.setFixedHeight(image_height + IMAGE_FOOTER_HEIGHT)
 
 
 def _setup_main_page_layout(window: "MyMAinWindow") -> None:
@@ -156,8 +247,13 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     # Splitting metadata and artwork into separate panes creates an unintended
     # fourth visual column once the navigation sidebar is counted.
     window._main_detail_pane, detail_pane_layout = _make_container(splitter, "main_detail_pane")
+    detail_pane_layout.setSpacing(6)
 
     summary_panel, summary_layout = _make_container(window._main_detail_pane, "main_summary_panel", QGridLayout)
+    summary_panel.setFixedHeight(MAIN_SUMMARY_HEIGHT)
+    summary_layout.setVerticalSpacing(0)
+    summary_layout.setRowMinimumHeight(0, 40)
+    summary_layout.setRowMinimumHeight(1, 40)
     summary_layout.setColumnStretch(1, 2)
     summary_layout.setColumnStretch(3, 2)
     summary_layout.addWidget(ui.label_number1, 0, 0)
@@ -182,33 +278,37 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     detail_pane_layout.addWidget(summary_panel)
 
     image_row, image_layout = _make_container(window._main_detail_pane, "main_image_row", QGridLayout)
-    image_row.setMinimumHeight(220)
-    image_row.setMaximumHeight(320)
-    image_layout.setColumnStretch(1, 1)
-    image_layout.setColumnStretch(2, 2)
+    window._main_image_row = image_row
+    image_layout.setVerticalSpacing(0)
+    image_layout.setColumnStretch(3, 1)
     image_layout.addWidget(ui.label_poster1, 0, 0, Qt.AlignmentFlag.AlignTop)
-    for image_label, stretch, minimum_width in (
-        (ui.label_poster, 1, 100),
-        (ui.label_thumb, 2, 180),
-    ):
-        image_label.setMinimumSize(minimum_width, 200)
-        image_label.setMaximumHeight(280)
-        image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        image_layout.addWidget(image_label, 0, stretch)
+    for image_label, column in ((ui.label_poster, 1), (ui.label_thumb, 2)):
+        image_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        image_layout.addWidget(
+            image_label,
+            0,
+            column,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+        )
     image_layout.addWidget(ui.label_poster_size, 1, 1)
     image_info, image_info_layout = _make_container(image_row, "main_image_info", QHBoxLayout)
+    window._main_image_info = image_info
     image_info_layout.addWidget(ui.label_thumb_size, 1)
     image_info_layout.addWidget(ui.checkBox_cover)
     image_layout.addWidget(image_info, 1, 2)
     detail_pane_layout.addWidget(image_row)
 
     detail_panel, detail_layout = _make_container(window._main_detail_pane, "main_text_detail_panel", QGridLayout)
+    detail_panel.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT * 2)
+    detail_layout.setSpacing(0)
     detail_layout.setColumnStretch(1, 1)
     _add_underlined_field(detail_layout, detail_panel, ui.label_18, ui.label_outline, ui.line_6, 0, 0)
     _add_underlined_field(detail_layout, detail_panel, ui.label_33, ui.label_tag, ui.line_7, 1, 0)
     detail_pane_layout.addWidget(detail_panel)
 
     metadata_panel, metadata_layout = _make_container(window._main_detail_pane, "main_metadata_panel", QGridLayout)
+    metadata_panel.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT * 3)
+    metadata_layout.setSpacing(0)
     metadata_layout.setColumnStretch(1, 1)
     metadata_layout.setColumnStretch(3, 1)
     for row, left_field, right_field in (
@@ -241,7 +341,77 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
         splitter.setStretchFactor(index, factor)
         splitter.setCollapsible(index, False)
     splitter.setSizes([570, 240])
+    splitter.splitterMoved.connect(lambda *_: _sync_main_image_sizes(window))
     page_layout.addWidget(splitter, 1)
+
+
+def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
+    ui = window.Ui
+    ui.tabWidget.tabBar().setExpanding(False)
+    ui.tabWidget.setStyleSheet(f"{ui.tabWidget.styleSheet()}\nQTabWidget::tab-bar {{ alignment: center; }}")
+
+    scroll_metrics = []
+    for index in range(ui.tabWidget.count()):
+        tab = ui.tabWidget.widget(index)
+        scroll_areas = tab.findChildren(
+            QScrollArea,
+            options=Qt.FindChildOption.FindDirectChildrenOnly,
+        )
+        if len(scroll_areas) != 1:
+            continue
+
+        scroll_area = scroll_areas[0]
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+        tab_layout.addWidget(scroll_area)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        content = scroll_area.widget()
+        content_width = content.width()
+        content_height = content.height()
+        group_metrics = []
+        for group in content.findChildren(
+            QGroupBox,
+            options=Qt.FindChildOption.FindDirectChildrenOnly,
+        ):
+            group.setMaximumWidth(16777215)
+            group_right_margin = content_width - group.geometry().right() - 1
+            holder_metrics = []
+            for holder in group.findChildren(
+                QWidget,
+                options=Qt.FindChildOption.FindDirectChildrenOnly,
+            ):
+                if holder.layout() is None or holder.width() < group.width() * 3 // 4:
+                    continue
+                holder_right_margin = group.width() - holder.geometry().right() - 1
+                holder_metrics.append((holder, holder_right_margin))
+            group_metrics.append((group, group_right_margin, holder_metrics))
+
+        scroll_metrics.append((scroll_area, content, content_width, content_height, group_metrics))
+
+    window._settings_scroll_metrics = scroll_metrics
+    ui.tabWidget.currentChanged.connect(lambda *_: _schedule_content_pane_sync(window))
+
+
+def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
+    for scroll_area, content, base_width, base_height, group_metrics in getattr(
+        window,
+        "_settings_scroll_metrics",
+        (),
+    ):
+        content_width = max(base_width, scroll_area.viewport().width())
+        content.resize(content_width, base_height)
+        for group, group_right_margin, holder_metrics in group_metrics:
+            group.resize(
+                max(1, content_width - group.x() - group_right_margin),
+                group.height(),
+            )
+            for holder, holder_right_margin in holder_metrics:
+                holder.resize(
+                    max(1, group.width() - holder.x() - holder_right_margin),
+                    holder.height(),
+                )
 
 
 def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
@@ -290,15 +460,16 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     settings_layout.setContentsMargins(18, 8, 10, 8)
     settings_layout.setSpacing(6)
     settings_layout.addWidget(ui.tabWidget, 1)
+    _setup_settings_scroll_areas(window)
     ui.label_config.setMinimumHeight(74)
     ui.label_config.setMaximumHeight(74)
     settings_footer_layout = QHBoxLayout(ui.label_config)
     settings_footer_layout.setContentsMargins(12, 8, 12, 8)
     settings_footer_layout.setSpacing(10)
-    ui.comboBox_change_config.setMinimumWidth(140)
-    ui.pushButton_save_new_config.setMinimumWidth(80)
-    ui.pushButton_init_config.setMinimumWidth(80)
-    ui.pushButton_save_config.setMinimumWidth(160)
+    _set_fixed_size(ui.comboBox_change_config, 151, 30)
+    _set_fixed_size(ui.pushButton_save_new_config, 91, 40)
+    _set_fixed_size(ui.pushButton_init_config, 91, 40)
+    _set_fixed_size(ui.pushButton_save_config, 200, 50)
     settings_footer_layout.addWidget(ui.label_241)
     settings_footer_layout.addWidget(ui.comboBox_change_config)
     settings_footer_layout.addWidget(ui.pushButton_save_new_config)
@@ -350,12 +521,7 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
 
     if hasattr(window, "_shell_splitter"):
         _set_geometry(window._shell_splitter, 0, 0, central.width(), central.height())
-        sidebar_width = ui.widget_setting.width()
-        content_width = max(1, central.width() - sidebar_width)
-        _set_geometry(ui.left_backgroud_widget, 0, 0, sidebar_width, central.height())
-        _set_geometry(ui.label_show_version, 0, max(0, central.height() - 211), sidebar_width, 201)
-        _set_geometry(ui.label_local_number, 0, max(0, central.height() - 21), 21, 21)
-        _set_geometry(ui.progressBar_scrape, sidebar_width - 1, -1, content_width + 3, 7)
+        _sync_shell_sidebar(window)
     else:
         _set_geometry(
             ui.stackedWidget,
@@ -408,6 +574,11 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
         _set_geometry(ui.pushButton_save_failed_list, 0, metrics.stacked_height - 42, 40, 40)
     if not hasattr(window, "_settings_page_layout_ready"):
         _set_geometry(ui.tabWidget, 20, 10, metrics.stacked_width - 18, metrics.stacked_height - 8)
+    else:
+        _sync_settings_scroll_areas(window)
+
+    _sync_main_image_sizes(window)
+    _schedule_content_pane_sync(window)
 
     grip = window._resize_grip
     grip_size = grip.sizeHint()

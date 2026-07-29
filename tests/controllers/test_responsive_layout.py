@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
@@ -227,6 +227,63 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
     window.close()
 
 
+def test_sidebar_and_artwork_follow_splitter_resizes_without_leaving_gaps():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
+    window.resize(1400, 900)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    shell_splitter = window._shell_splitter
+    shell_splitter.setSizes([270, shell_splitter.width() - 270])
+    shell_splitter.splitterMoved.emit(270, 1)
+    APP.processEvents()
+    APP.processEvents()
+
+    assert shell_splitter.handleWidth() == 3
+    assert "background: transparent" in shell_splitter.styleSheet()
+    assert window.Ui.left_backgroud_widget.width() == window.Ui.widget_setting.width()
+    assert window.Ui.left_backgroud_widget.geometry().right() == window.Ui.widget_setting.rect().right()
+    assert window.Ui.label_show_version.width() == window.Ui.widget_setting.width()
+
+    content_splitter = window._main_splitter
+    expanded_height = window.Ui.label_poster.height()
+    content_splitter.setSizes([520, content_splitter.width() - 520])
+    content_splitter.splitterMoved.emit(520, 1)
+    APP.processEvents()
+    APP.processEvents()
+
+    poster = window.Ui.label_poster.size()
+    thumb = window.Ui.label_thumb.size()
+    assert poster.height() < expanded_height
+    assert abs(poster.width() / poster.height() - 156 / 220) < 0.01
+    assert abs(thumb.width() / thumb.height() - 328 / 220) < 0.01
+    assert poster.height() == thumb.height()
+    window.close()
+
+
+def test_main_metadata_rows_keep_the_original_fifty_pixel_rhythm():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
+    window.resize(1400, 900)
+    window.show()
+    APP.processEvents()
+
+    def detail_y(widget):
+        return widget.mapTo(window._main_detail_pane, QPoint(0, 0)).y()
+
+    assert detail_y(window.Ui.label_33) - detail_y(window.Ui.label_18) == 50
+    assert detail_y(window.Ui.label_23) - detail_y(window.Ui.label_13) == 50
+    assert detail_y(window.Ui.label_30) - detail_y(window.Ui.label_23) == 50
+    assert window.Ui.label_outline.height() == 32
+    assert window.Ui.label_release.height() == 32
+    window.close()
+
+
 def test_simple_pages_expand_with_their_layouts_and_log_detail_collapses():
     window = _generated_ui_window()
     setup_responsive_ui(window)
@@ -271,6 +328,54 @@ def test_simple_pages_expand_with_their_layouts_and_log_detail_collapses():
     window.Ui.textBrowser_log_main_2.hide()
     APP.processEvents()
     assert window.Ui.textBrowser_log_main.height() > expanded_height
+    window.close()
+
+
+def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    window.resize(1600, 900)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    tab_bar = window.Ui.tabWidget.tabBar()
+    assert abs(tab_bar.x() * 2 + tab_bar.width() - window.Ui.tabWidget.width()) <= 4
+    assert "QTabWidget::tab-bar { alignment: center; }" in window.Ui.tabWidget.styleSheet()
+
+    first_tab = window.Ui.tabWidget.widget(0)
+    first_scroll = window.Ui.scrollArea_2
+    first_content = first_scroll.widget()
+    first_scrollbar_x = first_scroll.verticalScrollBar().mapTo(window.Ui.tabWidget, QPoint()).x()
+    assert first_scroll.width() == first_tab.width()
+    assert first_scrollbar_x >= window.Ui.tabWidget.width() - 30
+    assert first_content.width() == first_scroll.viewport().width()
+    assert window.Ui.groupBox_16.width() > 701
+    assert window.Ui.gridLayoutWidget_7.width() > 661
+    assert first_content.width() - window.Ui.groupBox_16.geometry().right() - 1 == 29
+
+    window.Ui.tabWidget.setCurrentIndex(8)
+    APP.processEvents()
+    APP.processEvents()
+    nfo_tab = window.Ui.tabWidget.widget(8)
+    nfo_scroll = window.Ui.scrollArea_13
+    nfo_scrollbar_x = nfo_scroll.verticalScrollBar().mapTo(window.Ui.tabWidget, QPoint()).x()
+    assert nfo_scroll.width() == nfo_tab.width()
+    assert nfo_scrollbar_x >= window.Ui.tabWidget.width() - 30
+    assert nfo_scroll.widget().width() == nfo_scroll.viewport().width()
+    assert window.Ui.groupBox_81.width() > 701
+
+    assert window.Ui.comboBox_change_config.size().width() == 151
+    assert window.Ui.comboBox_change_config.size().height() == 30
+    assert window.Ui.pushButton_save_new_config.size().width() == 91
+    assert window.Ui.pushButton_save_new_config.size().height() == 40
+    assert window.Ui.pushButton_init_config.size().width() == 91
+    assert window.Ui.pushButton_init_config.size().height() == 40
+    assert window.Ui.pushButton_save_config.size().width() == 200
+    assert window.Ui.pushButton_save_config.size().height() == 50
+    assert window.Ui.pushButton_save_config.geometry().right() <= window.Ui.label_config.rect().right() - 12
     window.close()
 
 
