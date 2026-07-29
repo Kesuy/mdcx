@@ -3,11 +3,14 @@ import contextlib
 import re
 import threading
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from aiolimiter import AsyncLimiter
 from httpx import AsyncClient, Timeout
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionMessageParam
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
+    from openai.types.chat import ChatCompletionMessageParam
 
 
 class LLMClient:
@@ -20,12 +23,12 @@ class LLMClient:
         timeout: Timeout,
         rate: tuple[float, float],
     ):
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            http_client=AsyncClient(proxy=proxy, verify=False, timeout=timeout, follow_redirects=True),
-            timeout=timeout,
-        )
+        self._api_key = api_key
+        self._base_url = base_url
+        self._proxy = proxy
+        self._timeout = timeout
+        self._client: AsyncOpenAI | None = None
+        self._client_lock = threading.Lock()
         self.limiter = AsyncLimiter(*rate)
         self._closed = False
         self._close_requested = False
@@ -33,6 +36,34 @@ class LLMClient:
         self._active_lock = asyncio.Lock()
         self._lease_lock = threading.Lock()
         self._leases = 0
+
+    @property
+    def initialized(self) -> bool:
+        return self._client is not None
+
+    @property
+    def client(self) -> "AsyncOpenAI":
+        return self._get_client()
+
+    def _get_client(self) -> "AsyncOpenAI":
+        if self._closed:
+            raise RuntimeError("LLM 客户端已关闭")
+        with self._client_lock:
+            if self._client is None:
+                from openai import AsyncOpenAI
+
+                self._client = AsyncOpenAI(
+                    api_key=self._api_key,
+                    base_url=self._base_url,
+                    http_client=AsyncClient(
+                        proxy=self._proxy,
+                        verify=False,
+                        timeout=self._timeout,
+                        follow_redirects=True,
+                    ),
+                    timeout=self._timeout,
+                )
+            return self._client
 
     def retain(self) -> None:
         with self._lease_lock:
@@ -82,8 +113,10 @@ class LLMClient:
             return
         self._close_requested = True
         self._closed = True
-        with contextlib.suppress(Exception):
-            await self.client.close()
+        client = self._client
+        if client is not None:
+            with contextlib.suppress(Exception):
+                await client.close()
 
     async def ask(
         self,
@@ -106,7 +139,7 @@ class LLMClient:
             async with self.limiter:
                 for _ in range(max_try):
                     try:
-                        chat = await self.client.chat.completions.create(
+                        chat = await self._get_client().chat.completions.create(
                             model=model,
                             messages=messages,
                             temperature=temperature,

@@ -19,7 +19,6 @@ from ..models.types import CrawlersResult, FileInfo, OtherInfo
 from ..signals import signal
 from ..utils import executor, get_used_time
 from ..utils.file import check_pic_async, copy_file_sync, delete_file_sync
-from .face_crop import get_face_crop_left
 from .mosaic import has_leak_mark, has_umr_mark, has_uncensored_mark, is_censored_mosaic
 
 YOUMA_RIGHT_CROP_TYPES = {FixedScrapingType.YOUMA}
@@ -32,6 +31,13 @@ FACE_FALLBACK_CROP_TYPES = {
     FixedScrapingType.AUTO,
 }
 LOCAL_NUMBER_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def get_face_crop_left(image: Image.Image, crop_width: int, log_fn=None) -> int | None:
+    """延迟加载人脸检测后端，同时保留原有可替换的模块级接口。"""
+    from .face_crop import get_face_crop_left as detect_face_crop_left
+
+    return detect_face_crop_left(image, crop_width, log_fn=log_fn)
 
 
 def _save_local_image_as_jpeg(source_path: Path, target_path: Path) -> tuple[bool, str]:

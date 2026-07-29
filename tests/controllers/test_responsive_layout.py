@@ -3,9 +3,20 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QPushButton, QStackedWidget, QTreeWidget, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSplitter,
+    QStackedWidget,
+    QTreeWidget,
+    QWidget,
+)
 
 from mdcx.controllers.main_window.init import setup_local_nfo_button
+from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import (
     BASE_WINDOW_HEIGHT,
     BASE_WINDOW_WIDTH,
@@ -15,6 +26,7 @@ from mdcx.controllers.main_window.responsive_layout import (
     calculate_layout_metrics,
     setup_responsive_ui,
 )
+from mdcx.views.MDCx import Ui_MDCx
 
 APP = QApplication.instance() or QApplication([])
 
@@ -143,4 +155,113 @@ def test_apply_responsive_layout_resizes_main_result_and_page_viewports():
     assert window._resize_grip.isVisible() is True
     assert not hasattr(window, "_splitter_left")
     assert not hasattr(window, "_splitter_right")
+    window.close()
+
+
+def _generated_ui_window() -> QMainWindow:
+    window = QMainWindow()
+    window.Ui = Ui_MDCx()
+    window.Ui.setupUi(window)
+    window._sort_success_results = lambda: None
+    window._toggle_result_sort_order = lambda: None
+    window.main_load_nfo_click = lambda: None
+
+    from mdcx.controllers.main_window.init import setup_result_sort_ui
+
+    setup_result_sort_ui(window)
+    setup_local_nfo_button(window)
+    return window
+
+
+def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_controls():
+    window = _generated_ui_window()
+
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
+    window.resize(1400, 900)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    splitter = window._main_splitter
+    assert isinstance(splitter, QSplitter)
+    assert splitter.orientation() == Qt.Orientation.Horizontal
+    assert splitter.count() == 3
+    assert [splitter.widget(index).sizePolicy().horizontalStretch() for index in range(3)] == [2, 4, 3]
+    assert all(not splitter.isCollapsible(index) for index in range(3))
+
+    assert window.Ui.label_number.parentWidget() is window._main_left_pane
+    assert window._main_middle_pane.isAncestorOf(window.Ui.label_poster)
+    assert window.Ui.treeWidget_number.parentWidget() is window._main_result_pane
+    assert window.Ui.pushButton_start_cap.parentWidget() is window._main_top_bar
+    assert window.Ui.treeWidget_number.width() >= window.Ui.treeWidget_number.minimumWidth()
+    assert 200 <= window.Ui.label_poster.height() <= 300
+    assert 200 <= window.Ui.label_thumb.height() <= 300
+
+    visible_direct_children = {
+        child.objectName()
+        for child in window.Ui.page_main.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly)
+        if child.isVisible()
+    }
+    assert visible_direct_children == {"main_top_bar", "line_14", "main_content_splitter"}
+    window.close()
+
+
+def test_simple_pages_expand_with_their_layouts_and_log_detail_collapses():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.resize(1400, 900)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    assert window.Ui.page_log.layout() is not None
+    assert window.Ui.page_net.layout() is not None
+    assert window.Ui.page_tool.layout() is not None
+    assert window.Ui.page_setting.layout() is not None
+    assert window.Ui.page_about.layout() is not None
+
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_net)
+    APP.processEvents()
+    assert window.Ui.textBrowser_net_main.height() > 700
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_about)
+    APP.processEvents()
+    assert window.Ui.textBrowser_about.height() > 700
+
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    APP.processEvents()
+    assert window.Ui.tabWidget.geometry().bottom() < window.Ui.label_config.geometry().top()
+    assert window.Ui.label_config.width() == window.Ui.tabWidget.width()
+    assert window.Ui.comboBox_change_config.width() >= 140
+    assert window.Ui.pushButton_save_new_config.width() >= 80
+    assert window.Ui.pushButton_init_config.width() >= 80
+    assert window.Ui.pushButton_save_config.width() >= 160
+
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_log)
+    APP.processEvents()
+    expanded_height = window.Ui.textBrowser_log_main.height()
+    window.Ui.textBrowser_log_main_2.hide()
+    APP.processEvents()
+    assert window.Ui.textBrowser_log_main.height() > expanded_height
+    window.close()
+
+
+def test_failed_log_overlay_stays_above_layout_managed_log_widgets():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.resize(1400, 900)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_log)
+
+    MyMAinWindow.show_hide_failed_list(window, True)
+    APP.processEvents()
+
+    child = window.Ui.page_log.childAt(100, 100)
+    while child is not None and child.parentWidget() is not window.Ui.page_log:
+        child = child.parentWidget()
+    assert child is window.Ui.textBrowser_log_main_3
     window.close()

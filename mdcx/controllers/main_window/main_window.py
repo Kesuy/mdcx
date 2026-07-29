@@ -2490,7 +2490,8 @@ class MyMAinWindow(QMainWindow):
         if show:
             self.Ui.pushButton_show_hide_logs.setIcon(QIcon(resources.hide_logs_icon))
             self.Ui.textBrowser_log_main_2.show()
-            self.Ui.textBrowser_log_main.resize(790, 418)
+            if not hasattr(self, "_log_splitter"):
+                self.Ui.textBrowser_log_main.resize(790, 418)
             self.Ui.textBrowser_log_main.verticalScrollBar().setValue(
                 self.Ui.textBrowser_log_main.verticalScrollBar().maximum()
             )
@@ -2503,7 +2504,8 @@ class MyMAinWindow(QMainWindow):
         else:
             self.Ui.pushButton_show_hide_logs.setIcon(QIcon(resources.show_logs_icon))
             self.Ui.textBrowser_log_main_2.hide()
-            self.Ui.textBrowser_log_main.resize(790, 689)
+            if not hasattr(self, "_log_splitter"):
+                self.Ui.textBrowser_log_main.resize(790, 689)
             self.Ui.textBrowser_log_main.verticalScrollBar().setValue(
                 self.Ui.textBrowser_log_main.verticalScrollBar().maximum()
             )
@@ -2521,6 +2523,9 @@ class MyMAinWindow(QMainWindow):
             self.Ui.textBrowser_log_main_3.show()
             self.Ui.pushButton_scraper_failed_list.show()
             self.Ui.pushButton_save_failed_list.show()
+            self.Ui.textBrowser_log_main_3.raise_()
+            self.Ui.pushButton_scraper_failed_list.raise_()
+            self.Ui.pushButton_save_failed_list.raise_()
             self.Ui.textBrowser_log_main_3.verticalScrollBar().setValue(
                 self.Ui.textBrowser_log_main_3.verticalScrollBar().maximum()
             )

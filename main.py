@@ -2,21 +2,12 @@
 import platform
 import sys
 
-from PIL import ImageFile
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication
-
-from mdcx.consts import IS_DOCKER, IS_MAC, IS_NFC, IS_PYINSTALLER, IS_WINDOWS, MAIN_PATH
-from mdcx.controllers.main_window.main_window import MyMAinWindow
-from mdcx.controllers.main_window.style import apply_application_palette
-from mdcx.utils.video import VIDEO_BACKEND
-
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 
 def show_constants():
     """显示所有运行时常量"""
+    from mdcx.consts import IS_DOCKER, IS_MAC, IS_NFC, IS_PYINSTALLER, IS_WINDOWS, MAIN_PATH
+    from mdcx.utils.video import VIDEO_BACKEND
+
     constants = {
         "MAIN_PATH": MAIN_PATH,
         "IS_WINDOWS": IS_WINDOWS,
@@ -31,22 +22,50 @@ def show_constants():
         print(f"\t{key}: {value}")
 
 
-show_constants()
+def run(argv: list[str] | None = None) -> int:
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QColor, QIcon, QPixmap
+    from PyQt6.QtWidgets import QApplication, QSplashScreen
+
+    # Qt 6 使用 logical pixel；明确保留 125%/150% 等非整数缩放，避免固定布局被取整放大。
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+
+    app = QApplication(sys.argv if argv is None else argv)
+    app.setStyle("Fusion")
+    if platform.system() != "Windows":
+        app.setWindowIcon(QIcon("resources/Img/MDCx.ico"))  # 设置任务栏图标
+
+    splash_pixmap = QPixmap(420, 120)
+    splash_pixmap.fill(QColor("#F8FAFC"))
+    splash = QSplashScreen(splash_pixmap)
+    splash.showMessage(
+        "MDCx 正在启动…",
+        Qt.AlignmentFlag.AlignCenter,
+        QColor("#111827"),
+    )
+    splash.show()
+    app.processEvents()
+
+    # QApplication 已可响应并显示启动反馈后，再加载业务树和可选媒体后端。
+    from PIL import ImageFile
+
+    from mdcx.controllers.main_window.main_window import MyMAinWindow
+    from mdcx.controllers.main_window.style import apply_application_palette
+
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+    apply_application_palette(False)
+    show_constants()
+
+    ui = MyMAinWindow()
+    ui.show()
+    splash.finish(ui)
+    app.installEventFilter(ui)
+    try:
+        return app.exec()
+    except Exception as e:
+        print(e)
+        return 1
 
 
-# Qt 6 使用 logical pixel；明确保留 125%/150% 等非整数缩放，避免固定布局被取整放大。
-QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-
-app = QApplication(sys.argv)
-app.setStyle("Fusion")
-apply_application_palette(False)
-if platform.system() != "Windows":
-    app.setWindowIcon(QIcon("resources/Img/MDCx.ico"))  # 设置任务栏图标
-ui = MyMAinWindow()
-ui.show()
-app.installEventFilter(ui)
-# newWin2 = CutWindow()
-try:
-    sys.exit(app.exec())
-except Exception as e:
-    print(e)
+if __name__ == "__main__":
+    sys.exit(run())
