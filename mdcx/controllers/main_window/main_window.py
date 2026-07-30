@@ -1378,24 +1378,43 @@ class MyMAinWindow(QMainWindow):
 
     def resize_label_and_setpixmap(self, poster_pix, thumb_pix):
         if poster_pix is not None:
-            self.Ui.label_poster.resize(poster_pix[3], poster_pix[4])
             if poster_pix[0]:
                 poster_pixmap = (
                     poster_pix[1] if isinstance(poster_pix[1], QPixmap) else QPixmap.fromImage(poster_pix[1])
                 )
-                self.Ui.label_poster.setPixmap(poster_pixmap)
+                self._poster_source_pixmap = QPixmap(poster_pixmap)
+                self._render_preview_pixmap(self.Ui.label_poster, self._poster_source_pixmap)
             else:
+                self._poster_source_pixmap = None
                 self.Ui.label_poster.clear()
                 self.Ui.label_poster.setText(poster_pix[2])
 
         if thumb_pix is not None:
-            self.Ui.label_thumb.resize(thumb_pix[3], thumb_pix[4])
             if thumb_pix[0]:
                 thumb_pixmap = thumb_pix[1] if isinstance(thumb_pix[1], QPixmap) else QPixmap.fromImage(thumb_pix[1])
-                self.Ui.label_thumb.setPixmap(thumb_pixmap)
+                self._thumb_source_pixmap = QPixmap(thumb_pixmap)
+                self._render_preview_pixmap(self.Ui.label_thumb, self._thumb_source_pixmap)
             else:
+                self._thumb_source_pixmap = None
                 self.Ui.label_thumb.clear()
                 self.Ui.label_thumb.setText(thumb_pix[2])
+
+    @staticmethod
+    def _render_preview_pixmap(label: QLabel, source_pixmap: QPixmap | None) -> None:
+        if source_pixmap is None or source_pixmap.isNull():
+            return
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setPixmap(
+            source_pixmap.scaled(
+                label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+
+    def refresh_preview_pixmaps(self) -> None:
+        self._render_preview_pixmap(self.Ui.label_poster, getattr(self, "_poster_source_pixmap", None))
+        self._render_preview_pixmap(self.Ui.label_thumb, getattr(self, "_thumb_source_pixmap", None))
 
     # endregion
 

@@ -49,8 +49,11 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.treeWidget_number.setAllColumnsShowFocus(False)  # 关闭默认焦点框，避免与选中边框叠加
     self.Ui.treeWidget_number.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
-    self.Ui.label_poster.setScaledContents(True)  # 图片自适应窗口
-    self.Ui.label_thumb.setScaledContents(True)  # 图片自适应窗口
+    # 由主窗口按标签可用区域等比例缩放并居中显示，避免 scaledContents
+    # 将非标准尺寸的海报或缩略图强行拉伸。
+    for image_label in (self.Ui.label_poster, self.Ui.label_thumb):
+        image_label.setScaledContents(False)
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     self.Ui.pushButton_right_menu.setIcon(QIcon(resources.right_menu))
     self.Ui.pushButton_right_menu.setToolTip(" 右键菜单 ")
     self.Ui.pushButton_play.setIcon(QIcon(resources.play_icon))
@@ -128,6 +131,9 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.comboBox_website_all.addItems([website_display_name(Website(website)) for website in supported_websites])
     self.Ui.comboBox_custom_website.addItems(supported_websites)
     _setup_combo_boxes(self)
+    # Designer 中的占位 HTML 会生成大量空段落；运行时日志必须从首行开始。
+    self.Ui.textBrowser_log_main.clear()
+    self.Ui.textBrowser_log_main_2.clear()
     self.Ui.textBrowser_log_main.document().setMaximumBlockCount(6000)
     self.Ui.textBrowser_log_main_2.document().setMaximumBlockCount(3000)
     setup_usage_guide(self)

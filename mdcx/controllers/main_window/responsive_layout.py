@@ -218,6 +218,9 @@ def _sync_main_image_sizes(window: "MyMAinWindow") -> None:
     _set_fixed_size(ui.label_poster_size, poster_width, IMAGE_FOOTER_HEIGHT)
     _set_fixed_size(window._main_image_info, thumb_width, IMAGE_FOOTER_HEIGHT)
     window._main_image_row.setFixedHeight(image_height + IMAGE_FOOTER_HEIGHT)
+    refresh_preview_pixmaps = getattr(window, "refresh_preview_pixmaps", None)
+    if refresh_preview_pixmaps is not None:
+        refresh_preview_pixmaps()
 
 
 def _setup_main_page_layout(window: "MyMAinWindow") -> None:
@@ -418,18 +421,24 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
 def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
     scroll_area = window.Ui.scrollArea_10
     scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     content = scroll_area.widget()
-    groups = content.findChildren(
-        QGroupBox,
-        options=Qt.FindChildOption.FindDirectChildrenOnly,
+    groups = sorted(
+        content.findChildren(
+            QGroupBox,
+            options=Qt.FindChildOption.FindDirectChildrenOnly,
+        ),
+        key=lambda group: group.y(),
     )
-    window._tool_scroll_metrics = (
-        scroll_area,
-        content,
-        content.width(),
-        content.height(),
-        [(group, group.y(), group.width()) for group in groups],
-    )
+    content_layout = QVBoxLayout(content)
+    content_layout.setContentsMargins(12, 12, 12, 12)
+    content_layout.setSpacing(18)
+    for group in groups:
+        group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
+    content_layout.addStretch(1)
+    window._tool_scroll_metrics = (scroll_area, content, groups)
 
 
 def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
@@ -437,11 +446,10 @@ def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
     if metrics is None:
         return
 
-    scroll_area, content, base_width, base_height, groups = metrics
-    content_width = max(base_width, scroll_area.viewport().width())
-    content.resize(content_width, base_height)
-    for group, y, width in groups:
-        group.move(max(0, (content_width - width) // 2), y)
+    scroll_area, content, groups = metrics
+    content.setMinimumWidth(max(1, scroll_area.viewport().width()))
+    for group in groups:
+        group.setMaximumWidth(max(1, scroll_area.viewport().width() - 24))
 
 
 def _setup_overlay_layouts(window: "MyMAinWindow") -> None:

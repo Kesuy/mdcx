@@ -1,8 +1,5 @@
-from mdcx.consts import LOCAL_VERSION
-
-
-def build_usage_guide(version: str = LOCAL_VERSION) -> str:
-    return f"""📘 MDCx {version} 使用说明
+def build_usage_guide() -> str:
+    return """📘 MDCx 使用说明
 ────────────────────────────────────────────────────────
 
 🎬 软件用途

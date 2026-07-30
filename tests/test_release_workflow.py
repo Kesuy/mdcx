@@ -28,3 +28,11 @@ def test_release_build_has_one_automatic_trigger():
     assert "  release:\n    types: [published]" in workflow
     assert "  workflow_dispatch:" in workflow
     assert "  push:" not in workflow
+
+
+def test_release_title_uses_standard_v_prefixed_version():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "normalize-release-title:" in workflow
+    assert 'gh release edit "$RELEASE_TAG"' in workflow
+    assert '--title "v$RELEASE_TAG"' in workflow

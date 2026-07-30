@@ -4,6 +4,7 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
@@ -12,6 +13,7 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QTreeWidget,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -266,6 +268,38 @@ def test_sidebar_and_artwork_follow_splitter_resizes_without_leaving_gaps():
     window.close()
 
 
+def test_preview_pixmaps_keep_source_aspect_ratio_and_center_in_frames():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.resize(1400, 900)
+    window.show()
+    APP.processEvents()
+
+    poster_source = QPixmap(1200, 1200)
+    poster_source.fill(Qt.GlobalColor.red)
+    thumb_source = QPixmap(1600, 900)
+    thumb_source.fill(Qt.GlobalColor.blue)
+    window._poster_source_pixmap = poster_source
+    window._thumb_source_pixmap = thumb_source
+    window.refresh_preview_pixmaps = lambda: (
+        MyMAinWindow._render_preview_pixmap(window.Ui.label_poster, window._poster_source_pixmap),
+        MyMAinWindow._render_preview_pixmap(window.Ui.label_thumb, window._thumb_source_pixmap),
+    )
+    window.refresh_preview_pixmaps()
+
+    poster_display = window.Ui.label_poster.pixmap().size()
+    thumb_display = window.Ui.label_thumb.pixmap().size()
+    assert poster_display.width() == poster_display.height()
+    assert abs(thumb_display.width() / thumb_display.height() - 16 / 9) < 0.01
+    assert poster_display.width() <= window.Ui.label_poster.width()
+    assert poster_display.height() <= window.Ui.label_poster.height()
+    assert thumb_display.width() <= window.Ui.label_thumb.width()
+    assert thumb_display.height() <= window.Ui.label_thumb.height()
+    assert window.Ui.label_poster.alignment() == Qt.AlignmentFlag.AlignCenter
+    assert window.Ui.label_thumb.alignment() == Qt.AlignmentFlag.AlignCenter
+    window.close()
+
+
 def test_main_metadata_rows_keep_the_original_fifty_pixel_rhythm():
     window = _generated_ui_window()
     setup_responsive_ui(window)
@@ -401,6 +435,8 @@ def test_tool_page_centers_its_fixed_width_forms_and_keeps_scrollbar_at_right():
     scroll_area = window.Ui.scrollArea_10
     content = scroll_area.widget()
     assert content.width() == scroll_area.viewport().width()
+    assert isinstance(content.layout(), QVBoxLayout)
+    assert content.layout().spacing() == 18
     for group in (window.Ui.groupBox_7, window.Ui.groupBox_13, window.Ui.groupBox_19):
         assert abs(group.geometry().center().x() - content.rect().center().x()) <= 1
     scrollbar_x = scroll_area.verticalScrollBar().mapTo(window.Ui.page_tool, QPoint()).x()

@@ -163,3 +163,14 @@ jobs:
           prerelease: ${{ steps.release-type.outputs.prerelease }}
           body: ${{ steps.get-changelog.outputs.CHANGELOG }}
           tag: ${{ env.RELEASE_TAG }}
+
+  normalize-release-title:
+    name: Normalize release title
+    needs: build-app
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Use standard v-prefixed title
+        run: gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v$RELEASE_TAG"

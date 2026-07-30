@@ -12,9 +12,10 @@ APP = QApplication.instance() or QApplication([])
 
 
 def test_usage_guide_covers_current_workflows_and_replaces_legacy_copy():
-    guide = build_usage_guide("3.8.3")
+    guide = build_usage_guide()
 
-    assert "MDCx 3.8.3 使用说明" in guide
+    assert "MDCx 使用说明" in guide
+    assert "MDCx 3.8.4 使用说明" not in guide
     assert "正常模式" in guide
     assert "读取模式" in guide
     assert "JSON 配置" in guide
@@ -31,7 +32,7 @@ def test_setup_usage_guide_uses_log_like_plain_text_content():
 
     setup_usage_guide(window)
 
-    assert browser.toPlainText().startswith("📘 MDCx ")
+    assert browser.toPlainText().startswith("📘 MDCx 使用说明")
     assert "🔄 更新与反馈" in browser.toPlainText()
     assert browser.textCursor().position() == 0
 
