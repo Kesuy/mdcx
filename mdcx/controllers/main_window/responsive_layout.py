@@ -435,6 +435,11 @@ def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
     content_layout.setContentsMargins(12, 12, 12, 12)
     content_layout.setSpacing(18)
     for group in groups:
+        # These designer groups contain absolutely positioned children and
+        # therefore report a title-only sizeHint(). Preserve their authored
+        # geometry before putting them in a layout, otherwise Qt collapses
+        # every form to a one-line group-box title.
+        group.setFixedSize(group.size())
         group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
     content_layout.addStretch(1)
@@ -446,10 +451,8 @@ def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
     if metrics is None:
         return
 
-    scroll_area, content, groups = metrics
+    scroll_area, content, _groups = metrics
     content.setMinimumWidth(max(1, scroll_area.viewport().width()))
-    for group in groups:
-        group.setMaximumWidth(max(1, scroll_area.viewport().width() - 24))
 
 
 def _setup_overlay_layouts(window: "MyMAinWindow") -> None:

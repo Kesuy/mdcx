@@ -437,8 +437,19 @@ def test_tool_page_centers_its_fixed_width_forms_and_keeps_scrollbar_at_right():
     assert content.width() == scroll_area.viewport().width()
     assert isinstance(content.layout(), QVBoxLayout)
     assert content.layout().spacing() == 18
-    for group in (window.Ui.groupBox_7, window.Ui.groupBox_13, window.Ui.groupBox_19):
+    expected_group_sizes = {
+        window.Ui.groupBox_7: (701, 271),
+        window.Ui.groupBox_19: (701, 241),
+        window.Ui.groupBox_6: (701, 171),
+        window.Ui.groupBox_13: (701, 141),
+        window.Ui.groupBox_21: (701, 311),
+    }
+    for group, expected_size in expected_group_sizes.items():
+        assert (group.width(), group.height()) == expected_size
         assert abs(group.geometry().center().x() - content.rect().center().x()) <= 1
+        visible_children = [child for child in group.children() if isinstance(child, QWidget) and child.isVisible()]
+        assert visible_children
+        assert all(group.rect().contains(child.geometry()) for child in visible_children)
     scrollbar_x = scroll_area.verticalScrollBar().mapTo(window.Ui.page_tool, QPoint()).x()
     assert scrollbar_x >= window.Ui.page_tool.width() - 30
     window.close()

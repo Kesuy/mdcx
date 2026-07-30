@@ -186,7 +186,7 @@ class CutWindow(QDialog):
                 background-color:{t["surface"]};
                 border: 1px solid {t["border"]};
                 border-radius:20px;
-                padding: 2px, 2px;
+                padding: 2px;
             }}
             QPushButton:hover{{
                 color: white;
@@ -203,7 +203,7 @@ class CutWindow(QDialog):
                 font-size:14px;
                 background-color:{t["accent"]};
                 border-radius:25px;
-                padding: 2px, 2px;
+                padding: 2px;
             }}
             QPushButton:hover#pushButton_cut_close{{
                 color: white;
