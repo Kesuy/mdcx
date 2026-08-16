@@ -8,6 +8,4 @@
 - 非关键启动任务延后到首屏显示后执行，封面裁切模块改为首次使用时加载。
 - 已存在于系统中的 Consolas 和 Segoe UI Emoji 不再重复注册，减少启动阶段字体载入开销。
 - 中文界面优先使用 Microsoft YaHei UI，并统一主要按钮的圆角、边框、间距及明暗主题层级。
-
-## 兼容性
 - 保留旧版 `passthrough` 配置键和 INI/JSON 配置兼容，Qt 6 继续使用非整数 DPI 缩放 PassThrough 策略。
