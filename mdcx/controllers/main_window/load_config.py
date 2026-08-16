@@ -29,11 +29,10 @@ from mdcx.config.enums import (
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.config.resources import resources
-from mdcx.consts import GITHUB_ISSUES_URL, IS_WINDOWS
+from mdcx.consts import GITHUB_ISSUES_URL, IS_WINDOWS, MAIN_PATH
 from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
-from mdcx.utils.file import delete_file_sync
 
 from .bind_utils import set_checkboxes, set_radio_buttons
 from .site_priority_dialog import apply_site_priority_theme, refresh_site_priority_ui
@@ -1058,12 +1057,16 @@ def load_config(self: "MyMAinWindow"):
                     )
             if Switch.PASSTHROUGH in switch_on:
                 self.Ui.checkBox_highdpi_passthrough.setChecked(True)
-                if not os.path.isfile("highdpi_passthrough"):
-                    open("highdpi_passthrough", "w").close()
             else:
                 self.Ui.checkBox_highdpi_passthrough.setChecked(False)
-                if os.path.isfile("highdpi_passthrough"):
-                    delete_file_sync("highdpi_passthrough")
+            # Qt 6 的 DPI 舍入策略已在 main.py 启动时直接设置。
+            # 保留旧开关用于配置兼容，但不再创建无实际用途的空标记文件。
+            legacy_dpi_marker = MAIN_PATH / "highdpi_passthrough"
+            try:
+                if legacy_dpi_marker.is_file() and legacy_dpi_marker.stat().st_size == 0:
+                    legacy_dpi_marker.unlink()
+            except OSError:
+                pass
         else:
             self.Ui.checkBox_highdpi_passthrough.setEnabled(False)
             if Switch.HIDE_MENU in switch_on:

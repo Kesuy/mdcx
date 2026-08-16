@@ -141,7 +141,9 @@ class BuildManager:
         """生成.spec文件"""
         logger.info("生成 .spec 文件...")
         cmd = [
-            "pyi-makespec",
+            sys.executable,
+            "-m",
+            "PyInstaller.utils.cliutils.makespec",
             "--name",
             self.app_name,
             "--noupx",
@@ -163,7 +165,7 @@ class BuildManager:
             "curl_cffi",
             *[item for module in EXCLUDED_MODULES for item in ("--exclude-module", module)],
         ]
-        self._run_command(cmd, "✅ 生成 .spec 文件", "spec 文件生成失败")
+        self._run_command(cmd, "生成 .spec 文件完成", "spec 文件生成失败")
 
     def _modify_spec(self):
         """修改.spec文件添加版本信息"""
@@ -195,7 +197,7 @@ class BuildManager:
             new_content = "\n".join(new_lines)
             spec_file.write_text(new_content, encoding="utf-8")
 
-            logger.info("✅ .spec 文件修改成功，已添加版本信息")
+            logger.info(".spec 文件修改成功，已添加版本信息")
 
         except Exception as e:
             raise BuildError("spec文件修改失败") from e
@@ -205,11 +207,11 @@ class BuildManager:
         logger.info("开始构建应用...")
         build_start = time.time()
 
-        cmd = ["pyinstaller", f"{self.app_name}.spec", "-y"]
+        cmd = [sys.executable, "-m", "PyInstaller", f"{self.app_name}.spec", "-y"]
         self._run_command(cmd, error_msg="pyinstaller 构建失败")
         build_duration = time.time() - build_start
 
-        logger.info(f"✅ 应用构建成功! 耗时: {int(build_duration)}秒")
+        logger.info(f"应用构建成功! 耗时: {int(build_duration)}秒")
 
         # 验证构建结果
         if self.is_windows:
@@ -220,7 +222,7 @@ class BuildManager:
             app_path = Path(f"dist/{self.app_name}")
         if not app_path.exists():
             raise BuildError("构建未生成")
-        logger.info(f"✅ 构建产物: {app_path}")
+        logger.info(f"构建产物: {app_path}")
         with suppress(Exception):
             if app_path.is_file():
                 app_size = app_path.stat().st_size
@@ -267,14 +269,14 @@ class BuildManager:
 
             result = self._run_command(cmd, error_msg=None)
             if result is not False:
-                logger.info(f"✅ DMG 文件创建成功! 耗时: {int(time.time() - dmg_start)}秒")
+                logger.info(f"DMG 文件创建成功! 耗时: {int(time.time() - dmg_start)}秒")
                 break
         else:
             raise BuildError(f"DMG 文件创建失败: 重试 {max_tries} 次后仍然失败")
 
         # 验证DMG文件
         dmg_path = Path(f"dist/{self.app_name}.dmg")
-        logger.info(f"✅ DMG 文件: {dmg_path}")
+        logger.info(f"DMG 文件: {dmg_path}")
         with suppress(Exception):
             dmg_size = dmg_path.stat().st_size
             logger.info(f"大小: {dmg_size >> 20:.1f} MB")

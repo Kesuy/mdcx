@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import html
 import os
@@ -93,7 +95,6 @@ from mdcx.utils.file import (
 from mdcx.versioning import is_newer_version
 from mdcx.views.MDCx import Ui_MDCx
 
-from ..cut_window import CutWindow
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
@@ -105,6 +106,8 @@ from .ui_text import set_elided_label_text
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QMouseEvent
+
+    from ..cut_window import CutWindow
 
 
 LINK_DIR_INVALID_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
@@ -219,15 +222,24 @@ class MyMAinWindow(QMainWindow):
         self._bind_system_theme_refresh()
         self._setup_fc2ppvdb_cookie_ui()
         self._setup_baidu_translate_ui()
-        self.cutwindow = CutWindow(self)
+        # 裁切窗口依赖图片处理和文件识别模块，仅在用户首次打开裁切功能时加载。
+        self.cutwindow: CutWindow | None = None
         self.preview_image_loader = PreviewImageLoader(self)
         self.preview_image_loader.loaded.connect(self._apply_preview_images)
         self.Init_Singal()  # 信号连接
         self.Init_Ui()  # 设置Ui初始状态
         self.load_config()  # 加载配置
+        # 先让构造函数返回并显示主窗口，再在事件循环空闲时完成非关键初始化。
+        # 这会缩短双击 EXE 到首屏可见的时间，同时保持原有启动行为。
+        QTimer.singleShot(0, self._finish_startup)
+        # endregion
+
+    def _finish_startup(self) -> None:
+        if getattr(self, "_startup_finished", False):
+            return
+        self._startup_finished = True
         self._setup_name_template_preview()
         get_success_list()  # 获取历史成功刮削列表
-        # endregion
 
         # region 启动显示信息和后台检查更新
         self.show_scrape_info()  # 主界面左下角显示一些配置信息
@@ -244,6 +256,13 @@ class MyMAinWindow(QMainWindow):
         self.pushButton_main_clicked()  # 切换到主界面
         self.auto_start()  # 自动开始刮削
         # endregion
+
+    def _get_cutwindow(self) -> CutWindow:
+        if self.cutwindow is None:
+            from ..cut_window import CutWindow
+
+            self.cutwindow = CutWindow(self)
+        return self.cutwindow
 
     def _setup_name_template_preview(self) -> None:
         self.Ui.plainTextEdit_name_template_preview.setPlainText(
@@ -1259,7 +1278,7 @@ class MyMAinWindow(QMainWindow):
         self.result_sort_order_button.setText("↓" if self._result_sort_descending else "↑")
         self._sort_success_results()
 
-    def set_main_info(self, show_data: "ShowData | None"):
+    def set_main_info(self, show_data: ShowData | None):
         if show_data is not None:
             self.show_data = show_data
             file_info = show_data.file_info
@@ -2205,8 +2224,9 @@ class MyMAinWindow(QMainWindow):
         主界面点图片
         """
         file_info = None if self.show_data is None else self.show_data.file_info
-        self.cutwindow.showimage(self.img_path, file_info)
-        self.cutwindow.show()
+        cutwindow = self._get_cutwindow()
+        cutwindow.showimage(self.img_path, file_info)
+        cutwindow.show()
 
     # 主界面-开关封面显示
     def checkBox_cover_clicked(self):
@@ -2763,8 +2783,9 @@ class MyMAinWindow(QMainWindow):
             None, "选取缩略图", path, "Picture Files(*.jpg *.png);;All Files(*)", options=self.options
         )
         if file_path:
-            self.cutwindow.showimage(Path(file_path))
-            self.cutwindow.show()
+            cutwindow = self._get_cutwindow()
+            cutwindow.showimage(Path(file_path))
+            cutwindow.show()
 
     # 工具-视频移动
     def pushButton_move_mp4_clicked(self):

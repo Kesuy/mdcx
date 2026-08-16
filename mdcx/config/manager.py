@@ -16,16 +16,53 @@ from .v1 import ConfigV1, load_v1
 class ConfigManager:
     def __init__(self):
         self._computed_lock = threading.RLock()
-        if not MARK_FILE.is_file():  # 标记文件不存在
-            self.path = MAIN_PATH / "config.json"  # 默认配置文件路径
+        marked_path = self._read_marked_path()
+        if marked_path is not None and marked_path.is_file():
+            self._set_path(marked_path)
         else:
-            self._path = Path(self.read_mark_file())
-            self.data_folder, self.file = self._path.parent, self._path.name
+            # 指针丢失或已失效时，优先恢复当前程序目录中最近修改的 JSON 配置。
+            # 这也能处理用户移动整个便携目录后 MDCx.config 仍指向旧绝对路径的情况。
+            fallback = self._latest_json_config(MAIN_PATH) or MAIN_PATH / "config.json"
+            self.path = fallback
         if not os.path.exists(self._path):  # 配置文件不存在, 写入默认值
             if self._path.suffix == ".ini":
                 self.path = self._path.with_suffix(".json")
             self.reset()
         self.load()
+
+    @staticmethod
+    def _latest_json_config(folder: Path) -> Path | None:
+        """返回目录中最后修改的 JSON 文件，目录不可读时安全回退。"""
+        try:
+            candidates = [path for path in folder.iterdir() if path.is_file() and path.suffix.lower() == ".json"]
+        except OSError:
+            return None
+
+        def sort_key(path: Path) -> tuple[int, str]:
+            try:
+                modified = path.stat().st_mtime_ns
+            except OSError:
+                modified = -1
+            return modified, path.name.casefold()
+
+        return max(candidates, key=sort_key, default=None)
+
+    @staticmethod
+    def _read_marked_path() -> Path | None:
+        if not MARK_FILE.is_file():
+            return None
+        try:
+            value = ConfigManager.read_mark_file()
+        except OSError:
+            return None
+        if not value:
+            return None
+        path = Path(value).expanduser()
+        return path if path.is_absolute() else MAIN_PATH / path
+
+    def _set_path(self, path: str | Path) -> None:
+        self._path = Path(path)
+        self.data_folder, self.file = self._path.parent, self._path.name
 
     @property
     def path(self) -> Path:
@@ -34,9 +71,8 @@ class ConfigManager:
     @path.setter
     def path(self, path: str | Path):
         p = Path(path)
-        self.data_folder, self.file = p.parent, p.name
+        self._set_path(p)
         self.write_mark_file(p)  # 更新标记文件路径
-        self._path = p
 
     def load(self) -> list[str]:
         if self._path.suffix == ".ini":  # handle v1 config
@@ -93,6 +129,7 @@ class ConfigManager:
 
     def reset(self):
         """写入默认配置"""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         template_path = self._get_default_template_path()
         if template_path.is_file():
             try:
