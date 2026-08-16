@@ -35,6 +35,29 @@ def test_entrypoint_does_not_create_a_splash_screen():
     assert "QSplashScreen" not in entrypoint.read_text(encoding="utf-8")
 
 
+def test_noncritical_window_startup_is_deferred_until_event_loop():
+    source = (Path(__file__).parents[1] / "mdcx/controllers/main_window/main_window.py").read_text(encoding="utf-8")
+
+    assert "QTimer.singleShot(0, self._finish_startup)" in source
+    assert "def _finish_startup" in source
+
+
+def test_cover_cut_window_is_loaded_only_on_first_use():
+    loaded = _run_import_probe(
+        "import sys; from mdcx.controllers.main_window.main_window import MyMAinWindow; "
+        "print('mdcx.controllers.cut_window' in sys.modules)"
+    )
+
+    assert loaded == ["False"]
+
+
+def test_highdpi_setting_does_not_create_legacy_marker_file():
+    source = (Path(__file__).parents[1] / "mdcx/controllers/main_window/load_config.py").read_text(encoding="utf-8")
+
+    assert 'open("highdpi_passthrough"' not in source
+    assert 'delete_file_sync("highdpi_passthrough"' not in source
+
+
 def test_config_initialization_does_not_import_openai_sdk():
     loaded = _run_import_probe(
         "import sys; from mdcx.config.manager import manager; "

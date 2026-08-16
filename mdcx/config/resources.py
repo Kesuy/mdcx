@@ -165,8 +165,16 @@ class Resources:
 
     def get_fonts(self):
         font_folder_path = self.qtr("fonts")
-        for f in os.listdir(font_folder_path):
-            QFontDatabase.addApplicationFont(os.path.join(font_folder_path, f))  # 字体路径
+        installed = {family.casefold() for family in QFontDatabase.families()}
+        font_groups = {
+            "consolas": ("consola.ttf", "consolab.ttf", "consolai.ttf", "consolaz.ttf"),
+            "segoe ui emoji": ("seguiemj.ttf",),
+        }
+        for family, files in font_groups.items():
+            if family in installed:
+                continue
+            for file_name in files:
+                QFontDatabase.addApplicationFont(os.path.join(font_folder_path, file_name))
 
     def _get_or_generate_local_data(self):
         """如果用户数据目录下已有数据则直接读取, 否则根据内置数据生成"""
