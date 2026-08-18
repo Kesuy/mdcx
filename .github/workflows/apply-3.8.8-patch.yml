@@ -1,0 +1,103 @@
+name: Verify and prepare 3.8.8
+
+on:
+  push:
+    branches:
+      - release-3.8.8-review
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+        with:
+          ref: release-3.8.8-review
+          fetch-depth: 0
+
+      - name: Restore reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .release-payload/part* | base64 -d > /tmp/mdcx-3.8.8-patch.zip
+          unzip -oq /tmp/mdcx-3.8.8-patch.zip -d .
+
+      - name: Prepare version and changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("mdcx/consts.py")
+          text = path.read_text(encoding="utf-8")
+          text, count = re.subn(
+              r'LOCAL_VERSION\s*=\s*["\'][^"\']+["\']',
+              'LOCAL_VERSION = "3.8.8"',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit("Unable to update LOCAL_VERSION")
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          cat > changelog.md <<'EOF'
+          ## 新功能
+          - 刮削结果支持 Ctrl/Shift 多选后批量编辑 NFO；不同值显示为空，仅写回用户实际修改过的字段。
+          - 批量保存复用单条编辑的 NFO 写入与媒体整理逻辑，并对同一多 CD 组只处理一次。
+          - 番号在存在有效刮削来源详情页时可点击，并使用系统默认浏览器打开来源网页。
+
+          ## 界面优化
+          - 主界面刮削状态与详情字段统一字号、字重和垂直对齐，浅色与深色主题保持一致。
+          - 简介、标签、日期、时长、导演、系列、制作、发行等字段按实际像素宽度单行省略，悬停显示全文并随窗口宽度动态重算。
+          EOF
+
+          rm -rf .release-payload
+          rm -f .github/workflows/apply-3.8.8-patch.yml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          activate-environment: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --dev
+
+      - name: Verify formatting and lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          uvx ruff@0.15.12 format --check
+          uvx ruff@0.15.12 check --output-format=github
+          git diff --check
+
+      - name: Run focused regression tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          uv run pytest -q \
+            tests/controllers/test_main_source_link.py \
+            tests/controllers/test_nfo_editor_reorganization.py \
+            tests/controllers/test_responsive_layout.py \
+            tests/controllers/test_ui_text.py
+
+      - name: Commit verified release changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: batch NFO editing and refine main UI for 3.8.8"
+          git push origin HEAD:release-3.8.8-review
