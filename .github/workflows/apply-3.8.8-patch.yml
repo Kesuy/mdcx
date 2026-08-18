@@ -24,14 +24,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for f in .release-payload/part*; do
-            wc -c "$f"
-            sha256sum "$f"
-          done
-          cat .release-payload/part* | tr -cd 'A-Za-z0-9+/=' > /tmp/mdcx-3.8.8-patch.b64
-          wc -c /tmp/mdcx-3.8.8-patch.b64
-          sha256sum /tmp/mdcx-3.8.8-patch.b64
+          cat \
+            .release-payload/part01 \
+            .release-payload/part02 \
+            .release-payload/part03 \
+            .release-payload/part04 \
+            .release-payload/part05 \
+            .release-payload/part06 \
+            .release-payload/part07a-fixed \
+            .release-payload/part07b-fixed \
+            .release-payload/part08a-fixed \
+            .release-payload/part08b-fixed \
+            .release-payload/part09 \
+            > /tmp/mdcx-3.8.8-patch.b64
+          echo "a94caa3d5474348c3fee889d75969df9db10ed1eb2ab356f52ed621dfabba80d  /tmp/mdcx-3.8.8-patch.b64" | sha256sum -c -
           base64 -d /tmp/mdcx-3.8.8-patch.b64 > /tmp/mdcx-3.8.8-patch.zip
+          echo "da4222244869b18dc9c910a5cea6dfeb9c693954164f6216d163757e82653b2f  /tmp/mdcx-3.8.8-patch.zip" | sha256sum -c -
           unzip -t /tmp/mdcx-3.8.8-patch.zip
           unzip -oq /tmp/mdcx-3.8.8-patch.zip -d .
 
