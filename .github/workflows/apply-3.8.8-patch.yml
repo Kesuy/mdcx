@@ -1,9 +1,6 @@
 name: Verify and prepare 3.8.8
 
 on:
-  push:
-    branches:
-      - release-3.8.8-review
   pull_request:
     branches:
       - master
@@ -14,7 +11,7 @@ permissions:
 
 jobs:
   prepare:
-    if: github.actor != 'github-actions[bot]' && (github.event_name == 'push' || github.head_ref == 'release-3.8.8-review')
+    if: github.head_ref == 'release-3.8.8-review'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout review branch
@@ -27,7 +24,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .release-payload/part* | tr -cd 'A-Za-z0-9+/=' | base64 -d > /tmp/mdcx-3.8.8-patch.zip
+          for f in .release-payload/part*; do
+            wc -c "$f"
+            sha256sum "$f"
+          done
+          cat .release-payload/part* | tr -cd 'A-Za-z0-9+/=' > /tmp/mdcx-3.8.8-patch.b64
+          wc -c /tmp/mdcx-3.8.8-patch.b64
+          sha256sum /tmp/mdcx-3.8.8-patch.b64
+          base64 -d /tmp/mdcx-3.8.8-patch.b64 > /tmp/mdcx-3.8.8-patch.zip
           unzip -t /tmp/mdcx-3.8.8-patch.zip
           unzip -oq /tmp/mdcx-3.8.8-patch.zip -d .
 
