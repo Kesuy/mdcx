@@ -1,0 +1,91 @@
+name: Publish 3.8.8
+
+on:
+  pull_request:
+    branches:
+      - master
+    types: [ready_for_review]
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+
+jobs:
+  publish:
+    if: github.head_ref == 'release-3.8.8-publish'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      TAG: 3.8.8
+    steps:
+      - name: Verify master and create release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          master_sha="$(gh api "repos/$REPO/git/ref/heads/master" --jq '.object.sha')"
+          version="$(gh api "repos/$REPO/contents/mdcx/consts.py?ref=master" --jq '.content' | base64 -d | sed -n 's/^LOCAL_VERSION = "\([^"]*\)"/\1/p')"
+          test "$version" = "$TAG"
+
+          if tag_sha="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null)"; then
+            test "$tag_sha" = "$master_sha"
+          else
+            gh api --method POST "repos/$REPO/git/refs" \
+              -f ref="refs/tags/$TAG" \
+              -f sha="$master_sha" >/dev/null
+          fi
+
+          echo "MASTER_SHA=$master_sha" >> "$GITHUB_ENV"
+
+      - name: Dispatch official release workflow
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "started=$started" >> "$GITHUB_OUTPUT"
+
+          gh api --method POST "repos/$REPO/actions/workflows/release.yml/dispatches" \
+            -f ref=master \
+            -f 'inputs[tag]=3.8.8' \
+            -f 'inputs[prerelease]=false' >/dev/null
+
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh api "repos/$REPO/actions/workflows/release.yml/runs?event=workflow_dispatch&branch=master&per_page=20" \
+              --jq ".workflow_runs | map(select(.created_at >= \"$started\")) | sort_by(.created_at) | reverse | .[0].id // empty")"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 2
+          done
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Official release workflow run: $run_id"
+
+      - name: Wait for official build and release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run watch "${{ steps.dispatch.outputs.run_id }}" --repo "$REPO" --exit-status
+
+      - name: Verify published release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$REPO" --json tagName,name,isPrerelease,assets \
+            --jq '{tag: .tagName, name: .name, prerelease: .isPrerelease, assets: [.assets[].name]}'
+          asset_count="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets | length')"
+          test "$asset_count" -ge 2
+          gh release view "$TAG" --repo "$REPO" --json assets --jq -e '.assets | any(.name | endswith(".exe"))' >/dev/null
+          gh release view "$TAG" --repo "$REPO" --json assets --jq -e '.assets | any(.name | endswith(".dmg"))' >/dev/null
+
+      - name: Clean temporary release branches
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr close "${{ github.event.pull_request.number }}" --repo "$REPO" --comment "3.8.8 release published successfully." || true
+          gh api --method DELETE "repos/$REPO/git/refs/heads/release-3.8.8-review" || true
+          gh api --method DELETE "repos/$REPO/git/refs/heads/release-3.8.8-publish" || true
