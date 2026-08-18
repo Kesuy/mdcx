@@ -88,6 +88,12 @@ jobs:
         with:
           activate-environment: true
 
+      - name: Install Qt runtime libraries
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+
       - name: Install locked dependencies
         run: uv sync --locked --all-extras --dev
 
