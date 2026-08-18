@@ -27,7 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .release-payload/part* | base64 -d > /tmp/mdcx-3.8.8-patch.zip
+          cat .release-payload/part* | tr -cd 'A-Za-z0-9+/=' | base64 -d > /tmp/mdcx-3.8.8-patch.zip
+          unzip -t /tmp/mdcx-3.8.8-patch.zip
           unzip -oq /tmp/mdcx-3.8.8-patch.zip -d .
 
       - name: Prepare version and changelog
