@@ -54,6 +54,7 @@ def Init_Ui(self: "MyMAinWindow"):
     for image_label in (self.Ui.label_poster, self.Ui.label_thumb):
         image_label.setScaledContents(False)
         image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    self.Ui.label_number.installEventFilter(self)
     self.Ui.pushButton_right_menu.setIcon(QIcon(resources.right_menu))
     self.Ui.pushButton_right_menu.setToolTip(" 右键菜单 ")
     self.Ui.pushButton_play.setIcon(QIcon(resources.play_icon))
@@ -297,6 +298,7 @@ def Init_Singal(self: "MyMAinWindow"):
     self.Ui.pushButton_play.clicked.connect(self.main_play_click)
     self.Ui.pushButton_open_folder.clicked.connect(self.main_open_folder_click)
     self.Ui.pushButton_open_nfo.clicked.connect(self.main_open_nfo_click)
+    self._connect_nfo_editor_dirty_signals()
     self.Ui.pushButton_tree_clear.clicked.connect(self.init_QTreeWidget)
     self.Ui.pushButton_scraper_failed_list.clicked.connect(self.pushButton_scraper_failed_list_clicked)
     self.Ui.pushButton_save_failed_list.clicked.connect(self.pushButton_save_failed_list_clicked)

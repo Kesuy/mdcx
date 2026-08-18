@@ -315,7 +315,19 @@ def test_main_metadata_rows_keep_the_original_fifty_pixel_rhythm():
     assert detail_y(window.Ui.label_23) - detail_y(window.Ui.label_13) == 50
     assert detail_y(window.Ui.label_30) - detail_y(window.Ui.label_23) == 50
     assert window.Ui.label_outline.height() == 32
+    assert not window.Ui.label_outline.wordWrap()
+    assert not window.Ui.label_tag.wordWrap()
     assert window.Ui.label_release.height() == 32
+    for label in (
+        window.Ui.label_release,
+        window.Ui.label_runtime,
+        window.Ui.label_director,
+        window.Ui.label_series,
+        window.Ui.label_studio,
+        window.Ui.label_publish,
+    ):
+        assert not label.wordWrap()
+        assert label.alignment() & Qt.AlignmentFlag.AlignVCenter
     window.close()
 
 

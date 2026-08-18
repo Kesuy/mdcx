@@ -292,11 +292,19 @@ def set_style(self: "MyMAinWindow"):
             background-color: rgba(246, 246, 246, 0);
             border: 0px solid rgba(0, 0, 0, 80);
         }
+        QLabel#label_18,#label_33,#label_13,#label_22,#label_23,#label_31,#label_30,#label_24{
+            font-size: 14px;
+            font-weight: 500;
+        }
+        QLabel#label_outline,#label_tag,#label_release,#label_runtime,#label_director,#label_series,#label_studio,#label_publish{
+            font-size: 14px;
+            font-weight: 400;
+        }
         QLabel#label_file_path{
-            font-size: 16px;
+            font-size: 14px;
             color: black;
             background-color: rgba(246, 246, 246, 0);
-            font-weight: bold;
+            font-weight: 500;
             border: 0px solid rgba(0, 0, 0, 80);
         }
         QLabel#label_poster_size{
@@ -754,11 +762,19 @@ def set_dark_style(self: "MyMAinWindow"):
             background-color: rgba(246, 246, 246, 0);
             border: 0px solid rgba(0, 0, 0, 80);
         }
+        QLabel#label_18,#label_33,#label_13,#label_22,#label_23,#label_31,#label_30,#label_24{
+            font-size: 14px;
+            font-weight: 500;
+        }
+        QLabel#label_outline,#label_tag,#label_release,#label_runtime,#label_director,#label_series,#label_studio,#label_publish{
+            font-size: 14px;
+            font-weight: 400;
+        }
         QLabel#label_file_path{
-            font-size: 16px;
+            font-size: 14px;
             color: white;
             background-color: rgba(246, 246, 246, 0);
-            font-weight: bold;
+            font-weight: 500;
             border: 0px solid rgba(0, 0, 0, 80);
         }
         QLabel#label_poster_size{

@@ -63,6 +63,7 @@ from mdcx.core.network_check import run_network_check
 from mdcx.core.nfo import write_nfo
 from mdcx.core.scraper import again_search, get_remain_list, start_new_scrape
 from mdcx.crawlers.fc2ppvdb import validate_fc2cmadb_cookie
+from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.image import PreviewImageLoader
 from mdcx.models.enums import FileMode
 from mdcx.models.flags import Flags
@@ -119,6 +120,29 @@ WINDOWS_RESERVED_DIR_NAMES = {
     *(f"COM{i}" for i in range(1, 10)),
     *(f"LPT{i}" for i in range(1, 10)),
 }
+
+NFO_EDITOR_WIDGETS: dict[str, tuple[str, bool]] = {
+    "number": ("lineEdit_nfo_number", False),
+    "actor": ("lineEdit_nfo_actor", False),
+    "year": ("lineEdit_nfo_year", False),
+    "title": ("lineEdit_nfo_title", False),
+    "originaltitle": ("lineEdit_nfo_originaltitle", False),
+    "outline": ("textEdit_nfo_outline", True),
+    "originalplot": ("textEdit_nfo_originalplot", True),
+    "tag": ("textEdit_nfo_tag", True),
+    "release": ("lineEdit_nfo_release", False),
+    "runtime": ("lineEdit_nfo_runtime", False),
+    "score": ("lineEdit_nfo_score", False),
+    "wanted": ("lineEdit_nfo_wanted", False),
+    "director": ("lineEdit_nfo_director", False),
+    "series": ("lineEdit_nfo_series", False),
+    "studio": ("lineEdit_nfo_studio", False),
+    "publisher": ("lineEdit_nfo_publisher", False),
+    "poster": ("lineEdit_nfo_poster", False),
+    "thumb": ("lineEdit_nfo_cover", False),
+    "trailer": ("lineEdit_nfo_trailer", False),
+}
+NFO_MIXED_VALUE_PLACEHOLDER = "（多个值，保持为空则不修改）"
 DEFAULT_LINK_DIR_NAME = "unnamed"
 
 
@@ -177,6 +201,7 @@ class MyMAinWindow(QMainWindow):
         self.file_main_open_path = Path()  # 主界面打开的文件路径
         self.json_array: dict[str, ShowData] = {}  # 主界面右侧结果树状数据
         self.preview_request_id = 0  # 主界面图片预览请求序号，用于丢弃过期加载结果
+        self._main_source_url = ""  # 当前番号可打开的刮削来源详情页
 
         self.window_radius = 0  # 窗口四角弧度，为0时表示显示窗口标题栏
         self.window_border = 0  # 窗口描边，为0时表示显示窗口标题栏
@@ -207,6 +232,9 @@ class MyMAinWindow(QMainWindow):
         self.start_click_pos: QPoint
         self.window_marjin = None
         self.now_show_name = None
+        self._nfo_batch_show_names: list[str] = []
+        self._nfo_dirty_fields: set[str] = set()
+        self._nfo_editor_loading = False
         self.show_name = None
         self.t_net = None
         self.options: QFileDialog.Option
@@ -598,6 +626,8 @@ class MyMAinWindow(QMainWindow):
         if len(selected_entries) > 1:
             menu.addAction(QAction(f"已选择 {len(selected_entries)} 项", self))
             menu.addSeparator()
+            menu.addAction(self.menu_nfo)
+            menu.addSeparator()
             menu.addAction(self.menu_del_file)
             menu.addAction(self.menu_del_folder)
             menu.addAction(self.menu_make_symlink)
@@ -678,6 +708,11 @@ class MyMAinWindow(QMainWindow):
             self.recover_windowflags()
         if a1.type() == QEvent.Type.ApplicationActivate and not self.isVisible():
             self.show()
+        if a0 is self.Ui.label_number and a1.type() == QEvent.Type.MouseButtonRelease:
+            a1 = cast("QMouseEvent", a1)
+            if a1.button() == Qt.MouseButton.LeftButton and self._main_source_url:
+                webbrowser.open(self._main_source_url)
+                return True
         if a0.objectName() == "label_poster" or a0.objectName() == "label_thumb":
             if a1.type() == QEvent.Type.MouseButtonPress:
                 a1 = cast("QMouseEvent", a1)
@@ -1293,6 +1328,7 @@ class MyMAinWindow(QMainWindow):
         try:
             number = data.number
             set_elided_label_text(self.Ui.label_number, number)
+            self._set_main_source_url(data)
             actor = str(data.actor)
             if data.all_actor and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
                 actor = str(data.all_actor)
@@ -1310,33 +1346,22 @@ class MyMAinWindow(QMainWindow):
                 title = title[:25] + "……"
             self.Ui.label_title.setText(title)
             outline = str(data.outline)
-            self.Ui.label_outline.setToolTip(outline)
-            if len(outline) > 38:
-                outline = outline[:36] + "……"
-            self.Ui.label_outline.setText(outline)
+            set_elided_label_text(self.Ui.label_outline, outline, mode=Qt.TextElideMode.ElideRight)
             tag = str(data.tag).strip(" [',']").replace("'", "")
-            self.Ui.label_tag.setToolTip(tag)
-            if len(tag) > 76:
-                tag = tag[:75] + "……"
-            self.Ui.label_tag.setText(tag)
-            self.Ui.label_release.setText(str(data.release))
-            self.Ui.label_release.setToolTip(str(data.release))
+            set_elided_label_text(self.Ui.label_tag, tag, mode=Qt.TextElideMode.ElideRight)
+            set_elided_label_text(self.Ui.label_release, str(data.release), mode=Qt.TextElideMode.ElideRight)
             if data.runtime:
-                self.Ui.label_runtime.setText(str(data.runtime) + " 分钟")
-                self.Ui.label_runtime.setToolTip(str(data.runtime) + " 分钟")
+                set_elided_label_text(
+                    self.Ui.label_runtime,
+                    str(data.runtime) + " 分钟",
+                    mode=Qt.TextElideMode.ElideRight,
+                )
             else:
-                self.Ui.label_runtime.setText("")
-            self.Ui.label_director.setText(str(data.director))
-            self.Ui.label_director.setToolTip(str(data.director))
-            series = str(data.series)
-            self.Ui.label_series.setToolTip(series)
-            if len(series) > 32:
-                series = series[:31] + "……"
-            self.Ui.label_series.setText(series)
-            self.Ui.label_studio.setText(data.studio)
-            self.Ui.label_studio.setToolTip(data.studio)
-            self.Ui.label_publish.setText(data.publisher)
-            self.Ui.label_publish.setToolTip(data.publisher)
+                set_elided_label_text(self.Ui.label_runtime, "", mode=Qt.TextElideMode.ElideRight)
+            set_elided_label_text(self.Ui.label_director, str(data.director), mode=Qt.TextElideMode.ElideRight)
+            set_elided_label_text(self.Ui.label_series, str(data.series), mode=Qt.TextElideMode.ElideRight)
+            set_elided_label_text(self.Ui.label_studio, data.studio, mode=Qt.TextElideMode.ElideRight)
+            set_elided_label_text(self.Ui.label_publish, data.publisher, mode=Qt.TextElideMode.ElideRight)
             self.Ui.label_poster.setToolTip("点击裁剪图片")
             self.Ui.label_thumb.setToolTip("点击裁剪图片")
             # 生成img_path，用来裁剪使用
@@ -1354,6 +1379,47 @@ class MyMAinWindow(QMainWindow):
         except Exception:
             if not signal_qt.stop:
                 signal_qt.show_traceback_log(traceback.format_exc())
+
+    @staticmethod
+    def _source_page_url(data: CrawlersResult) -> str:
+        """返回与当前番号最相关、且可安全交给浏览器打开的来源详情页。"""
+
+        external_ids = data.external_ids or {}
+
+        def site_value(site) -> str:
+            return site.value if isinstance(site, Website) else str(site)
+
+        def valid_url(value) -> str:
+            text = str(value or "").strip()
+            return text if re.fullmatch(r"https?://[^\s]+", text, flags=re.IGNORECASE) else ""
+
+        preferred_sources = (
+            data.field_sources.get(CrawlerResultFields.NUMBER, ""),
+            data.field_sources.get(CrawlerResultFields.TITLE, ""),
+        )
+        for source in preferred_sources:
+            source_name = site_value(source)
+            for site, external_id in external_ids.items():
+                if site_value(site) == source_name and (url := valid_url(external_id)):
+                    return url
+        for external_id in external_ids.values():
+            if url := valid_url(external_id):
+                return url
+        return ""
+
+    def _set_main_source_url(self, data: CrawlersResult) -> None:
+        self._main_source_url = self._source_page_url(data)
+        self.Ui.label_number.setCursor(
+            Qt.CursorShape.PointingHandCursor if self._main_source_url else Qt.CursorShape.ArrowCursor
+        )
+        self._restore_number_source_tooltip()
+
+    def _restore_number_source_tooltip(self) -> None:
+        number = str(self.Ui.label_number.property("mdcxFullText") or "")
+        if self._main_source_url:
+            self.Ui.label_number.setToolTip(f"点击打开来源网页\n{self._main_source_url}")
+        else:
+            self.Ui.label_number.setToolTip(number)
 
     def _request_preview_images(
         self,
@@ -1952,6 +2018,19 @@ class MyMAinWindow(QMainWindow):
         self.Ui.pushButton_open_nfo.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, False)
         event = QHoverEvent(QEvent.Type.HoverLeave, QPointF(40, 40), QPointF(0, 0))
         QApplication.sendEvent(self.Ui.pushButton_open_nfo, event)
+        selected_entries = self._get_selected_entries()
+        if len(selected_entries) > 1:
+            missing_paths = [str(file_path) for _, _, _, file_path in selected_entries if not file_path.is_file()]
+            if missing_paths:
+                QMessageBox.warning(
+                    self,
+                    "无法批量编辑 NFO",
+                    f"所选项目中有 {len(missing_paths)} 个媒体文件不存在，请刷新结果后重试。",
+                )
+                return
+            show_responsive_overlay(self, self.Ui.widget_nfo)
+            self._show_nfo_info([entry[2] for entry in selected_entries])
+            return
         if self._check_main_file_path():
             show_responsive_overlay(self, self.Ui.widget_nfo)
             self._show_nfo_info()
@@ -2254,208 +2333,288 @@ class MyMAinWindow(QMainWindow):
         self.Ui.checkBox_field_priority_try_all_images.setEnabled(self.Ui.radioButton_scrape_info.isChecked())
 
     # region 主界面编辑nfo
-    def _show_nfo_info(self):
+    def _connect_nfo_editor_dirty_signals(self) -> None:
+        for field_name, (widget_name, is_plain_text) in NFO_EDITOR_WIDGETS.items():
+            widget = getattr(self.Ui, widget_name)
+            changed_signal = widget.textChanged if is_plain_text else widget.textEdited
+            changed_signal.connect(
+                lambda *_args, current_field=field_name: self._mark_nfo_editor_field_dirty(current_field)
+            )
+
+    def _mark_nfo_editor_field_dirty(self, field_name: str) -> None:
+        if not self._nfo_editor_loading and self._nfo_batch_show_names:
+            self._nfo_dirty_fields.add(field_name)
+
+    def _read_nfo_editor_field(self, field_name: str) -> str:
+        widget_name, is_plain_text = NFO_EDITOR_WIDGETS[field_name]
+        widget = getattr(self.Ui, widget_name)
+        return widget.toPlainText() if is_plain_text else widget.text()
+
+    def _set_nfo_editor_field(self, field_name: str, value: str, *, mixed: bool = False) -> None:
+        widget_name, is_plain_text = NFO_EDITOR_WIDGETS[field_name]
+        widget = getattr(self.Ui, widget_name)
+        widget.setPlaceholderText(NFO_MIXED_VALUE_PLACEHOLDER if mixed else "")
+        if is_plain_text:
+            widget.setPlainText(value)
+        else:
+            widget.setText(value)
+
+    @staticmethod
+    def _nfo_data_field_value(data: CrawlersResult, field_name: str) -> str:
+        if field_name == "actor" and data.all_actor and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
+            return data.all_actor
+        return str(getattr(data, field_name))
+
+    @staticmethod
+    def _apply_nfo_editor_patch(data: CrawlersResult, patch: dict[str, str]) -> None:
+        for field_name, value in patch.items():
+            if field_name == "actor" and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
+                data.all_actor = value
+            setattr(data, field_name, value)
+
+    def _show_nfo_info(self, selected_show_data: list[ShowData] | None = None):
         try:
-            if not self.show_name:
+            if selected_show_data is None:
+                if not self.show_name:
+                    return
+                selected_show_data = [self.json_array[self.show_name]]
+            if not selected_show_data:
                 return
-            show_data = self.json_array[self.show_name]
-            json_data = show_data.data
-            file_info = show_data.file_info
-            self.now_show_name = show_data.show_name
-            actor = json_data.actor
-            if json_data.all_actor and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
-                actor = json_data.all_actor
-            self.Ui.label_nfo.setText(str(file_info.file_path))
-            self.Ui.lineEdit_nfo_number.setText(json_data.number)
-            self.Ui.lineEdit_nfo_actor.setText(actor)
-            self.Ui.lineEdit_nfo_year.setText(json_data.year)
-            self.Ui.lineEdit_nfo_title.setText(json_data.title)
-            self.Ui.lineEdit_nfo_originaltitle.setText(json_data.originaltitle)
-            self.Ui.textEdit_nfo_outline.setPlainText(json_data.outline)
-            self.Ui.textEdit_nfo_originalplot.setPlainText(json_data.originalplot)
-            self.Ui.textEdit_nfo_tag.setPlainText(json_data.tag)
-            self.Ui.lineEdit_nfo_release.setText(json_data.release)
-            self.Ui.lineEdit_nfo_runtime.setText(json_data.runtime)
-            self.Ui.lineEdit_nfo_score.setText(json_data.score)
-            self.Ui.lineEdit_nfo_wanted.setText(json_data.wanted)
-            self.Ui.lineEdit_nfo_director.setText(json_data.director)
-            self.Ui.lineEdit_nfo_series.setText(json_data.series)
-            self.Ui.lineEdit_nfo_studio.setText(json_data.studio)
-            self.Ui.lineEdit_nfo_publisher.setText(json_data.publisher)
-            self.Ui.lineEdit_nfo_poster.setText(json_data.poster)
-            self.Ui.lineEdit_nfo_cover.setText(json_data.thumb)
-            self.Ui.lineEdit_nfo_trailer.setText(json_data.trailer)
+
+            self._nfo_editor_loading = True
+            self._nfo_dirty_fields.clear()
+            is_batch = len(selected_show_data) > 1
+            self._nfo_batch_show_names = [entry.show_name for entry in selected_show_data] if is_batch else []
+            self.now_show_name = None if is_batch else selected_show_data[0].show_name
+            if is_batch:
+                self.Ui.label_nfo.setText(
+                    f"已选择 {len(selected_show_data)} 项 · 仅保存修改字段 · 保存后按当前规则自动整理"
+                )
+            else:
+                self.Ui.label_nfo.setText(str(selected_show_data[0].file_info.file_path))
+
+            for field_name in NFO_EDITOR_WIDGETS:
+                values = [self._nfo_data_field_value(entry.data, field_name) for entry in selected_show_data]
+                has_mixed_values = any(value != values[0] for value in values[1:])
+                self._set_nfo_editor_field(field_name, "" if has_mixed_values else values[0], mixed=has_mixed_values)
+
+            self.Ui.comboBox_nfo.setEnabled(not is_batch)
+            self.Ui.comboBox_nfo.setToolTip("批量模式下国家由各项目番号和类型保留" if is_batch else "")
+            json_data = selected_show_data[0].data
             all_items = [self.Ui.comboBox_nfo.itemText(i) for i in range(self.Ui.comboBox_nfo.count())]
-            self.Ui.comboBox_nfo.setCurrentIndex(all_items.index(json_data.country))
+            if json_data.country in all_items:
+                self.Ui.comboBox_nfo.setCurrentIndex(all_items.index(json_data.country))
         except Exception:
             if not signal_qt.stop:
                 signal_qt.show_traceback_log(traceback.format_exc())
+        finally:
+            self._nfo_editor_loading = False
 
-    def save_nfo_info(self):
+    def _save_batch_nfo_info(self) -> None:
+        show_entries = [self.json_array[name] for name in self._nfo_batch_show_names if name in self.json_array]
+        if len(show_entries) != len(self._nfo_batch_show_names):
+            self.Ui.label_save_tips.setText(f"保存失败，部分所选项目已失效! {get_current_time()}")
+            return
+        if not self._nfo_dirty_fields:
+            self.Ui.label_save_tips.setText(f"没有修改任何字段! {get_current_time()}")
+            return
+
+        patch = {field_name: self._read_nfo_editor_field(field_name) for field_name in self._nfo_dirty_fields}
+        selected_ids = {id(entry) for entry in show_entries}
+        processed_ids: set[int] = set()
+        success_count = 0
+        failure_count = 0
+        for entry in show_entries:
+            if id(entry) in processed_ids:
+                continue
+            original_data = copy.deepcopy(entry.data)
+            self._apply_nfo_editor_patch(entry.data, patch)
+            try:
+                saved, affected_entries = self._save_nfo_entry(entry, original_data)
+            except Exception:
+                saved = False
+                affected_entries = [entry]
+                if not signal_qt.stop:
+                    signal_qt.show_traceback_log(traceback.format_exc())
+            affected_selected_ids = {id(item) for item in affected_entries} & selected_ids
+            processed_ids.update(affected_selected_ids)
+            if saved:
+                success_count += len(affected_selected_ids)
+            else:
+                failure_count += len(affected_selected_ids)
+
+        changed_fields = "、".join(self._nfo_dirty_fields)
+        self._nfo_dirty_fields.clear()
+        self.Ui.label_nfo.setText(
+            f"批量编辑完成 · 成功 {success_count} 项 · 失败 {failure_count} 项 · 已按当前规则自动整理"
+        )
+        self.Ui.label_save_tips.setText(
+            f"批量保存完成：成功 {success_count}，失败 {failure_count}! {get_current_time()}"
+        )
+        signal_qt.show_log_text(
+            f"\n 🍀 批量更新 NFO 完成：成功 {success_count}，失败 {failure_count}\n    修改字段：{changed_fields}"
+        )
+
+    def _find_related_cd_entries(self, show_data: ShowData, old_number: str) -> list[ShowData]:
+        file_info = show_data.file_info
+        if not file_info.cd_part:
+            return []
+        current_cd_part = str(file_info.cd_part)
+        current_base = file_info.file_path.stem
+        if current_base.casefold().endswith(current_cd_part.casefold()):
+            current_base = current_base[: -len(current_cd_part)]
+
+        def is_same_cd_group(entry: ShowData) -> bool:
+            entry_cd_part = str(entry.file_info.cd_part or "")
+            entry_base = entry.file_info.file_path.stem
+            if entry_cd_part and entry_base.casefold().endswith(entry_cd_part.casefold()):
+                entry_base = entry_base[: -len(entry_cd_part)]
+            return entry_base.casefold() == current_base.casefold()
+
+        return [
+            entry
+            for entry in self.json_array.values()
+            if entry is not show_data
+            and entry.file_info.cd_part
+            and entry.file_info.file_path.parent == file_info.file_path.parent
+            and entry.data.number == old_number
+            and is_same_cd_group(entry)
+        ]
+
+    def _save_nfo_entry(
+        self,
+        show_data: ShowData,
+        original_current_data: CrawlersResult,
+    ) -> tuple[bool, list[ShowData]]:
+        json_data = show_data.data
+        file_info = show_data.file_info
+        old_number = original_current_data.number
+        nfo_path = file_info.file_path.with_suffix(".nfo")
+        nfo_folder = nfo_path.parent
+        related_cd_entries = self._find_related_cd_entries(show_data, old_number)
+        affected_entries = [show_data, *related_cd_entries]
+        data_backups = [(show_data, original_current_data)] + [
+            (entry, copy.deepcopy(entry.data)) for entry in related_cd_entries
+        ]
+        nfo_paths = [nfo_path] + [entry.file_info.file_path.with_suffix(".nfo") for entry in related_cd_entries]
+        nfo_backups = {path: (path.exists(), path.read_bytes() if path.exists() else b"") for path in nfo_paths}
+        nfo_saved = executor.run(write_nfo(file_info, json_data, nfo_path, nfo_folder, update=True))
+        if nfo_saved:
+            for related_entry in related_cd_entries:
+                related_entry.data = copy.deepcopy(json_data)
+                related_nfo_path = related_entry.file_info.file_path.with_suffix(".nfo")
+                if not executor.run(
+                    write_nfo(
+                        related_entry.file_info,
+                        related_entry.data,
+                        related_nfo_path,
+                        related_nfo_path.parent,
+                        update=True,
+                    )
+                ):
+                    nfo_saved = False
+                    break
+        if not nfo_saved:
+            for path, (existed, content) in nfo_backups.items():
+                if existed:
+                    path.write_bytes(content)
+                elif path.exists():
+                    path.unlink()
+            for entry, data_backup in data_backups:
+                entry.data = data_backup
+            self.Ui.label_save_tips.setText(f"保存失败，已恢复原信息! {get_current_time()}")
+            return False, affected_entries
+
+        old_file_path = file_info.file_path
+        Flags.file_done_dic.pop(old_number, None)
+        Flags.file_done_dic.pop(json_data.number, None)
         try:
+            success_folder = get_movie_path_setting(old_file_path).success_folder
+            reorganized = executor.run(reorganize_scraped_media(file_info, json_data, show_data.other, success_folder))
+            if reorganized.moved:
+                path_mapping = dict(reorganized.path_mapping) or {
+                    old_file_path: reorganized.new_file_path,
+                }
+                for related_show_data in self.json_array.values():
+                    related_old_path = related_show_data.file_info.file_path
+                    related_new_path = path_mapping.get(related_old_path)
+                    if related_new_path is None or related_show_data is show_data:
+                        continue
+                    update_runtime_paths_after_reorganization(
+                        related_show_data.file_info,
+                        related_show_data.other,
+                        related_old_path,
+                        related_new_path,
+                    )
+                for source_path, target_path in path_mapping.items():
+                    original_sources = Flags.file_new_path_dic.pop(source_path, None)
+                    if original_sources is not None:
+                        Flags.file_new_path_dic[target_path] = original_sources
+                    if source_path in Flags.success_list:
+                        Flags.success_list.discard(source_path)
+                        Flags.success_list.add(target_path)
+                executor.run(save_success_list())
+                self.Ui.label_nfo.setText(str(reorganized.new_file_path))
+                self.Ui.label_save_tips.setText(f"已保存并整理! {get_current_time()}")
+                signal_qt.show_log_text(
+                    f"\n 🍀 编辑信息后自动整理完成\n    原路径: {old_file_path}\n    新路径: {reorganized.new_file_path}"
+                )
+            else:
+                self.Ui.label_save_tips.setText(f"已保存! {get_current_time()}")
+        except MediaReorganizationError as error:
+            incomplete_mapping = dict(error.path_mapping)
+            for related_show_data in self.json_array.values():
+                related_old_path = related_show_data.file_info.file_path
+                related_actual_path = incomplete_mapping.get(related_old_path)
+                if related_actual_path is None or related_show_data is show_data:
+                    continue
+                update_runtime_paths_after_reorganization(
+                    related_show_data.file_info,
+                    related_show_data.other,
+                    related_old_path,
+                    related_actual_path,
+                )
+            for source_path, actual_path in incomplete_mapping.items():
+                original_sources = Flags.file_new_path_dic.pop(source_path, None)
+                if original_sources is not None:
+                    Flags.file_new_path_dic[actual_path] = original_sources
+                if source_path in Flags.success_list:
+                    Flags.success_list.discard(source_path)
+                    Flags.success_list.add(actual_path)
+            actual_file_path = file_info.file_path
+            if actual_file_path != old_file_path and old_file_path not in incomplete_mapping:
+                original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
+                if original_sources is not None:
+                    Flags.file_new_path_dic[actual_file_path] = original_sources
+                if old_file_path in Flags.success_list:
+                    Flags.success_list.discard(old_file_path)
+                    Flags.success_list.add(actual_file_path)
+            if incomplete_mapping or actual_file_path != old_file_path:
+                executor.run(save_success_list())
+                self.Ui.label_nfo.setText(str(actual_file_path))
+            self.Ui.label_save_tips.setText(f"信息已保存，自动整理失败! {get_current_time()}")
+            signal_qt.show_log_text(f"\n 🟡 信息已保存，但无法按当前设置自动整理：{error}")
+        self.set_main_info(show_data)
+        return True, affected_entries
+
+    def save_nfo_info(self) -> bool:
+        try:
+            if vars(self).get("_nfo_batch_show_names", []):
+                self._save_batch_nfo_info()
+                return True
             if self.now_show_name is None:
-                return
+                return False
             show_data = self.json_array[self.now_show_name]
             json_data = show_data.data
             original_current_data = copy.deepcopy(json_data)
-            file_info = show_data.file_info
-            old_number = json_data.number
-            nfo_path = file_info.file_path.with_suffix(".nfo")
-            nfo_folder = nfo_path.parent
-            json_data.number = self.Ui.lineEdit_nfo_number.text()
-            if NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
-                json_data.all_actor = self.Ui.lineEdit_nfo_actor.text()
-            json_data.actor = self.Ui.lineEdit_nfo_actor.text()
-            json_data.year = self.Ui.lineEdit_nfo_year.text()
-            json_data.title = self.Ui.lineEdit_nfo_title.text()
-            json_data.originaltitle = self.Ui.lineEdit_nfo_originaltitle.text()
-            json_data.outline = self.Ui.textEdit_nfo_outline.toPlainText()
-            json_data.originalplot = self.Ui.textEdit_nfo_originalplot.toPlainText()
-            json_data.tag = self.Ui.textEdit_nfo_tag.toPlainText()
-            json_data.release = self.Ui.lineEdit_nfo_release.text()
-            json_data.runtime = self.Ui.lineEdit_nfo_runtime.text()
-            json_data.score = self.Ui.lineEdit_nfo_score.text()
-            json_data.wanted = self.Ui.lineEdit_nfo_wanted.text()
-            json_data.director = self.Ui.lineEdit_nfo_director.text()
-            json_data.series = self.Ui.lineEdit_nfo_series.text()
-            json_data.studio = self.Ui.lineEdit_nfo_studio.text()
-            json_data.publisher = self.Ui.lineEdit_nfo_publisher.text()
-            json_data.poster = self.Ui.lineEdit_nfo_poster.text()
-            json_data.thumb = self.Ui.lineEdit_nfo_cover.text()
-            json_data.trailer = self.Ui.lineEdit_nfo_trailer.text()
-            related_cd_entries = []
-            if file_info.cd_part:
-                current_cd_part = str(file_info.cd_part)
-                current_base = file_info.file_path.stem
-                if current_base.casefold().endswith(current_cd_part.casefold()):
-                    current_base = current_base[: -len(current_cd_part)]
-
-                def is_same_cd_group(entry: ShowData) -> bool:
-                    entry_cd_part = str(entry.file_info.cd_part or "")
-                    entry_base = entry.file_info.file_path.stem
-                    if entry_cd_part and entry_base.casefold().endswith(entry_cd_part.casefold()):
-                        entry_base = entry_base[: -len(entry_cd_part)]
-                    return entry_base.casefold() == current_base.casefold()
-
-                related_cd_entries = [
-                    entry
-                    for entry in self.json_array.values()
-                    if entry is not show_data
-                    and entry.file_info.cd_part
-                    and entry.file_info.file_path.parent == file_info.file_path.parent
-                    and entry.data.number == old_number
-                    and is_same_cd_group(entry)
-                ]
-
-            data_backups = [(show_data, original_current_data)] + [
-                (entry, copy.deepcopy(entry.data)) for entry in related_cd_entries
-            ]
-            nfo_paths = [nfo_path] + [entry.file_info.file_path.with_suffix(".nfo") for entry in related_cd_entries]
-            nfo_backups = {path: (path.exists(), path.read_bytes() if path.exists() else b"") for path in nfo_paths}
-            nfo_saved = executor.run(write_nfo(file_info, json_data, nfo_path, nfo_folder, update=True))
-            if nfo_saved:
-                for related_entry in related_cd_entries:
-                    related_entry.data = copy.deepcopy(json_data)
-                    related_nfo_path = related_entry.file_info.file_path.with_suffix(".nfo")
-                    if not executor.run(
-                        write_nfo(
-                            related_entry.file_info,
-                            related_entry.data,
-                            related_nfo_path,
-                            related_nfo_path.parent,
-                            update=True,
-                        )
-                    ):
-                        nfo_saved = False
-                        break
-            if not nfo_saved:
-                for path, (existed, content) in nfo_backups.items():
-                    if existed:
-                        path.write_bytes(content)
-                    elif path.exists():
-                        path.unlink()
-                for entry, data_backup in data_backups:
-                    entry.data = data_backup
-                self.Ui.label_save_tips.setText(f"保存失败，已恢复原信息! {get_current_time()}")
-                return
-            if nfo_saved:
-                old_file_path = file_info.file_path
-                Flags.file_done_dic.pop(old_number, None)
-                Flags.file_done_dic.pop(json_data.number, None)
-                try:
-                    success_folder = get_movie_path_setting(old_file_path).success_folder
-                    reorganized = executor.run(
-                        reorganize_scraped_media(file_info, json_data, show_data.other, success_folder)
-                    )
-                    if reorganized.moved:
-                        path_mapping = dict(reorganized.path_mapping) or {
-                            old_file_path: reorganized.new_file_path,
-                        }
-                        for related_show_data in self.json_array.values():
-                            related_old_path = related_show_data.file_info.file_path
-                            related_new_path = path_mapping.get(related_old_path)
-                            if related_new_path is None or related_show_data is show_data:
-                                continue
-                            update_runtime_paths_after_reorganization(
-                                related_show_data.file_info,
-                                related_show_data.other,
-                                related_old_path,
-                                related_new_path,
-                            )
-                        for source_path, target_path in path_mapping.items():
-                            original_sources = Flags.file_new_path_dic.pop(source_path, None)
-                            if original_sources is not None:
-                                Flags.file_new_path_dic[target_path] = original_sources
-                            if source_path in Flags.success_list:
-                                Flags.success_list.discard(source_path)
-                                Flags.success_list.add(target_path)
-                        executor.run(save_success_list())
-                        self.Ui.label_nfo.setText(str(reorganized.new_file_path))
-                        self.Ui.label_save_tips.setText(f"已保存并整理! {get_current_time()}")
-                        signal_qt.show_log_text(
-                            f"\n 🍀 编辑信息后自动整理完成\n    原路径: {old_file_path}\n    新路径: {reorganized.new_file_path}"
-                        )
-                    else:
-                        self.Ui.label_save_tips.setText(f"已保存! {get_current_time()}")
-                except MediaReorganizationError as error:
-                    incomplete_mapping = dict(error.path_mapping)
-                    for related_show_data in self.json_array.values():
-                        related_old_path = related_show_data.file_info.file_path
-                        related_actual_path = incomplete_mapping.get(related_old_path)
-                        if related_actual_path is None or related_show_data is show_data:
-                            continue
-                        update_runtime_paths_after_reorganization(
-                            related_show_data.file_info,
-                            related_show_data.other,
-                            related_old_path,
-                            related_actual_path,
-                        )
-                    for source_path, actual_path in incomplete_mapping.items():
-                        original_sources = Flags.file_new_path_dic.pop(source_path, None)
-                        if original_sources is not None:
-                            Flags.file_new_path_dic[actual_path] = original_sources
-                        if source_path in Flags.success_list:
-                            Flags.success_list.discard(source_path)
-                            Flags.success_list.add(actual_path)
-                    actual_file_path = file_info.file_path
-                    if actual_file_path != old_file_path and old_file_path not in incomplete_mapping:
-                        original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
-                        if original_sources is not None:
-                            Flags.file_new_path_dic[actual_file_path] = original_sources
-                        if old_file_path in Flags.success_list:
-                            Flags.success_list.discard(old_file_path)
-                            Flags.success_list.add(actual_file_path)
-                    if incomplete_mapping or actual_file_path != old_file_path:
-                        executor.run(save_success_list())
-                        self.Ui.label_nfo.setText(str(actual_file_path))
-                    self.Ui.label_save_tips.setText(f"信息已保存，自动整理失败! {get_current_time()}")
-                    signal_qt.show_log_text(f"\n 🟡 信息已保存，但无法按当前设置自动整理：{error}")
-                self.set_main_info(show_data)
-            else:
-                self.Ui.label_save_tips.setText(f"保存失败! {get_current_time()}")
+            patch = {field_name: self._read_nfo_editor_field(field_name) for field_name in NFO_EDITOR_WIDGETS}
+            self._apply_nfo_editor_patch(json_data, patch)
+            saved, _affected_entries = self._save_nfo_entry(show_data, original_current_data)
+            return saved
         except Exception:
             if not signal_qt.stop:
                 signal_qt.show_traceback_log(traceback.format_exc())
+            return False
 
     # endregion
 

@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from .ui_text import set_elided_label_text
+
 if TYPE_CHECKING:
     from .main_window import MyMAinWindow
 
@@ -110,6 +112,9 @@ def _add_underlined_field(
     field_layout.setSpacing(0)
     field.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
     caption.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
+    caption.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    value.setWordWrap(False)
     value.setMinimumHeight(30)
     value.setMaximumHeight(32)
     line.setMinimumHeight(18)
@@ -221,6 +226,23 @@ def _sync_main_image_sizes(window: "MyMAinWindow") -> None:
     refresh_preview_pixmaps = getattr(window, "refresh_preview_pixmaps", None)
     if refresh_preview_pixmaps is not None:
         refresh_preview_pixmaps()
+    for label in (
+        ui.label_number,
+        ui.label_outline,
+        ui.label_tag,
+        ui.label_release,
+        ui.label_runtime,
+        ui.label_director,
+        ui.label_series,
+        ui.label_studio,
+        ui.label_publish,
+    ):
+        full_text = label.property("mdcxFullText")
+        if full_text is not None:
+            set_elided_label_text(label, full_text, mode=Qt.TextElideMode.ElideRight)
+    restore_source_tooltip = getattr(window, "_restore_number_source_tooltip", None)
+    if restore_source_tooltip is not None:
+        restore_source_tooltip()
 
 
 def _setup_main_page_layout(window: "MyMAinWindow") -> None:
@@ -306,6 +328,8 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     detail_panel.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT * 2)
     detail_layout.setSpacing(0)
     detail_layout.setColumnStretch(1, 1)
+    ui.label_outline.setWordWrap(False)
+    ui.label_tag.setWordWrap(False)
     _add_underlined_field(detail_layout, detail_panel, ui.label_18, ui.label_outline, ui.line_6, 0, 0)
     _add_underlined_field(detail_layout, detail_panel, ui.label_33, ui.label_tag, ui.line_7, 1, 0)
     detail_pane_layout.addWidget(detail_panel)
