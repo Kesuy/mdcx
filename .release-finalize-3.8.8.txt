@@ -1,4 +1,4 @@
-status=running
+status=failure
 release_tag=3.8.8
 run_id=32139839580
 run_url=https://github.com/Kesuy/mdcx/actions/runs/32139839580
