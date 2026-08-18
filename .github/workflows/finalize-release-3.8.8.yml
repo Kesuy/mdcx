@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: finalize-release-3.8.8
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   finalize:
@@ -22,6 +22,30 @@ jobs:
     env:
       RELEASE_TAG: "3.8.8"
     steps:
+      - name: Checkout status branch
+        uses: actions/checkout@v4
+        with:
+          ref: release-3.8.8-review
+          fetch-depth: 0
+          path: status
+
+      - name: Mark finalizer started
+        working-directory: status
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "status=running"
+            echo "release_tag=$RELEASE_TAG"
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_url=https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > .release-finalize-3.8.8.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .release-finalize-3.8.8.txt
+          git commit -m "chore: mark 3.8.8 finalizer running"
+          git push origin HEAD:release-3.8.8-review
+
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
@@ -29,13 +53,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           path: repo
-
-      - name: Checkout status branch
-        uses: actions/checkout@v4
-        with:
-          ref: release-3.8.8-review
-          fetch-depth: 0
-          path: status
 
       - name: Finalize or verify release
         id: finalize
