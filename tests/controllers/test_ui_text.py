@@ -30,6 +30,7 @@ def test_set_elided_label_text_keeps_long_number_when_width_is_sufficient():
 
     assert label.text() == number
     assert label.toolTip() == number
+    assert label.property("mdcxFullText") == number
 
 
 def test_set_elided_label_text_preserves_both_ends_when_space_is_tight():

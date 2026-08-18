@@ -216,3 +216,85 @@ def test_save_nfo_info_clears_number_caches_after_writing_nfo(monkeypatch, tmp_p
             sibling_movie: [tmp_path / "input-cd2.wmv"],
         }
     assert refreshed == [show_data]
+
+
+def test_batch_save_only_applies_dirty_fields_and_reorganizes_each_entry(monkeypatch, tmp_path: Path):
+    entries: list[ShowData] = []
+    original_titles = ["第一部标题", "第二部标题"]
+    for index, title in enumerate(original_titles, start=1):
+        movie = tmp_path / f"movie-{index}.mp4"
+        movie.write_bytes(b"movie")
+        file_info = FileInfo.empty()
+        file_info.file_path = movie
+        file_info.folder_path = movie.parent
+        file_info.file_name = movie.stem
+        file_info.file_ex = movie.suffix
+        data = CrawlersResult.empty()
+        data.number = f"OLD-{index:03d}"
+        data.actor = f"旧演员{index}"
+        data.title = title
+        entries.append(
+            ShowData(
+                file_info=file_info,
+                data=data,
+                other=OtherInfo.empty(),
+                show_name=f"row-{index}",
+            )
+        )
+
+    window = MyMAinWindow.__new__(MyMAinWindow)
+    window.Ui = _ui()
+    window.Ui.lineEdit_nfo_actor.value = "共同新演员"
+    window._nfo_batch_show_names = [entry.show_name for entry in entries]
+    window._nfo_dirty_fields = {"actor"}
+    window.json_array = {entry.show_name: entry for entry in entries}
+    refreshed: list[ShowData] = []
+    window.set_main_info = refreshed.append
+    calls: list[tuple[str, str, str]] = []
+
+    async def fake_write_nfo(file_info_arg, data_arg, *_args, **_kwargs):
+        calls.append(("write", file_info_arg.file_path.name, data_arg.actor))
+        return True
+
+    async def fake_reorganize(file_info_arg, data_arg, _other_arg, _success_folder_arg):
+        calls.append(("reorganize", file_info_arg.file_path.name, data_arg.actor))
+        return MediaReorganizationResult(
+            file_info_arg.file_path,
+            file_info_arg.file_path,
+            file_info_arg.file_path.parent,
+            file_info_arg.file_path.parent,
+            False,
+        )
+
+    def run(awaitable):
+        return asyncio.run(awaitable)
+
+    monkeypatch.setattr(main_window_module, "write_nfo", fake_write_nfo)
+    monkeypatch.setattr(main_window_module, "reorganize_scraped_media", fake_reorganize)
+    monkeypatch.setattr(
+        main_window_module,
+        "signal_qt",
+        SimpleNamespace(stop=False, show_log_text=lambda _message: None, show_traceback_log=lambda _message: None),
+    )
+    monkeypatch.setattr(
+        main_window_module,
+        "get_movie_path_setting",
+        lambda path: SimpleNamespace(success_folder=path.parent),
+    )
+    monkeypatch.setattr(main_window_module.executor, "run", run)
+    monkeypatch.setattr(main_window_module.Flags, "success_list", {entry.file_info.file_path for entry in entries})
+    monkeypatch.setattr(main_window_module.Flags, "file_done_dic", {entry.data.number: {} for entry in entries})
+    monkeypatch.setattr(main_window_module.Flags, "file_new_path_dic", {})
+
+    window.save_nfo_info()
+
+    assert calls == [
+        ("write", "movie-1.mp4", "共同新演员"),
+        ("reorganize", "movie-1.mp4", "共同新演员"),
+        ("write", "movie-2.mp4", "共同新演员"),
+        ("reorganize", "movie-2.mp4", "共同新演员"),
+    ]
+    assert [entry.data.actor for entry in entries] == ["共同新演员", "共同新演员"]
+    assert [entry.data.title for entry in entries] == original_titles
+    assert refreshed == entries
+    assert window.Ui.label_save_tips.value.startswith("批量保存完成：成功 2，失败 0!")
