@@ -1,0 +1,163 @@
+name: Finalize release 3.8.8
+
+on:
+  push:
+    branches:
+      - release-3.8.8-review
+    paths:
+      - .github/workflows/finalize-release-3.8.8.yml
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: finalize-release-3.8.8
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      RELEASE_TAG: "3.8.8"
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: "3.8.8"
+          fetch-depth: 0
+          fetch-tags: true
+          path: repo
+
+      - name: Checkout status branch
+        uses: actions/checkout@v4
+        with:
+          ref: release-3.8.8-review
+          fetch-depth: 0
+          path: status
+
+      - name: Finalize or verify release
+        id: finalize
+        continue-on-error: true
+        working-directory: repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_commit="$(git rev-parse HEAD)"
+          git fetch origin master --tags
+          master_commit="$(git rev-parse origin/master)"
+          if [ "$release_commit" != "$master_commit" ]; then
+            echo "Tag $RELEASE_TAG does not point at current master: tag=$release_commit master=$master_commit"
+            exit 1
+          fi
+          version="$(python -c 'from mdcx.consts import LOCAL_VERSION; print(LOCAL_VERSION)')"
+          if [ "$version" != "$RELEASE_TAG" ]; then
+            echo "Application version mismatch: $version"
+            exit 1
+          fi
+
+          verify_release() {
+            local title tag draft prerelease assets
+            if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              return 1
+            fi
+            title="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json name --jq .name)"
+            tag="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+            draft="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+            prerelease="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)"
+            assets="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+            [ "$title" = "v$RELEASE_TAG" ] || return 1
+            [ "$tag" = "$RELEASE_TAG" ] || return 1
+            [ "$draft" = "false" ] || return 1
+            [ "$prerelease" = "false" ] || return 1
+            echo "$assets" | grep -Fx "MDCx-$RELEASE_TAG-windows-x86_64-$release_commit.exe" >/dev/null || return 1
+            echo "$assets" | grep -Fx "MDCx-$RELEASE_TAG-macos-aarch64-$release_commit.dmg" >/dev/null || return 1
+            return 0
+          }
+
+          if verify_release; then
+            echo "Release already complete; no rebuild needed."
+          else
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow release.yml \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,headSha,status,conclusion \
+              --jq ".[] | select(.headSha == \"$release_commit\" and (.status == \"queued\" or .status == \"in_progress\")) | .databaseId" \
+              | head -n1)"
+
+            if [ -z "$run_id" ]; then
+              echo "No active 3.8.8 release build found; dispatching existing release.yml."
+              gh workflow run release.yml \
+                --repo "$GITHUB_REPOSITORY" \
+                --ref master \
+                -f tag="$RELEASE_TAG" \
+                -f prerelease=false
+
+              for _ in $(seq 1 30); do
+                run_id="$(gh run list \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --workflow release.yml \
+                  --event workflow_dispatch \
+                  --limit 20 \
+                  --json databaseId,headSha,status,conclusion \
+                  --jq ".[] | select(.headSha == \"$release_commit\" and (.status == \"queued\" or .status == \"in_progress\")) | .databaseId" \
+                  | head -n1)"
+                [ -n "$run_id" ] && break
+                sleep 2
+              done
+            else
+              echo "Using active release workflow run $run_id."
+            fi
+
+            if [ -z "$run_id" ]; then
+              echo "Unable to locate release workflow run after dispatch."
+              exit 1
+            fi
+
+            echo "Waiting for release workflow run $run_id."
+            gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+            verify_release
+          fi
+
+          {
+            echo "status=success"
+            echo "release_tag=$RELEASE_TAG"
+            echo "release_title=v$RELEASE_TAG"
+            echo "release_commit=$release_commit"
+            echo "assets:"
+            gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'
+          } > /tmp/release-finalize-status.txt
+
+      - name: Write finalization status marker
+        if: always()
+        working-directory: status
+        env:
+          FINALIZE_OUTCOME: ${{ steps.finalize.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$FINALIZE_OUTCOME" = "success" ] && [ -s /tmp/release-finalize-status.txt ]; then
+            cp /tmp/release-finalize-status.txt .release-finalize-3.8.8.txt
+          else
+            {
+              echo "status=failure"
+              echo "release_tag=$RELEASE_TAG"
+              echo "run_id=$GITHUB_RUN_ID"
+              echo "run_url=https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            } > .release-finalize-3.8.8.txt
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .release-finalize-3.8.8.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: record 3.8.8 release finalization"
+            git push origin HEAD:release-3.8.8-review
+          fi
+          if [ "$FINALIZE_OUTCOME" != "success" ]; then
+            exit 1
+          fi
