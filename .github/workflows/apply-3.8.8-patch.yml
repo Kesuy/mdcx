@@ -4,13 +4,17 @@ on:
   push:
     branches:
       - release-3.8.8-review
+  pull_request:
+    branches:
+      - master
+    types: [ready_for_review]
 
 permissions:
   contents: write
 
 jobs:
   prepare:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && (github.event_name == 'push' || github.head_ref == 'release-3.8.8-review')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout review branch
