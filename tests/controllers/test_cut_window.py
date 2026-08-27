@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 from PIL import Image
-from PyQt6.QtWidgets import QApplication, QDialog
+from PyQt6.QtWidgets import QApplication, QDialog, QFileDialog
 
 from mdcx.config.enums import DownloadableFile
 from mdcx.config.manager import manager
@@ -28,8 +28,48 @@ def _window() -> CutWindow:
     return window
 
 
-def _image_data():
-    return SimpleNamespace(number="TEST-001", has_sub=False, mosaic="有码", definition="")
+def _image_data(file_path=None):
+    return SimpleNamespace(
+        number="TEST-001",
+        has_sub=False,
+        mosaic="有码",
+        definition="",
+        file_path=file_path,
+    )
+
+
+def test_open_image_defaults_to_current_movie_directory(tmp_path, monkeypatch):
+    movie_directory = tmp_path / "movies" / "TEST-001"
+    movie_directory.mkdir(parents=True)
+    movie_path = movie_directory / "TEST-001.mp4"
+    movie_path.touch()
+    image_directory = tmp_path / "artwork"
+    image_directory.mkdir()
+    image_path = image_directory / "TEST-001-fanart.jpg"
+    Image.new("RGB", (120, 80), "navy").save(image_path)
+    selected = {}
+
+    def fake_open_file_name(parent, title, directory, file_filter, *, options):
+        selected.update(
+            parent=parent,
+            title=title,
+            directory=directory,
+            file_filter=file_filter,
+            options=options,
+        )
+        return "", ""
+
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", fake_open_file_name)
+    window = _window()
+    try:
+        window.showimage(image_path, _image_data(movie_path))
+        window.open_image()
+
+        assert selected["parent"] is window
+        assert selected["directory"] == movie_directory.as_posix()
+        assert "*.webp" in selected["file_filter"]
+    finally:
+        window.close()
 
 
 def test_crop_ratio_controls_offer_requested_presets():

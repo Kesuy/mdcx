@@ -11,6 +11,33 @@ from ..signals import signal
 from .base import BaseCrawler, Context, CralwerException, CrawlerData
 
 
+def _outline_label_key(value: str) -> str:
+    return re.sub(r"[\W_]+", "", value, flags=re.UNICODE).casefold()
+
+
+_OUTLINE_UI_LABELS = {
+    _outline_label_key(value)
+    for value in {
+        "商品説明",
+        "商品说明",
+        "商品說明",
+        "Product description",
+        "Description",
+        "もっとみる",
+        "もっと見る",
+        "See more",
+        "Read more",
+        "Show more",
+        "查看更多",
+        "查看更多内容",
+        "查看更多內容",
+        "看更多",
+        "阅读更多",
+        "閱讀更多",
+    }
+}
+
+
 def getTitle(html):  # 获取标题
     result = html.xpath('//div[@data-section="userInfo"]//h3/span/../text()')
     result = " ".join(result).strip() if result else ""
@@ -83,22 +110,7 @@ def getOutline(html):  # 获取简介
         '//section[contains(@class, "items_article_Contents")]//text()[not(ancestor::script) and not(ancestor::iframe)]'
     )
     result = [re.sub(r"\s+", " ", x).strip() for x in result if x and x.strip()]
-    result = [
-        x
-        for x in result
-        if x
-        not in {
-            "商品説明",
-            "商品说明",
-            "商品說明",
-            "Product description",
-            "Description",
-            "もっとみる",
-            "See more",
-            "查看更多",
-            "查看更多內容",
-        }
-    ]
+    result = [x for x in result if _outline_label_key(x) not in _OUTLINE_UI_LABELS]
     outline = "\n".join(dict.fromkeys(result)).strip()
     if not outline:
         return ""

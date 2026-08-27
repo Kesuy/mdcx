@@ -41,6 +41,15 @@ if TYPE_CHECKING:
     from .main_window import MyMAinWindow
 
 
+def configure_native_file_dialogs(window: "MyMAinWindow", switch_on: list[Switch]) -> None:
+    """Use the operating system picker while preserving the retired setting value."""
+    legacy_qt_dialog_enabled = Switch.QT_DIALOG in switch_on
+    window.Ui.checkBox_dialog_qt.setChecked(legacy_qt_dialog_enabled)
+    window.Ui.checkBox_dialog_qt.setToolTip("文件和文件夹选择现已统一使用系统自带对话框")
+    window.Ui.checkBox_dialog_qt.hide()
+    window.options = QFileDialog.Option(0)
+
+
 def load_config(self: "MyMAinWindow"):
     """
     读取配置文件并绑定到 UI 组件
@@ -1034,13 +1043,8 @@ def load_config(self: "MyMAinWindow"):
             default=self.Ui.radioButton_hide_none,
         )
 
-        # Qt 对话框设置
-        if Switch.QT_DIALOG in switch_on:
-            self.Ui.checkBox_dialog_qt.setChecked(True)
-            self.options = QFileDialog.Option.DontUseNativeDialog
-        else:
-            self.Ui.checkBox_dialog_qt.setChecked(False)
-            self.options = QFileDialog.Option(0)
+        # 文件和目录选择统一使用系统原生对话框。旧 qt_dialog 值保留在隐藏控件中，保存配置时不会丢失。
+        configure_native_file_dialogs(self, switch_on)
         if IS_WINDOWS:
             self.Ui.checkBox_hide_dock_icon.setEnabled(False)
             self.Ui.checkBox_hide_menu_icon.setEnabled(False)

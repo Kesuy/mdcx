@@ -1,8 +1,9 @@
 import pytest
+from lxml import etree
 
 from mdcx.config.enums import Language
 from mdcx.config.manager import manager
-from mdcx.crawlers.fc2 import Fc2Crawler
+from mdcx.crawlers.fc2 import Fc2Crawler, getOutline
 from mdcx.models.types import CrawlerInput
 
 
@@ -36,6 +37,29 @@ class FakeFc2Client:
         if url == "https://adult.contents.fc2.com/api/v2/videos/1723984/sample":
             return '{"path":"https://example.test/sample.mp4?mid=token"}', ""
         return None, f"unexpected url: {url}"
+
+
+@pytest.mark.parametrize("label", ["【看更多】", "查看更多", "もっと見る", "Read more"])
+def test_fc2_outline_ignores_expand_ui_without_real_description(label):
+    html = etree.fromstring(
+        f'<html><section class="items_article_Contents"><button>{label}</button></section></html>',
+        etree.HTMLParser(),
+    )
+
+    assert getOutline(html) == ""
+
+
+def test_fc2_outline_keeps_real_description_while_ignoring_expand_ui():
+    html = etree.fromstring(
+        """
+        <html><section class="items_article_Contents">
+          <h3>商品説明</h3><p>真正的影片简介</p><button>【看更多】</button>
+        </section></html>
+        """,
+        etree.HTMLParser(),
+    )
+
+    assert getOutline(html) == "真正的影片简介"
 
 
 @pytest.mark.asyncio
