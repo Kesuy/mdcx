@@ -113,6 +113,8 @@ async def test_fc2ppvdb_crawler_reads_article_from_detail_page(monkeypatch):
     assert res.data is not None
     assert res.data.number == "FC2-2701833"
     assert res.data.title == "FC2 Sample"
+    assert res.data.outline == ""
+    assert res.data.originalplot == ""
     assert res.data.actors == ["九野ひなの"]
     assert res.data.tags == ["素人"]
     assert res.data.runtime == "65"

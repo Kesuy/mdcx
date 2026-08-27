@@ -95,6 +95,7 @@ class CutWindow(QDialog):
         self.pic_new_h = self.show_h
         self.pic_w = self.show_w
         self.pic_h = self.show_h
+        self.movie_directory: Path | None = None
         self.rotation_quarters = 0
         self.pushButton_select_cutrange = DraggableButton("拖动选择裁剪范围", self.Ui.label_backgroud_pic, self)
         self.pushButton_select_cutrange.setObjectName("pushButton_select_cutrange")
@@ -439,14 +440,46 @@ class CutWindow(QDialog):
 
     # 打开图片选择框
     def open_image(self):
-        img_path, img_type = QFileDialog.getOpenFileName(
-            None, "打开图片", "", "*.jpg *.png;;All Files(*)", options=self.main_window.options
+        img_path, _img_type = QFileDialog.getOpenFileName(
+            self,
+            "打开图片",
+            self._default_image_directory().as_posix(),
+            "Picture Files (*.jpg *.jpeg *.png *.webp);;All Files (*)",
+            options=self.main_window.options,
         )
         if img_path:
             self.showimage(Path(img_path))
 
+    def _default_image_directory(self) -> Path:
+        """Return the current movie folder for the native image picker."""
+        candidates = [
+            self.movie_directory,
+            self._movie_directory_from_path(getattr(self.main_window, "file_main_open_path", None)),
+            self._movie_directory_from_path(self.show_image_path),
+            manager.data_folder,
+        ]
+        for candidate in candidates:
+            if candidate is not None and candidate.is_dir():
+                return candidate
+        return Path.home()
+
+    @staticmethod
+    def _movie_directory_from_path(path: object) -> Path | None:
+        if path in (None, ""):
+            return None
+        candidate = Path(path)
+        if candidate.is_dir():
+            return candidate
+        if candidate.parent.is_dir():
+            return candidate.parent
+        return None
+
     # 显示要裁剪的图片
     def showimage(self, img_path: Path | None = None, json_data: "FileInfo | None" = None):
+        if json_data is not None:
+            movie_directory = self._movie_directory_from_path(getattr(json_data, "file_path", None))
+            if movie_directory is not None:
+                self.movie_directory = movie_directory
         self.Ui.label_backgroud_pic.setText(" ")  # 清空背景
         # 初始化数据
         self.rotation_quarters = 0

@@ -1644,7 +1644,7 @@ class MyMAinWindow(QMainWindow):
     def _select_link_output_dir(self, link_name: str) -> Path | None:
         default_dir = str(get_movie_path_setting().softlink_path)
         selected_dir = QFileDialog.getExistingDirectory(
-            None,
+            self,
             f"选择{link_name}目标目录",
             default_dir,
             options=self.options | QFileDialog.Option.ShowDirsOnly,
@@ -2745,7 +2745,7 @@ class MyMAinWindow(QMainWindow):
             log_name = "failed_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()) + ".txt"
             log_name = get_movie_path_setting().movie_path / log_name
             filename, filetype = QFileDialog.getSaveFileName(
-                None, "保存失败文件列表", log_name.as_posix(), "Text Files (*.txt)", options=self.options
+                self, "保存失败文件列表", log_name.as_posix(), "Text Files (*.txt)", options=self.options
             )
             if filename:
                 with open(filename, "w", encoding="utf-8") as f:
@@ -2885,7 +2885,7 @@ class MyMAinWindow(QMainWindow):
         else:
             media_path = parse_media_paths(media_path)[0]
         file_path, filetype = QFileDialog.getOpenFileName(
-            None,
+            self,
             "选取视频文件",
             media_path.as_posix(),
             "Movie Files(*.mp4 "
@@ -2939,7 +2939,7 @@ class MyMAinWindow(QMainWindow):
         else:
             path = parse_media_paths(path)[0].as_posix()
         file_path, fileType = QFileDialog.getOpenFileName(
-            None, "选取缩略图", path, "Picture Files(*.jpg *.png);;All Files(*)", options=self.options
+            self, "选取缩略图", path, "Picture Files(*.jpg *.png);;All Files(*)", options=self.options
         )
         if file_path:
             cutwindow = self._get_cutwindow()
@@ -3085,7 +3085,7 @@ class MyMAinWindow(QMainWindow):
     # 设置-演员-补全信息-演员信息数据库-选择文件按钮
     def pushButton_select_actor_info_db_clicked(self):
         database_path, _ = QFileDialog.getOpenFileName(
-            None, "选择数据库文件", manager.data_folder.as_posix(), options=self.options
+            self, "选择数据库文件", manager.data_folder.as_posix(), options=self.options
         )
         if database_path:
             self.Ui.lineEdit_actor_db_path.setText(database_path)
@@ -3669,7 +3669,7 @@ class MyMAinWindow(QMainWindow):
     def _get_select_folder_path(self, default_source: QLineEdit | str | Path | None = None):
         media_path = self._get_select_folder_default_path(default_source).as_posix()
         media_folder_path = QFileDialog.getExistingDirectory(
-            None, "选择目录", media_path, options=self.options | QFileDialog.Option.ShowDirsOnly
+            self, "选择目录", media_path, options=self.options | QFileDialog.Option.ShowDirsOnly
         )
         return media_folder_path
 
