@@ -1,0 +1,64 @@
+name: Codex Windows test build
+
+on:
+  push:
+    branches:
+      - codex/native-dialog-fc2-fixes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          activate-environment: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run focused tests
+        run: >-
+          uv run pytest
+          tests/controllers/test_cut_window.py::test_open_image_defaults_to_current_movie_directory
+          tests/controllers/test_native_file_dialogs.py
+          tests/crawlers/test_fc2.py
+          tests/crawlers/test_fc2ppvdb.py
+          -q
+
+      - name: Run Ruff
+        run: >-
+          uv run ruff check
+          mdcx/controllers/cut_window.py
+          mdcx/controllers/main_window/load_config.py
+          mdcx/controllers/main_window/main_window.py
+          mdcx/crawlers/fc2.py
+          tests/controllers/test_cut_window.py
+          tests/controllers/test_native_file_dialogs.py
+          tests/crawlers/test_fc2.py
+          tests/crawlers/test_fc2ppvdb.py
+
+      - name: Build Windows executable
+        env:
+          PYTHONIOENCODING: utf-8
+        run: uv run scripts/build.py --debug --no-color
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: MDCx-3.8.8-windows-x86_64-native-dialog-fc2-test
+          path: dist/MDCx.exe
+          if-no-files-found: error
+          retention-days: 7
