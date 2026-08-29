@@ -1,6 +1,7 @@
 from pathlib import Path
 
 WORKFLOW = Path(__file__).parents[1] / ".github" / "workflows" / "release.yml"
+CI_WORKFLOW = WORKFLOW.with_name("ci.yaml")
 LEGACY_WORKFLOW = WORKFLOW.with_name("release.v1.yml")
 
 
@@ -36,3 +37,12 @@ def test_release_title_uses_standard_v_prefixed_version():
     assert "normalize-release-title:" in workflow
     assert 'gh release edit "$RELEASE_TAG"' in workflow
     assert '--title "v$RELEASE_TAG"' in workflow
+
+
+def test_linux_test_jobs_install_qt_egl_runtime_before_pytest():
+    for workflow_path in (WORKFLOW, CI_WORKFLOW):
+        workflow = workflow_path.read_text(encoding="utf-8")
+        install_index = workflow.index("sudo apt-get install --no-install-recommends -y libegl1")
+        pytest_index = workflow.index("pytest tests -q")
+
+        assert install_index < pytest_index

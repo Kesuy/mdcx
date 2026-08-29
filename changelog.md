@@ -1,3 +1,8 @@
+## 4.0.1
+
+### 工程
+- 修复 Ubuntu GitHub Actions 缺少 `libEGL.so.1` 导致 PyQt6 测试无法收集的问题；CI 与 Release 测试任务会安装最小 Qt EGL 运行库。
+
 ## 4.0.0
 
 ### 安全

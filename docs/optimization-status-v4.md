@@ -11,7 +11,7 @@
 | pytest 接入 CI/Release | 完成 | CI 和发布构建均运行完整 pytest，构建依赖测试通过。 |
 | 原子配置写入与备份恢复 | 完成 | 临时文件、flush/fsync、replace 和有效备份恢复集中在配置 I/O 层。 |
 | 密钥和 Cookie 系统密钥库 | 完成 | 敏感字段优先保存到 keyring；JSON 不再作为首选秘密存储。 |
-| 单一版本源与旧文档清理 | 完成 | `mdcx/consts.py` 驱动包元数据、构建和发布，当前版本为 4.0.0。 |
+| 单一版本源与旧文档清理 | 完成 | `mdcx/consts.py` 驱动包元数据、构建和发布，当前版本为 4.0.1。 |
 | Windows 冻结启动可靠性 | 完成 | 构建过滤冲突 ICU，真实启动 `--smoke-test`；测试 FFmpeg 不进入 EXE。 |
 
 ## 网络、依赖与 LLM
