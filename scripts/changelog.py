@@ -22,6 +22,15 @@ console = Console(legacy_windows=False)
 app = typer.Typer(help="生成 changelog", context_settings={"help_option_names": ["-h", "--help"]})
 
 RELEASE_CATEGORIES = ("新功能", "优化", "修复")
+CURATED_CATEGORY_ALIASES = {
+    "新功能": "新功能",
+    "优化": "优化",
+    "修复": "修复",
+    "安全": "修复",
+    "架构": "优化",
+    "界面": "优化",
+    "工程": "优化",
+}
 COMMIT_TYPE_CATEGORIES = {
     "feat": "新功能",
     "perf": "优化",
@@ -148,17 +157,36 @@ def _notes_from_commit_log(commit_lines: list[str]) -> dict[str, list[str]]:
     return sections
 
 
-def _notes_from_curated_content(content: str) -> dict[str, list[str]]:
+def _notes_from_curated_content(content: str, *, version: str = "") -> dict[str, list[str]]:
     sections = {category: [] for category in RELEASE_CATEGORIES}
     current_category = ""
+    in_selected_version = not version
+    selected_version_found = not version
+    version_heading = re.compile(r"^##\s+(\d+\.\d+(?:\.\d+)*)$")
+
     for raw_line in content.splitlines():
         line = raw_line.strip()
         if not line:
             continue
-        if line.startswith("## "):
-            current_category = line[3:].strip()
-            if current_category not in sections:
-                console.print(f"[red]不支持的 changelog 分类: {current_category}[/red]")
+
+        version_match = version_heading.match(line)
+        if version_match:
+            if in_selected_version and selected_version_found:
+                break
+            in_selected_version = version_match.group(1) == version
+            selected_version_found = selected_version_found or in_selected_version
+            current_category = ""
+            continue
+
+        if not in_selected_version:
+            continue
+
+        category_prefix = "### " if version else "## "
+        if line.startswith(category_prefix):
+            source_category = line[len(category_prefix) :].strip()
+            current_category = CURATED_CATEGORY_ALIASES.get(source_category, "")
+            if not current_category:
+                console.print(f"[red]不支持的 changelog 分类: {source_category}[/red]")
                 raise typer.Exit(1)
             continue
         if line.startswith("- ") and current_category:
@@ -167,17 +195,27 @@ def _notes_from_curated_content(content: str) -> dict[str, list[str]]:
                 console.print(f"[red]发布说明不是中文: {note}[/red]")
                 raise typer.Exit(1)
             sections[current_category].append(note)
+
+    if version and not selected_version_found:
+        console.print(f"[red]changelog 中未找到版本: {version}[/red]")
+        raise typer.Exit(1)
     return sections
 
 
-def generate_changelog(commit_log: str, output_file: Path, *, curated_content: str | None = None) -> None:
+def generate_changelog(
+    commit_log: str,
+    output_file: Path,
+    *,
+    curated_content: str | None = None,
+    curated_version: str = "",
+) -> None:
     """生成changelog内容并写入文件"""
     commit_lines = [line.strip() for line in commit_log.splitlines() if line.strip()]
     if not commit_lines:
         console.print("[red]本次发布没有可写入的提交记录。[/red]")
         raise typer.Exit(1)
     sections = (
-        _notes_from_curated_content(curated_content)
+        _notes_from_curated_content(curated_content, version=curated_version)
         if curated_content is not None
         else _notes_from_commit_log(commit_lines)
     )
@@ -257,7 +295,7 @@ def main(
             console.print(f"[red]人工维护的 changelog 不存在: {curated_path}[/red]")
             raise typer.Exit(1)
         curated_content = curated_path.read_text(encoding="utf-8")
-    generate_changelog(commit_log, output_path, curated_content=curated_content)
+    generate_changelog(commit_log, output_path, curated_content=curated_content, curated_version=tag)
 
     # 显示成功信息
     success_text = Text("Changelog生成完成!", style="bold green")

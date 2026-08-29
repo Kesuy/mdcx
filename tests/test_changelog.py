@@ -48,6 +48,29 @@ def test_generate_changelog_uses_curated_chinese_notes_and_removes_empty_section
     assert output.read_text(encoding="utf-8") == ("## 新功能\n- 新增图片整理开关\n\n## 修复\n- 修复图片下载问题\n")
 
 
+def test_generate_changelog_selects_versioned_release_and_maps_categories(tmp_path: Path):
+    output = tmp_path / "release.md"
+    curated = """## 4.0.2
+
+### 工程
+- 修复版本化发布说明生成
+
+## 4.0.1
+
+### 修复
+- 旧版本说明不应重复出现
+"""
+
+    generate_changelog(
+        "abc1234 fix: 修复版本化发布说明生成",
+        output,
+        curated_content=curated,
+        curated_version="4.0.2",
+    )
+
+    assert output.read_text(encoding="utf-8") == "## 优化\n- 修复版本化发布说明生成\n"
+
+
 def test_generate_changelog_rejects_empty_release(tmp_path: Path):
     with pytest.raises(typer.Exit):
         generate_changelog("\n", tmp_path / "changelog.md")
