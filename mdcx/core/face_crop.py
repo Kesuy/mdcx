@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import URLError
@@ -103,6 +104,8 @@ def _load_yunet_model() -> Path | None:
         except OSError:
             pass
         LogBuffer.log().write("\n 🖼 人脸裁剪: 检测到 LFS 占位模型，准备重新下载")
+    if os.environ.get("MDCX_OFFLINE", "").lower() in {"1", "true", "yes"}:
+        return None
     if _download_face_model(model_path):
         return model_path
     return None

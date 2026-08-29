@@ -8,11 +8,12 @@ from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QLineEdit,
     QListView,
     QMenu,
     QPushButton,
     QSystemTrayIcon,
-    QTreeWidgetItem,
+    QTreeWidget,
 )
 
 from mdcx.config.enums import Website, website_display_name
@@ -24,6 +25,7 @@ from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
 
 from .responsive_layout import setup_responsive_ui
+from .result_model import ResultTreeView, create_result_item
 from .site_priority_dialog import setup_site_priority_ui
 from .style import build_menu_style, build_tree_widget_style
 from .usage_guide import setup_usage_guide
@@ -40,6 +42,8 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.progressBar_scrape.setValue(0)  # 进度条清0
     self.Ui.progressBar_scrape.setTextVisible(False)  # 不显示进度条文字
     self.Ui.pushButton_start_cap.setCheckable(True)  # 主界面开始按钮可点状态
+    if isinstance(self.Ui.treeWidget_number, QTreeWidget):
+        self.Ui.treeWidget_number = ResultTreeView.replace(self.Ui.treeWidget_number)
     setup_result_sort_ui(self)
     setup_local_nfo_button(self)
     self.init_QTreeWidget()  # 初始化树状图
@@ -158,17 +162,31 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
 
     self._result_sort_descending = False
     self.result_sort_combo = QComboBox(self.Ui.page_main)
+    self.result_sort_combo.setObjectName("result_sort_combo")
     self.result_sort_combo.setGeometry(600, 110, 130, 26)
     self.result_sort_combo.addItems(["完成顺序", "番号", "演员"])
     self.result_sort_combo.setToolTip("成功结果排序方式（只改变显示顺序）")
     self.result_sort_combo.currentTextChanged.connect(self._sort_success_results)
 
     self.result_sort_order_button = QPushButton("↑", self.Ui.page_main)
+    self.result_sort_order_button.setObjectName("result_sort_order_button")
     self.result_sort_order_button.setGeometry(734, 110, 34, 26)
     self.result_sort_order_button.setToolTip("切换升序/降序")
     self.result_sort_order_button.clicked.connect(self._toggle_result_sort_order)
+
+    self.result_filter_edit = QLineEdit(self.Ui.page_main)
+    self.result_filter_edit.setObjectName("result_filter_edit")
+    self.result_filter_edit.setPlaceholderText("搜索番号 / 标题 / 演员")
+    self.result_filter_edit.setClearButtonEnabled(True)
+    self.result_filter_edit.textChanged.connect(getattr(self, "_filter_results", lambda *_: None))
+    self.result_status_combo = QComboBox(self.Ui.page_main)
+    self.result_status_combo.setObjectName("result_status_combo")
+    self.result_status_combo.addItems(["全部", "成功", "失败"])
+    self.result_status_combo.currentTextChanged.connect(getattr(self, "_filter_results", lambda *_: None))
     self.result_sort_combo.show()
     self.result_sort_order_button.show()
+    self.result_filter_edit.show()
+    self.result_status_combo.show()
 
 
 def setup_local_nfo_button(self: "MyMAinWindow") -> None:
@@ -420,8 +438,8 @@ def init_QTreeWidget(self: "MyMAinWindow"):
         self.label_result.emit(" 刮削中：0 成功：0 失败：0")
     self.Ui.treeWidget_number.clear()
     self._result_insertion_index = 0
-    self.item_succ = QTreeWidgetItem(self.Ui.treeWidget_number)
+    self.item_succ = create_result_item(self.Ui.treeWidget_number)
     self.item_succ.setText(0, "成功")
-    self.item_fail = QTreeWidgetItem(self.Ui.treeWidget_number)
+    self.item_fail = create_result_item(self.Ui.treeWidget_number)
     self.item_fail.setText(0, "失败")
     self.Ui.treeWidget_number.expandAll()  # 展开主界面树状内容

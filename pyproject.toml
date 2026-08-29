@@ -1,9 +1,12 @@
 [tool.setuptools]
 py-modules = ['mdcx', 'scripts']
 
+[tool.setuptools.dynamic]
+version = {attr = "mdcx.consts.LOCAL_VERSION"}
+
 [project]
 name = "mdcx"
-version = "2.0.0"
+dynamic = ["version"]
 description = "mdcx"
 readme = "README.md"
 requires-python = ">=3.13.4" # we need os.path.ALLOW_MISSING and type parameter defaults
@@ -12,10 +15,11 @@ dependencies = [
     "aiolimiter==1.2.1",
     "av>=15.0.0",
     "beautifulsoup4==4.13.4",
-    "curl-cffi==0.11.4",
+    "curl-cffi==0.16.1",
     "httpx[socks]>=0.28.1",
     "lxml>=5.2.0",
-    "openai==1.91.0",
+    "openai==3.5.0",
+    "keyring>=25.6.0",
     "oshash==0.1.1",
     "parsel>=1.10.0",
     "pillow==11.3.0",
@@ -36,6 +40,7 @@ changelog = "scripts.changelog:app"
 
 [dependency-groups]
 dev = [
+    "imageio-ffmpeg>=0.6.0",
     "ipykernel>=6.30.1",
     "pre-commit>=4.2.0",
     "pyinstaller>=6.14.2",
@@ -47,6 +52,13 @@ dev = [
     "typer>=0.16.0",
     "types-lxml>=2025.3.30",
 ]
+
+[tool.pytest.ini_options]
+cache_dir = ".pytest-cache"
+filterwarnings = [
+    "ignore:pkg_resources is deprecated as an API:UserWarning:zhconv.zhconv",
+]
+testpaths = ["tests"]
 
 [tool.uv]
 package = true

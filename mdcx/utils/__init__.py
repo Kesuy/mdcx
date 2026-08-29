@@ -173,6 +173,14 @@ class AsyncBackgroundExecutor:
             loop.call_soon_threadsafe(loop.stop)
         thread.join(timeout=5.0)
 
+    def shutdown(self, *, wait: bool = True, timeout: float = 5.0) -> None:
+        """Cancel pending work and explicitly stop the background event loop."""
+        self.cancel()
+        if wait:
+            with contextlib.suppress(Exception):
+                self.wait_all(timeout=timeout)
+        self._stop_background_thread()
+
     def __del__(self):
         """析构函数，确保资源被释放"""
         try:
@@ -255,6 +263,13 @@ def kill_a_thread(t: Thread, timeout: float = 5.0) -> bool:
 
 
 def get_random_headers() -> dict:
+    """Compatibility wrapper backed by the coherent network fingerprint."""
+    from ..network_fingerprint import select_fingerprint
+
+    return dict(select_fingerprint("localhost").headers)
+
+
+def _legacy_get_random_headers() -> dict:
     """
     随机生成复杂的HTTP headers
     包括随机的User-Agent、Accept、Accept-Language等字段

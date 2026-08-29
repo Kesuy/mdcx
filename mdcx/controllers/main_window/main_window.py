@@ -30,8 +30,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSystemTrayIcon,
-    QTreeWidgetItem,
-    QWidget,
+    QVBoxLayout,
 )
 
 from mdcx.base.file import (
@@ -45,7 +44,6 @@ from mdcx.base.file import (
 from mdcx.base.image import add_del_extrafanart_copy
 from mdcx.base.video import add_del_extras, add_del_theme_videos
 from mdcx.base.web import check_theporndb_api_token, check_version
-from mdcx.base.web_sync import get_text_sync
 from mdcx.config.enums import NfoInclude, Switch, Website
 from mdcx.config.extend import deal_url, get_movie_path_setting, parse_media_paths
 from mdcx.config.manager import manager
@@ -59,10 +57,8 @@ from mdcx.core.media_reorganization import (
     update_runtime_paths_after_reorganization,
 )
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
-from mdcx.core.network_check import run_network_check
 from mdcx.core.nfo import write_nfo
 from mdcx.core.scraper import again_search, get_remain_list, start_new_scrape
-from mdcx.crawlers.fc2ppvdb import validate_fc2cmadb_cookie
 from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.image import PreviewImageLoader
 from mdcx.models.enums import FileMode
@@ -70,6 +66,7 @@ from mdcx.models.flags import Flags
 from mdcx.models.log_buffer import LogBuffer
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 from mdcx.signals import signal_qt
+from mdcx.task_manager import QtTaskManager
 from mdcx.tools.actress_db import ActressDB
 from mdcx.tools.emby_actor_image import update_emby_actor_photo
 from mdcx.tools.emby_actor_info import creat_kodi_actors, show_emby_actor_list, update_emby_actor_info
@@ -99,8 +96,11 @@ from mdcx.views.MDCx import Ui_MDCx
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
+from .network_controller import NetworkController
 from .responsive_layout import apply_responsive_layout, show_responsive_overlay
+from .result_model import ResultItem, create_result_item
 from .save_config import save_config
+from .settings_page import SettingsPageController
 from .site_priority_dialog import apply_site_priority_theme
 from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
 from .ui_text import set_elided_label_text
@@ -120,6 +120,7 @@ WINDOWS_RESERVED_DIR_NAMES = {
     *(f"COM{i}" for i in range(1, 10)),
     *(f"LPT{i}" for i in range(1, 10)),
 }
+
 
 NFO_EDITOR_WIDGETS: dict[str, tuple[str, bool]] = {
     "number": ("lineEdit_nfo_number", False),
@@ -183,6 +184,7 @@ class MyMAinWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.task_manager = QtTaskManager(self)
 
         # region 初始化需要的变量
         self.localversion = LOCAL_VERSION  # 当前版本号
@@ -196,8 +198,6 @@ class MyMAinWindow(QMainWindow):
         self.main_log_queue: deque[str] = deque()
         self.main_log_batch_size = 80
         self.main_log_max_count = 10000
-        self.network_check_cancel_event: threading.Event | None = None
-        self.network_check_future = None
         self.file_main_open_path = Path()  # 主界面打开的文件路径
         self.json_array: dict[str, ShowData] = {}  # 主界面右侧结果树状数据
         self.preview_request_id = 0  # 主界面图片预览请求序号，用于丢弃过期加载结果
@@ -236,20 +236,21 @@ class MyMAinWindow(QMainWindow):
         self._nfo_dirty_fields: set[str] = set()
         self._nfo_editor_loading = False
         self.show_name = None
-        self.t_net = None
         self.options: QFileDialog.Option
         self.tray_icon: QSystemTrayIcon
-        self.item_succ: QTreeWidgetItem
-        self.item_fail: QTreeWidgetItem
+        self.item_succ: ResultItem
+        self.item_fail: ResultItem
         # endregion
 
         # region 初始化 UI
         resources.get_fonts()
         self.Ui = Ui_MDCx()  # 实例化 Ui
         self.Ui.setupUi(self)  # 初始化 Ui
+        self.network_controller = NetworkController(self)
         self._bind_system_theme_refresh()
         self._setup_fc2ppvdb_cookie_ui()
         self._setup_baidu_translate_ui()
+        self.settings_controller = SettingsPageController(self)
         # 裁切窗口依赖图片处理和文件识别模块，仅在用户首次打开裁切功能时加载。
         self.cutwindow: CutWindow | None = None
         self.preview_image_loader = PreviewImageLoader(self)
@@ -362,35 +363,6 @@ class MyMAinWindow(QMainWindow):
 
     # region Init
     def _setup_fc2ppvdb_cookie_ui(self):
-        # 扩展 cookie 设置区域，并把下面分组整体下移，避免重叠
-        delta_y = 220
-        group_geo = self.Ui.groupBox_10.geometry()
-        old_group_bottom = group_geo.y() + group_geo.height()
-        self.Ui.groupBox_10.setGeometry(group_geo.x(), group_geo.y(), group_geo.width(), group_geo.height() + delta_y)
-        content_geo = self.Ui.scrollAreaWidgetContents_wangluo.geometry()
-        self.Ui.scrollAreaWidgetContents_wangluo.setGeometry(
-            content_geo.x(),
-            content_geo.y(),
-            content_geo.width(),
-            content_geo.height() + delta_y,
-        )
-        for child in self.Ui.scrollAreaWidgetContents_wangluo.children():
-            if not isinstance(child, QWidget) or child is self.Ui.groupBox_10:
-                continue
-            child_geo = child.geometry()
-            if child_geo.y() >= old_group_bottom:
-                child.setGeometry(
-                    child_geo.x(),
-                    child_geo.y() + delta_y,
-                    child_geo.width(),
-                    child_geo.height(),
-                )
-        grid_geo = self.Ui.gridLayoutWidget_10.geometry()
-        self.Ui.gridLayoutWidget_10.setGeometry(grid_geo.x(), grid_geo.y(), grid_geo.width(), 480)
-        self.Ui.label_75.setGeometry(60, 530, 611, 141)
-        self.Ui.label_get_cookie_url.setGeometry(130, 680, 430, 21)
-        self.Ui.label_7.setGeometry(60, 680, 71, 21)
-
         def move_grid_item(item, row: int, column: int):
             index = self.Ui.gridLayout_10.indexOf(item)
             layout_item = self.Ui.gridLayout_10.takeAt(index)
@@ -485,36 +457,26 @@ class MyMAinWindow(QMainWindow):
         self.Ui.horizontalLayout_fc2ppvdb_cookie.addWidget(self.Ui.label_fc2ppvdb_cookie_result)
         self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2ppvdb_cookie, 10, 1, 1, 1)
 
+        # The original .ui left these controls as overlapping absolute-position
+        # siblings. Own the whole Cookie section with one real layout instead.
+        cookie_layout = QVBoxLayout(self.Ui.groupBox_10)
+        cookie_layout.setContentsMargins(20, 26, 20, 16)
+        cookie_layout.setSpacing(10)
+        self.Ui.gridLayoutWidget_10.setParent(self.Ui.groupBox_10)
+        self.Ui.gridLayoutWidget_10.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        cookie_layout.addWidget(self.Ui.gridLayoutWidget_10)
+        self.Ui.label_75.setParent(self.Ui.groupBox_10)
+        self.Ui.label_75.setWordWrap(True)
+        self.Ui.label_75.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        cookie_layout.addWidget(self.Ui.label_75)
+        cookie_link_row = QHBoxLayout()
+        self.Ui.label_7.setParent(self.Ui.groupBox_10)
+        self.Ui.label_get_cookie_url.setParent(self.Ui.groupBox_10)
+        cookie_link_row.addWidget(self.Ui.label_7)
+        cookie_link_row.addWidget(self.Ui.label_get_cookie_url, 1)
+        cookie_layout.addLayout(cookie_link_row)
+
     def _setup_baidu_translate_ui(self):
-        delta_y = 70
-
-        trans_geo = self.Ui.groupBox_trans.geometry()
-        self.Ui.groupBox_trans.setGeometry(
-            trans_geo.x(), trans_geo.y(), trans_geo.width(), trans_geo.height() + delta_y
-        )
-
-        layout_geo = self.Ui.layoutWidget_2.geometry()
-        self.Ui.layoutWidget_2.setGeometry(
-            layout_geo.x(), layout_geo.y(), layout_geo.width(), layout_geo.height() + delta_y
-        )
-
-        content_geo = self.Ui.scrollAreaWidgetContents_fanyi.geometry()
-        self.Ui.scrollAreaWidgetContents_fanyi.setGeometry(
-            content_geo.x(), content_geo.y(), content_geo.width(), content_geo.height() + delta_y
-        )
-
-        for child in self.Ui.scrollAreaWidgetContents_fanyi.children():
-            if not isinstance(child, QWidget) or child is self.Ui.groupBox_trans:
-                continue
-            child_geo = child.geometry()
-            if child_geo.y() > trans_geo.y():
-                child.setGeometry(
-                    child_geo.x(),
-                    child_geo.y() + delta_y,
-                    child_geo.width(),
-                    child_geo.height(),
-                )
-
         self.Ui.label_60.setText("填写 DeepL API / DeepLX URL / 百度 API 凭据后，才会生效；未填写时会自动跳过。")
         self.Ui.label_601.setText("填写 DeepL API / DeepLX URL / 百度 API 凭据后，才会生效；未填写时会自动跳过。")
 
@@ -554,6 +516,12 @@ class MyMAinWindow(QMainWindow):
         self.Ui.lineEdit_baidu_key.setObjectName("lineEdit_baidu_key")
         self.Ui.gridLayout_32.addWidget(self.Ui.lineEdit_baidu_key, 6, 1, 1, 1)
 
+        translation_layout = QVBoxLayout(self.Ui.groupBox_trans)
+        translation_layout.setContentsMargins(20, 26, 20, 12)
+        self.Ui.layoutWidget_2.setParent(self.Ui.groupBox_trans)
+        self.Ui.layoutWidget_2.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        translation_layout.addWidget(self.Ui.layoutWidget_2)
+
     def Init_Ui(self): ...
 
     def Init_Singal(self): ...
@@ -565,12 +533,12 @@ class MyMAinWindow(QMainWindow):
     def load_config(self): ...
 
     def creat_right_menu(self):
-        self.menu_start = QAction(QIcon(resources.start_icon), "  开始刮削\tS", self)
-        self.menu_stop = QAction(QIcon(resources.stop_icon), "  停止刮削\tS", self)
-        self.menu_number = QAction(QIcon(resources.input_number_icon), "  重新刮削\tN", self)
-        self.menu_website = QAction(QIcon(resources.input_website_icon), "  输入网址重新刮削\tU", self)
-        self.menu_del_file = QAction(QIcon(resources.del_file_icon), "  删除文件\tD", self)
-        self.menu_del_folder = QAction(QIcon(resources.del_folder_icon), "  删除文件和文件夹\tA", self)
+        self.menu_start = QAction(QIcon(resources.start_icon), "  开始刮削\tCtrl+R", self)
+        self.menu_stop = QAction(QIcon(resources.stop_icon), "  停止刮削\tCtrl+R", self)
+        self.menu_number = QAction(QIcon(resources.input_number_icon), "  重新刮削\tCtrl+F", self)
+        self.menu_website = QAction(QIcon(resources.input_website_icon), "  输入网址重新刮削\tCtrl+L", self)
+        self.menu_del_file = QAction(QIcon(resources.del_file_icon), "  删除文件\tDelete", self)
+        self.menu_del_folder = QAction(QIcon(resources.del_folder_icon), "  删除文件和文件夹\tShift+Delete", self)
         self.menu_make_symlink = QAction(QIcon(resources.open_folder_icon), "  在指定位置创建软链接", self)
         self.menu_make_symlink_in_dir = QAction(
             QIcon(resources.open_folder_icon), "  在指定位置创建软链接（按文件名建目录）", self
@@ -579,10 +547,10 @@ class MyMAinWindow(QMainWindow):
         self.menu_make_hardlink_in_dir = QAction(
             QIcon(resources.open_folder_icon), "  在指定位置创建硬链接（按文件名建目录）", self
         )
-        self.menu_folder = QAction(QIcon(resources.open_folder_icon), "  打开文件夹\tF", self)
-        self.menu_nfo = QAction(QIcon(resources.open_nfo_icon), "  编辑 NFO\tE", self)
-        self.menu_play = QAction(QIcon(resources.play_icon), "  播放\tP", self)
-        self.menu_hide = QAction(QIcon(resources.hide_boss_icon), "  隐藏\tQ", self)
+        self.menu_folder = QAction(QIcon(resources.open_folder_icon), "  打开文件夹\tCtrl+O", self)
+        self.menu_nfo = QAction(QIcon(resources.open_nfo_icon), "  编辑 NFO\tCtrl+E", self)
+        self.menu_play = QAction(QIcon(resources.play_icon), "  播放\tCtrl+P", self)
+        self.menu_hide = QAction(QIcon(resources.hide_boss_icon), "  隐藏\tCtrl+H", self)
 
         self.menu_start.triggered.connect(self.pushButton_start_scrape_clicked)
         self.menu_stop.triggered.connect(self.pushButton_start_scrape_clicked)
@@ -599,15 +567,23 @@ class MyMAinWindow(QMainWindow):
         self.menu_play.triggered.connect(self.main_play_click)
         self.menu_hide.triggered.connect(self.hide)
 
-        QShortcut(QKeySequence(self.tr("N")), self, self.search_by_number_clicked)
-        QShortcut(QKeySequence(self.tr("U")), self, self.search_by_url_clicked)
-        QShortcut(QKeySequence(self.tr("D")), self, self.main_del_file_click)
-        QShortcut(QKeySequence(self.tr("A")), self, self.main_del_folder_click)
-        QShortcut(QKeySequence(self.tr("F")), self, self.main_open_folder_click)
-        QShortcut(QKeySequence(self.tr("E")), self, self.main_open_nfo_click)
-        QShortcut(QKeySequence(self.tr("P")), self, self.main_play_click)
-        QShortcut(QKeySequence(self.tr("S")), self, self.pushButton_start_scrape_clicked)
-        QShortcut(QKeySequence(self.tr("Q")), self, self.hide)
+        QShortcut(QKeySequence(self.tr("Ctrl+F")), self, self.search_by_number_clicked)
+        QShortcut(QKeySequence(self.tr("Ctrl+L")), self, self.search_by_url_clicked)
+        QShortcut(
+            QKeySequence(self.tr("Delete")),
+            self,
+            lambda: self.main_del_file_click() if self.Ui.treeWidget_number.hasFocus() else None,
+        )
+        QShortcut(
+            QKeySequence(self.tr("Shift+Delete")),
+            self,
+            lambda: self.main_del_folder_click() if self.Ui.treeWidget_number.hasFocus() else None,
+        )
+        QShortcut(QKeySequence(self.tr("Ctrl+O")), self, self.main_open_folder_click)
+        QShortcut(QKeySequence(self.tr("Ctrl+E")), self, self.main_open_nfo_click)
+        QShortcut(QKeySequence(self.tr("Ctrl+P")), self, self.main_play_click)
+        QShortcut(QKeySequence(self.tr("Ctrl+R")), self, self.pushButton_start_scrape_clicked)
+        QShortcut(QKeySequence(self.tr("Ctrl+H")), self, self.hide)
         # QShortcut(QKeySequence(self.tr("Esc")), self, self.hide)
         QShortcut(QKeySequence(self.tr("Ctrl+M")), self, self.pushButton_min_clicked2)
         QShortcut(QKeySequence(self.tr("Ctrl+W")), self, self.ready_to_exit)
@@ -910,6 +886,8 @@ class MyMAinWindow(QMainWindow):
             self.preview_image_loader.shutdown()
         if hasattr(self, "tray_icon"):
             self.tray_icon.hide()
+        self.task_manager.shutdown()
+        manager.shutdown()
         signal_qt.show_traceback_log("\n\n\n\n************ 程序正常退出！************\n")
         os._exit(0)
 
@@ -986,16 +964,25 @@ class MyMAinWindow(QMainWindow):
     # region 显示版本号
     def show_version(self):
         try:
-            t = threading.Thread(target=self._show_version_thread)
-            t.start()  # 启动线程,即让线程开始执行
+            self.task_manager.submit_sync(
+                "version-check",
+                self._load_version_info,
+                on_success=self._apply_version_info,
+                on_error=lambda error: signal_qt.show_traceback_log(error),
+            )
         except Exception:
             signal_qt.show_traceback_log(traceback.format_exc())
             signal_qt.show_log_text(traceback.format_exc())
 
-    def _show_version_thread(self):
+    def _load_version_info(self) -> str:
+        latest_version = check_version()
+        if manager.config.use_database:
+            ActressDB.init_db()
+        return latest_version or ""
+
+    def _apply_version_info(self, latest_version: str) -> None:
         version_info = f"基于 MDC-GUI 修改 当前版本: {self.localversion}"
         download_link = ""
-        latest_version = check_version()
         if latest_version:
             if is_newer_version(latest_version, self.localversion):
                 self.new_version = f"\n🍉 有新版本了！（{latest_version}）"
@@ -1013,14 +1000,16 @@ class MyMAinWindow(QMainWindow):
         if feedback or download_link:
             self.main_logs_show.emit(f"{feedback}{download_link}")
         signal_qt.show_log_text("================================================================================")
-        if manager.config.use_database:
-            ActressDB.init_db()
-        try:
-            t = threading.Thread(target=check_theporndb_api_token)
-            t.start()  # 启动线程,即让线程开始执行
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
+        self.task_manager.submit_sync(
+            "check-theporndb-token",
+            check_theporndb_api_token,
+            on_error=lambda error: signal_qt.show_traceback_log(error),
+        )
+
+    def _show_version_thread(self):
+        """Compatibility wrapper for lightweight callers; production uses callbacks."""
+        latest_version = MyMAinWindow._load_version_info(self)
+        MyMAinWindow._apply_version_info(self, latest_version)
 
     # endregion
 
@@ -1133,8 +1122,7 @@ class MyMAinWindow(QMainWindow):
                 self.stop_used_time = 0.0
                 self.show_stop_info_thread()
                 return
-            t = threading.Thread(target=self._kill_threads)  # 关闭线程池
-            t.start()
+            self.task_manager.submit_sync("stop-workers", self._kill_threads)
 
     # 显示停止信息
     def _show_stop_info(self):
@@ -1183,8 +1171,7 @@ class MyMAinWindow(QMainWindow):
     def show_stop_info_thread(
         self,
     ):
-        t = threading.Thread(target=self._show_stop_info)
-        t.start()
+        self.task_manager.submit_sync("show-stop-info", self._show_stop_info)
 
     # 关闭线程池和扫描线程
     def _kill_threads(self):
@@ -1232,20 +1219,21 @@ class MyMAinWindow(QMainWindow):
 
     # region 刮削结果显示
     def _addTreeChild(self, result, filename):
-        node = QTreeWidgetItem()
+        parent = self.item_succ if result == "succ" else self.item_fail
+        node = create_result_item(parent)
         node.setText(0, filename)
         if result == "succ":
             insertion_index = getattr(self, "_result_insertion_index", 0)
             node.setData(0, Qt.ItemDataRole.UserRole, insertion_index)
             self._result_insertion_index = insertion_index + 1
-            self.item_succ.addChild(node)
-        else:
-            self.item_fail.addChild(node)
+        filter_results = getattr(self, "_filter_results", None)
+        if filter_results is not None:
+            filter_results()
         # self.Ui.treeWidget_number.verticalScrollBar().setValue(self.Ui.treeWidget_number.verticalScrollBar().maximum())
         # self.Ui.treeWidget_number.setCurrentItem(node)
         # self.Ui.treeWidget_number.scrollToItem(node)
 
-    def _get_single_selected_entry(self) -> tuple[QTreeWidgetItem, str, ShowData, Path] | None:
+    def _get_single_selected_entry(self) -> tuple[ResultItem, str, ShowData, Path] | None:
         selected_entries = self._get_selected_entries()
         if len(selected_entries) != 1:
             return None
@@ -1254,7 +1242,7 @@ class MyMAinWindow(QMainWindow):
     def _has_single_selected_result_item(self) -> bool:
         return self._get_single_selected_entry() is not None
 
-    def _set_result_item_as_current_selection(self, item: QTreeWidgetItem) -> None:
+    def _set_result_item_as_current_selection(self, item: ResultItem) -> None:
         if item.text(0) in {"成功", "失败"}:
             return
 
@@ -1285,7 +1273,7 @@ class MyMAinWindow(QMainWindow):
             return
         items = [self.item_succ.child(index) for index in range(self.item_succ.childCount())]
         entries: list[ResultSortEntry] = []
-        item_by_name: dict[str, QTreeWidgetItem] = {}
+        item_by_name: dict[str, ResultItem] = {}
         for item in items:
             show_name = item.text(0)
             show_data = self.json_array.get(show_name)
@@ -1312,6 +1300,25 @@ class MyMAinWindow(QMainWindow):
         self._result_sort_descending = not getattr(self, "_result_sort_descending", False)
         self.result_sort_order_button.setText("↓" if self._result_sort_descending else "↑")
         self._sort_success_results()
+
+    def _filter_results(self, *_args) -> None:
+        if not hasattr(self, "item_succ") or not hasattr(self, "result_filter_edit"):
+            return
+        query = self.result_filter_edit.text().strip().casefold()
+        status = self.result_status_combo.currentText()
+        for root, root_status in ((self.item_succ, "成功"), (self.item_fail, "失败")):
+            visible_children = 0
+            status_visible = status in {"全部", root_status}
+            for index in range(root.childCount()):
+                item = root.child(index)
+                show_data = self.json_array.get(item.text(0))
+                haystack = item.text(0)
+                if show_data is not None:
+                    haystack += f" {show_data.data.number} {show_data.data.title} {show_data.data.actor}"
+                visible = status_visible and (not query or query in haystack.casefold())
+                item.setHidden(not visible)
+                visible_children += int(visible)
+            root.setHidden(not status_visible or (bool(query) and visible_children == 0))
 
     def set_main_info(self, show_data: ShowData | None):
         if show_data is not None:
@@ -1503,7 +1510,7 @@ class MyMAinWindow(QMainWindow):
 
     # endregion
 
-    def _get_selected_result_items(self) -> list[QTreeWidgetItem]:
+    def _get_selected_result_items(self) -> list[ResultItem]:
         """
         获取当前树状图中有效的结果项（不包含成功/失败根节点）。
         """
@@ -1516,7 +1523,7 @@ class MyMAinWindow(QMainWindow):
             selected_items.append(item)
         return selected_items
 
-    def _get_selected_entries(self) -> list[tuple[QTreeWidgetItem, str, ShowData, Path]]:
+    def _get_selected_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:
         result = []
         for item in self._get_selected_result_items():
             show_name = item.text(0)
@@ -1907,7 +1914,7 @@ class MyMAinWindow(QMainWindow):
         else:
             signal_qt.show_scrape_info(f"💡 已创建 {success_count} 个{link_name}！{get_current_time()}")
 
-    def _find_result_item_by_name(self, show_name: str) -> QTreeWidgetItem | None:
+    def _find_result_item_by_name(self, show_name: str) -> ResultItem | None:
         for root_item in (self.item_succ, self.item_fail):
             for i in range(root_item.childCount()):
                 child = root_item.child(i)
@@ -1991,9 +1998,7 @@ class MyMAinWindow(QMainWindow):
             # if not self.is_windows:
             #     self.setWindowFlags(self.windowFlags() | Qt.WindowDoesNotAcceptFocus)
             #     self.show()
-            # 启动线程打开文件
-            t = threading.Thread(target=open_file_thread, args=(self.file_main_open_path, False))
-            t.start()
+            self.task_manager.submit_sync("open-main-file", open_file_thread, self.file_main_open_path, False)
 
     def main_open_folder_click(self):
         """
@@ -2007,9 +2012,7 @@ class MyMAinWindow(QMainWindow):
             # if not self.is_windows:
             #     self.setWindowFlags(self.windowFlags() | Qt.WindowDoesNotAcceptFocus)
             #     self.show()
-            # 启动线程打开文件
-            t = threading.Thread(target=open_file_thread, args=(self.file_main_open_path, True))
-            t.start()
+            self.task_manager.submit_sync("open-main-folder", open_file_thread, self.file_main_open_path, True)
 
     def main_open_nfo_click(self):
         """
@@ -2626,7 +2629,7 @@ class MyMAinWindow(QMainWindow):
             else:
                 scrape_info = f"💠 {Flags.main_mode_text} · {Flags.scrape_like_text}"
                 if manager.config.scrape_like == "single":
-                    scrape_info = f"💡 {manager.config.website_single} 刮削\n" + scrape_info
+                    scrape_info = f"💡 {manager.config.selected_site} 刮削\n" + scrape_info
             if manager.config.soft_link == 1:
                 scrape_info = "🍯 软链接 · 开\n" + scrape_info
             elif manager.config.soft_link == 2:
@@ -2957,18 +2960,23 @@ class MyMAinWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.pushButton_show_log_clicked()  # 点击开始移动按钮后跳转到日志页面
             try:
-                active_threads = [thread for thread in self.threads_list if thread.is_alive()]
-                if active_threads:
-                    signal_qt.show_log_text("上一次移动任务仍在完成当前文件操作，未启动新的移动任务。")
+                if self.task_manager.is_running("move-media-files"):
+                    signal_qt.show_log_text("上一次移动任务仍在运行，未启动新的移动任务。")
                     return
-                self.threads_list = []
                 self._thread_stop_event.clear()
-                t = threading.Thread(target=self._move_file_thread)
-                self.threads_list.append(t)
-                t.start()  # 启动线程,即让线程开始执行
+                self.task_manager.submit_sync(
+                    "move-media-files",
+                    self._move_file_thread,
+                    on_error=self._move_file_failed,
+                )
             except Exception:
                 signal_qt.show_traceback_log(traceback.format_exc())
                 signal_qt.show_log_text(traceback.format_exc())
+
+    def _move_file_failed(self, error: str) -> None:
+        signal_qt.show_traceback_log(error)
+        signal_qt.show_log_text("移动视频任务异常终止，请查看错误日志。")
+        signal_qt.reset_buttons_status.emit()
 
     def _move_file_thread(self):
         signal_qt.change_buttons_status.emit()
@@ -3434,6 +3442,10 @@ class MyMAinWindow(QMainWindow):
 
     # 设置-保存
     def pushButton_save_config_clicked(self):
+        invalid = self.settings_controller.validate()
+        if invalid:
+            QMessageBox.warning(self, "设置输入无效", "请修正标红的数字或 CA 证书路径后再保存。")
+            return
         self.save_config()
         self.load_config()  # 确保界面显示和实际配置一致
         signal_qt.show_scrape_info(f"💡 配置已保存！{get_current_time()}")
@@ -3455,49 +3467,8 @@ class MyMAinWindow(QMainWindow):
     # endregion
 
     # region 检测网络
-    def network_check(self):
-        try:
-            signal_qt.show_net_info("\n⛑ 开始检测网络...")
-            cancel_event = self.network_check_cancel_event or threading.Event()
-            self.network_check_cancel_event = cancel_event
-            self.network_check_future = executor.submit(
-                run_network_check(progress=signal_qt.show_net_info, cancel_event=cancel_event)
-            )
-            self.network_check_future.result()
-        except Exception as e:
-            signal_qt.show_net_info(f"\n⛔️ 网络检测出现异常：{e}")
-            signal_qt.show_net_info(
-                "================================================================================\n"
-            )
-            signal_qt.show_traceback_log(str(e))
-            signal_qt.show_traceback_log(traceback.format_exc())
-        self.network_check_cancel_event = None
-        self.network_check_future = None
-        self.Ui.pushButton_check_net.setEnabled(True)
-        self.Ui.pushButton_check_net.setText("开始检测")
-
-    # 网络检查
     def pushButton_check_net_clicked(self):
-        if self.Ui.pushButton_check_net.text() == "开始检测":
-            self.Ui.pushButton_check_net.setText("停止检测")
-            try:
-                self.t_net = threading.Thread(target=self.network_check)
-                self.t_net.start()  # 启动线程,即让线程开始执行
-            except Exception:
-                signal_qt.show_traceback_log(traceback.format_exc())
-                signal_qt.show_net_info(traceback.format_exc())
-        elif self.Ui.pushButton_check_net.text() == "停止检测":
-            if self.network_check_cancel_event:
-                self.network_check_cancel_event.set()
-            signal_qt.show_net_info("\n⛔️ 正在停止网络检测...")
-            self.Ui.pushButton_check_net.setText("开始检测")
-        else:
-            try:
-                if self.network_check_cancel_event:
-                    self.network_check_cancel_event.set()
-            except Exception as e:
-                signal_qt.show_traceback_log(str(e))
-                signal_qt.show_traceback_log(traceback.format_exc())
+        self.network_controller.toggle_network_check()
 
     # 检测网络界面日志显示
     def show_net_info(self, text):
@@ -3507,160 +3478,14 @@ class MyMAinWindow(QMainWindow):
             signal_qt.show_traceback_log(traceback.format_exc())
             self.Ui.textBrowser_net_main.append(traceback.format_exc())
 
-    # 检查javdb cookie
     def pushButton_check_javdb_cookie_clicked(self):
-        input_cookie = self.Ui.plainTextEdit_cookie_javdb.toPlainText()
-        if not input_cookie:
-            self.set_javdb_status.emit("❌ 未填写 Cookie")
-            self.show_log_text(" ❌ JavDb 未填写 Cookie，可在「设置」-「网络」添加！")
-            return
-        self.set_javdb_status.emit("⏳ 正在检测中...")
-        try:
-            t = threading.Thread(target=self._check_javdb_cookie, args=(input_cookie,))
-            t.start()  # 启动线程,即让线程开始执行
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
+        self.network_controller.check_javdb_cookie()
 
-    def _check_javdb_cookie(self, input_cookie: str):
-        tips = "❌ 未填写 Cookie，影响 FC2 刮削！"
-        if not input_cookie:
-            self.set_javdb_status.emit(tips)
-            return tips
-        # self.Ui.pushButton_check_javdb_cookie.setEnabled(False)
-        tips = "✅ 连接正常！"
-        header = {"cookie": input_cookie}
-        javdb_url = manager.config.get_site_url(Website.JAVDB, "https://javdb.com") + "/v/D16Q5?locale=zh"
-        try:
-            response, error = get_text_sync(javdb_url, headers=header)
-            if response is None:
-                if "Cookie" in error:
-                    if manager.config.javdb != input_cookie:
-                        tips = "❌ Cookie 已过期！"
-                    else:
-                        tips = "❌ Cookie 已过期！已清理！(不清理无法访问)"
-                        self.set_javdb_cookie.emit("")
-                        self.exec_save_config.emit()
-                else:
-                    tips = f"❌ 连接失败！请检查网络或代理设置！ {response}"
-            else:
-                if "The owner of this website has banned your access based on your browser's behaving" in response:
-                    ip_adress = re.findall(r"(\d+\.\d+\.\d+\.\d+)", response)
-                    ip_adress = ip_adress[0] + " " if ip_adress else ""
-                    tips = f"❌ 你的 IP {ip_adress}被 JavDb 封了！"
-                elif "Due to copyright restrictions" in response or "Access denied" in response:
-                    tips = "❌ 当前 IP 被禁止访问！请使用非日本节点！"
-                elif "ray-id" in response:
-                    tips = "❌ 访问被 CloudFlare 拦截！"
-                elif "/logout" in response:  # 已登录，有登出按钮
-                    vip_info = "未开通 VIP"
-                    tips = f"✅ 连接正常！（{vip_info}）"
-                    if input_cookie:
-                        if "icon-diamond" in response or "/v/D16Q5" in response:  # 有钻石图标或者跳到详情页表示已开通
-                            vip_info = "已开通 VIP"
-                        if manager.config.javdb != input_cookie:  # 保存cookie
-                            tips = f"✅ 连接正常！（{vip_info}）Cookie 已保存！"
-                            self.exec_save_config.emit()
-                        else:
-                            tips = f"✅ 连接正常！（{vip_info}）"
-                else:
-                    if manager.config.javdb != input_cookie:
-                        tips = "❌ Cookie 无效！请重新填写！"
-                    else:
-                        tips = "❌ Cookie 无效！已清理！"
-                        self.set_javdb_cookie.emit("")
-                        self.exec_save_config.emit()
-        except Exception as e:
-            tips = f"❌ 连接失败！请检查网络或代理设置！ {e}"
-            signal_qt.show_traceback_log(tips)
-        if input_cookie:
-            self.set_javdb_status.emit(tips)
-            # self.Ui.pushButton_check_javdb_cookie.setEnabled(True)
-        self.show_log_text(tips.replace("❌", " ❌ JavDb").replace("✅", " ✅ JavDb"))
-        return tips
-
-    # 检查 fc2cmadb Cookie
     def pushButton_check_fc2ppvdb_cookie_clicked(self):
-        input_cookie = self.Ui.plainTextEdit_cookie_fc2ppvdb.toPlainText().strip()
-        if not input_cookie:
-            self.set_fc2ppvdb_status.emit("❌ 未填写 Cookie")
-            self.show_log_text(" ❌ FC2CMADB 未填写 Cookie，可在「设置」-「网络」添加！")
-            return
-        self.set_fc2ppvdb_status.emit("⏳ 正在检测中...")
-        try:
-            t = threading.Thread(target=self._check_fc2ppvdb_cookie, args=(input_cookie,))
-            t.start()  # 启动线程,即让线程开始执行
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
+        self.network_controller.check_fc2ppvdb_cookie()
 
-    def _check_fc2ppvdb_cookie(self, input_cookie: str):
-        tips = "❌ 未填写 Cookie"
-        if not input_cookie:
-            self.set_fc2ppvdb_status.emit(tips)
-            return tips
-
-        with manager.acquire_computed() as computed:
-            valid, error = executor.run(
-                validate_fc2cmadb_cookie(
-                    computed.async_client,
-                    input_cookie,
-                    use_proxy=manager.config.use_proxy,
-                )
-            )
-        if not valid:
-            tips = f"❌ Cookie 检查失败：{error}"
-        elif manager.config.fc2ppvdb != input_cookie:
-            self.exec_save_config.emit()
-            tips = "✅ 登录状态有效，Cookie 已保存！"
-        else:
-            tips = "✅ 登录状态有效！"
-
-        self.set_fc2ppvdb_status.emit(tips)
-        self.show_log_text(tips.replace("❌", " ❌ FC2CMADB").replace("✅", " ✅ FC2CMADB"))
-        return tips
-
-    # javbus cookie
     def pushButton_check_javbus_cookie_clicked(self):
-        input_cookie = self.Ui.plainTextEdit_cookie_javbus.toPlainText().strip()
-        if not input_cookie:
-            self.set_javbus_status.emit("❌ 未填写 Cookie")
-            return
-        self.set_javbus_status.emit("⏳ 正在检测中...")
-        try:
-            t = threading.Thread(target=self._check_javbus_cookie, args=(input_cookie,))
-            t.start()  # 启动线程,即让线程开始执行
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            self.show_log_text(traceback.format_exc())
-
-    def _check_javbus_cookie(self, input_cookie: str):
-        # self.Ui.pushButton_check_javbus_cookie.setEnabled(False)
-        tips = "✅ 连接正常！"
-        headers = {"Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6", "cookie": input_cookie}
-        javbus_url = manager.config.get_site_url(Website.JAVBUS, "https://javbus.com") + "/FSDSS-660"
-
-        try:
-            response, error = get_text_sync(javbus_url, headers=headers)
-
-            if response is None:
-                tips = f"❌ 连接失败！请检查网络或代理设置！ {error}"
-            elif "lostpasswd" in response:
-                if input_cookie:
-                    tips = "❌ Cookie 无效！"
-                else:
-                    tips = "❌ 当前节点需要 Cookie 才能刮削！请填写 Cookie 或更换节点！"
-            elif manager.config.javbus != input_cookie:
-                self.exec_save_config.emit()
-                tips = "✅ 连接正常！Cookie 已保存！  "
-
-        except Exception as e:
-            tips = f"❌ 连接失败！请检查网络或代理设置！ {e}"
-
-        self.show_log_text(tips.replace("❌", " ❌ JavBus").replace("✅", " ✅ JavBus"))
-        self.set_javbus_status.emit(tips)
-        # self.Ui.pushButton_check_javbus_cookie.setEnabled(True)
-        return tips
+        self.network_controller.check_javbus_cookie()
 
     # endregion
 

@@ -5,7 +5,7 @@ from datetime import timedelta
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic.fields import FieldInfo
 
 from ..gen.field_enums import CrawlerResultFields
@@ -72,6 +72,10 @@ class TranslateConfig(BaseModel):
     llm_url: HttpUrl = Field(default=HttpUrl("https://api.llm.com/v1"), title="LLM API Host")
     llm_model: str = Field(default="gpt-3.5-turbo", title="模型 ID")
     llm_key: str = Field(default="", title="LLM API Key")
+    llm_api_mode: Literal["auto", "responses", "chat_completions"] = Field(
+        default="auto",
+        title="LLM API 模式",
+    )
     llm_prompt_title: str = Field(
         default="Please translate the following text to {lang}. Output only the translation without any explanation.\n{content}",
         title="LLM 标题提示词",
@@ -154,7 +158,7 @@ def default_field_config(language: Language = Language.UNDEFINED, translate: boo
 class Config(BaseModel):
     model_config = ConfigDict()
     # region: General Settings
-    config_version: int = Field(default=3, title="配置版本")
+    config_version: int = Field(default=4, title="配置版本")
     media_path: str = Field(default="./media", title="媒体路径")
     softlink_path: str = Field(default="softlink", title="软链接路径")
     success_output_folder: str = Field(default="JAV_output", title="成功输出目录")
@@ -343,7 +347,11 @@ class Config(BaseModel):
         return [item for item in items if (item.value if isinstance(item, HDPicSource) else str(item)) in valid_values]
 
     # region: Website Settings
-    website_single: Website = Field(default=Website.AIRAV_CC, title="单个网站")  # todo 移除
+    selected_site: Website = Field(
+        default=Website.AIRAV_CC,
+        title="单网站模式网站",
+        validation_alias=AliasChoices("selected_site", "website_single"),
+    )
     website_youma: list[Website] = Field(
         default_factory=lambda: [
             Website.MGSTAGE,
@@ -611,6 +619,8 @@ class Config(BaseModel):
     # region: Network Settings
     use_proxy: bool = Field(default=False, title="代理类型")
     proxy: str = Field(default="http://127.0.0.1:7890", title="代理地址")
+    verify_tls: bool = Field(default=True, title="验证 HTTPS 证书")
+    ca_bundle: str = Field(default="", title="自定义 CA 证书")
     cf_bypass_url: str = Field(default="", title="Cloudflare Bypass地址")
     cf_bypass_proxy: str = Field(default="", title="Cloudflare Bypass代理地址")
     timeout: int = Field(default=10, title="超时")

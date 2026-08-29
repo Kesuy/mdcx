@@ -29,6 +29,7 @@ from mdcx.controllers.main_window.responsive_layout import (
     setup_responsive_ui,
     show_responsive_overlay,
 )
+from mdcx.controllers.main_window.style import set_style
 from mdcx.views.MDCx import Ui_MDCx
 
 APP = QApplication.instance() or QApplication([])
@@ -46,8 +47,8 @@ def test_layout_metrics_preserve_designer_baseline_and_fix_result_clipping():
 def test_layout_metrics_keep_usable_result_panel_at_minimum_window_size():
     metrics = calculate_layout_metrics(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
-    assert (metrics.stacked_width, metrics.stacked_height) == (761, 642)
-    assert metrics.result_width == 161
+    assert (metrics.stacked_width, metrics.stacked_height) == (611, 642)
+    assert metrics.result_width == 160
     assert metrics.result_height == 483
     assert metrics.result_x + metrics.result_width <= metrics.stacked_width
 
@@ -214,6 +215,29 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
     assert 200 <= window.Ui.label_poster.height() <= 300
     assert 200 <= window.Ui.label_thumb.height() <= 300
 
+    search_row = window._main_result_search_row
+    sort_row = window._main_result_sort_row
+    assert search_row.geometry().bottom() < sort_row.geometry().top()
+    assert window.result_filter_edit.geometry().right() < window.Ui.pushButton_tree_clear.geometry().left()
+    assert window.result_status_combo.geometry().right() < window.result_sort_combo.geometry().left()
+    assert window.result_sort_combo.geometry().right() < window.result_sort_order_button.geometry().left()
+    assert window.result_filter_edit.width() >= 100
+    assert window.result_status_combo.width() == 88
+    assert window.result_sort_combo.width() >= 116
+    assert window.result_sort_order_button.width() == 32
+    assert window.Ui.pushButton_tree_clear.width() == 28
+
+    for control in (
+        window.result_filter_edit,
+        window.result_status_combo,
+        window.result_sort_combo,
+        window.result_sort_order_button,
+        window.Ui.pushButton_tree_clear,
+    ):
+        top_left = control.mapTo(window._main_result_pane, QPoint(0, 0))
+        assert top_left.x() >= 0
+        assert top_left.x() + control.width() <= window._main_result_pane.width()
+
     window.resize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     APP.processEvents()
     assert window._main_detail_pane.width() >= window._main_detail_pane.minimumWidth()
@@ -227,6 +251,34 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
         if child.isVisible()
     }
     assert visible_direct_children == {"main_top_bar", "line_14", "main_content_splitter"}
+    window.close()
+
+
+def test_result_toolbar_remains_usable_at_baseline_window_width():
+    """Protect the 220 px result pane from single-row toolbar regressions."""
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.dark_mode = False
+    window.window_radius = 0
+    window.window_border = 0
+    set_style(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
+    window.resize(BASE_WINDOW_WIDTH, BASE_WINDOW_HEIGHT)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    assert window._main_splitter.orientation() == Qt.Orientation.Horizontal
+    assert window._main_result_pane.width() >= 252
+    assert window._main_result_search_row.geometry().bottom() < window._main_result_sort_row.geometry().top()
+    assert window.result_filter_edit.width() >= 100
+    assert window.result_sort_combo.width() >= 116
+    assert window.result_status_combo.width() >= window.result_status_combo.minimumSizeHint().width()
+    assert window.result_sort_combo.width() >= window.result_sort_combo.minimumSizeHint().width()
+    assert window.result_filter_edit.geometry().right() < window.Ui.pushButton_tree_clear.geometry().left()
+    assert window.result_status_combo.geometry().right() < window.result_sort_combo.geometry().left()
+    assert window.result_sort_combo.geometry().right() < window.result_sort_order_button.geometry().left()
     window.close()
 
 
@@ -487,6 +539,13 @@ def test_responsive_overlays_are_centered_fit_and_raise_above_page_content():
     assert nfo.height() <= window.Ui.centralwidget.height() - 16
     assert nfo.layout() is not None
     assert window.Ui.scrollArea_nfo.height() > 400
+    nfo_content = window.Ui.scrollAreaWidgetContents_nfo_editor
+    assert nfo_content.layout() is not None
+    assert window.Ui.lineEdit_nfo_number.parentWidget() is nfo_content
+    assert window.Ui.lineEdit_nfo_year.geometry().left() > window.Ui.comboBox_nfo.geometry().right()
+    assert window.Ui.lineEdit_nfo_actor.width() > window.Ui.lineEdit_nfo_number.width()
+    assert window.Ui.textEdit_nfo_outline.width() == window.Ui.textEdit_nfo_originalplot.width()
+    assert window.Ui.lineEdit_nfo_poster.width() == window.Ui.lineEdit_nfo_website.width()
 
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
     show_responsive_overlay(window, window.Ui.widget_show_tips)

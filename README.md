@@ -2,52 +2,49 @@
 
 ![python](https://img.shields.io/badge/Python-3.13-3776AB.svg?style=flat&logo=python&logoColor=white)
 
-<!--## 交流群
+MDCx 是使用 PyQt6 开发的本地媒体元数据整理工具，支持多站点刮削、图片/NFO 处理、命名整理、字幕与媒体服务器辅助功能。
 
-[![Telegram](https://img.shields.io/badge/Telegram-Join_Chat-2CA5E0?style=flat&logo=telegram&logoColor=white)](https://t.me/mdcx_chat)
+## 下载
 
-> [!TIP]
-> **使用问题**：有关软件配置、使用心得等非技术性问题，建议优先加入 **Telegram 交流群**与群友交流。  
-> **Bug 反馈**：如遇程序异常或功能缺陷，请先确认是否为已知问题，再提交 **Issue** 并附上相关日志、问题番号等内容。-->
+请从 [Kesuy/mdcx Releases](https://github.com/Kesuy/mdcx/releases) 下载 Windows 或 macOS 构建。4.0 起要求现代操作系统与 Python 3.13；不再支持 Windows 7 / Python 3.8 构建线。
+
+## 从源码运行
+
+```bash
+uv sync --locked --all-extras --dev
+uv run --locked python main.py
+```
+
+运行质量门：
+
+```bash
+uv run --locked ruff format --check
+uv run --locked ruff check
+uv run --locked pytest tests -q
+```
+
+测试配置已固化：`uv.toml` 将缓存放在项目可写目录，pytest 使用系统分配的隔离临时目录、Qt offscreen 和离线模型模式；锁定的开发依赖自带 FFmpeg，因此不要求系统预装 FFmpeg 或启用 Windows Developer Mode。开发 FFmpeg 仅由测试配置注入，不会打进正式 EXE。
+
+Windows 打包前请阅读 [构建与排障指南](docs/build-troubleshooting.md)。构建脚本会实际启动冻结产物并检查 Qt 与完整启动导入树；验收未通过时不会把文件视为成功产物。
+
+4.x 的界面、任务和配置扩展须遵循 [架构与维护约束](docs/architecture-v4.md)，其中记录了 Model/View 结果列表、统一 TaskManager、设置页布局和主题 token 的边界，避免重新引入旧式补丁。
+
+静态审计建议的逐项完成度和后续顺序记录在 [MDCx 4.x 优化完成度](docs/optimization-status-v4.md)，部分完成项不得视为已经结束。
+
+## 安全说明
+
+- HTTPS 证书校验默认开启；特殊代理环境可在“设置 > 网络”指定 PEM 格式自定义 CA。
+- API Key、Token 与 Cookie 在系统密钥库可用时保存到 Windows Credential Manager、macOS Keychain 或 Linux Secret Service；无可用后端时为保持便携兼容，会回退到原配置文件。
+- 导出或分享配置前仍建议人工检查内容，不要公开 Cookie、Token 或日志中的私人路径。
 
 ## 上游项目
 
-* [yoshiko2/Movie_Data_Capture](https://github.com/yoshiko2/Movie_Data_Capture): CLI 工具,
-  开源版本现已不活跃, 新版本已闭源商业化.
-* [moyy996/AVDC](https://github.com/moyy996/AVDC): 上述项目早期的一个 Fork, 使用 PyQt 实现了图形界面, 已停止维护
-* @Hermit/MDCx: AVDC 的 Fork, 一度在 [anyabc/something](https://github.com/anyabc/something/releases) 分发源代码及可执行文件.
-* 2023-11-3 @anyabc 因未知原因销号删库, 其分发的最后一个版本号为 20231014.
-* [@sqzw-x/mdcx](https://github.com/sqzw-x/mdcx)当前暂时停止维护.
-* 本项目基于 [@sqzw-x/mdcx](https://github.com/sqzw-x/mdcx), 继续进行维护及优化.
+- [yoshiko2/Movie_Data_Capture](https://github.com/yoshiko2/Movie_Data_Capture)
+- [moyy996/AVDC](https://github.com/moyy996/AVDC)
+- [sqzw-x/mdcx](https://github.com/sqzw-x/mdcx)
 
-向相关开发者表示敬意.
-
-## 构建
-
-> 一般情况请勿自行构建, 至 [Release](https://github.com/sqzw-x/mdcx/releases) 下载最新版
-
-### Windows 7
-
-> 即将放弃对 Windows 7 的支持. [#494](https://github.com/sqzw-x/mdcx/issues/494)
-
-Windows 7 上需使用 Python 3.8 构建, 代码及依赖均兼容, 可在本地自行构建. 也可使用 GitHub Actions 构建:
-
-1. fork 本仓库, 在仓库设置中启用 Actions
-2. 参考 [为存储库创建配置变量](https://docs.github.com/zh/actions/learn-github-actions/variables#creating-configuration-variables-for-a-repository), 设置 `BUILD_FOR_WINDOWS_LEGACY` 变量, 值非空即可
-3. 在 Actions 中手动运行 `Build and Release`
-
-### macOS
-
-低版本 macOS: 需注意 opencv 兼容性问题, 参考 [issue #82](https://github.com/sqzw-x/mdcx/issues/82#issuecomment-1947973961).
-也可使用 GitHub Actions 构建, 步骤同上, 需设置 `BUILD_FOR_MACOS_LEGACY` 变量, 值非空即可;
-以及 `MACOS_LEGACY_CV_VERSION` 变量, 值为兼容的 `opencv-contrib-python-headless` 版本
+感谢历代维护者和贡献者。
 
 ## 授权许可
 
-本插件项目在 GPLv3 许可授权下发行。此外，如果使用本项目表明还额外接受以下条款：
-
-* 本项目仅供学习以及技术交流使用
-* 请勿在公共社交平台上宣传此项目
-* 使用本软件时请遵守当地法律法规
-* 法律及使用后果由使用者自己承担
-* 禁止将本软件用于任何的商业用途
+本项目按 GPLv3 许可发布，并仅供学习与技术交流。使用者须遵守当地法律法规并自行承担使用后果，禁止商业用途。

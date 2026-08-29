@@ -397,7 +397,7 @@ class Scraper:
         LogBuffer.log().write("\n 🚘 [number] " + number)
 
         # 如果指定了单一网站，进行提示
-        website_single = manager.config.website_single
+        website_single = manager.config.selected_site
         if manager.config.scrape_like == "single" and file_mode != FileMode.Single and manager.config.main_mode != 4:
             LogBuffer.log().write(
                 f"\n 😸 [Note] You specified 「 {website_single} 」, some videos may not have results! "

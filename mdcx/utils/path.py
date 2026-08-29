@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from types import ModuleType
 
 
 def showFilePath(file_path: str) -> str:
@@ -13,21 +14,21 @@ def showFilePath(file_path: str) -> str:
     return show_file_path
 
 
-def is_descendant(p: str | Path, parent: str | Path) -> bool:
-    """
-    检查 p 是否是 parent 或者 parent 的后代.
-    """
+def _is_descendant(p: str | Path, parent: str | Path, path_module: ModuleType) -> bool:
     try:
-        p = os.path.realpath(p, strict=os.path.ALLOW_MISSING)
-        parent = os.path.realpath(parent, strict=os.path.ALLOW_MISSING)
+        p = path_module.realpath(os.fspath(p), strict=os.path.ALLOW_MISSING)
+        parent = path_module.realpath(os.fspath(parent), strict=os.path.ALLOW_MISSING)
     except OSError:
         return False
-    # parent = /foo/bar, p = /foo/barbar 使得简单的前缀判断失效
-    # os.path.commonpath 可以处理这种情况
     try:
-        return os.path.commonpath([p, parent]) == str(parent)
+        return path_module.commonpath([p, parent]) == str(parent)
     except (OSError, ValueError):
         return False
+
+
+def is_descendant(p: str | Path, parent: str | Path) -> bool:
+    """检查 p 是否是 parent 或者 parent 的后代。"""
+    return _is_descendant(p, parent, os.path)
 
 
 def is_any_descendant(p: str | Path, *parents: str | Path) -> bool:

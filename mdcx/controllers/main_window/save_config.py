@@ -132,11 +132,11 @@ def save_config(self: "MyMAinWindow"):
     # 网站相关字段需要转换为枚举或列表
     website_single_text = self.Ui.comboBox_website_all.currentText()
     try:
-        manager.config.website_single = website_from_display_name(website_single_text)
+        manager.config.selected_site = website_from_display_name(website_single_text)
     except ValueError:
-        manager.config.website_single = Website.AIRAV_CC  # 默认值
-    if manager.config.website_single == Website.AIRAV:
-        manager.config.website_single = Website.AIRAV_CC
+        manager.config.selected_site = Website.AIRAV_CC  # 默认值
+    if manager.config.selected_site == Website.AIRAV:
+        manager.config.selected_site = Website.AIRAV_CC
 
     def get_sites(text: str) -> list[Website]:
         return list(
@@ -619,13 +619,7 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region network
-    manager.config.use_proxy = self.Ui.checkBox_use_proxy.isChecked()
-    proxy = self.Ui.lineEdit_proxy.text()  # 代理地址
-    manager.config.proxy = proxy
-    manager.config.cf_bypass_url = self.Ui.lineEdit_cf_bypass_url.text().strip()  # Cloudflare bypass 地址
-    manager.config.cf_bypass_proxy = self.Ui.lineEdit_cf_bypass_proxy.text().strip()  # Cloudflare bypass 独立代理
-    manager.config.timeout = self.Ui.horizontalSlider_timeout.value()  # 超时时间
-    manager.config.retry = self.Ui.horizontalSlider_retry.value()  # 重试次数
+    self.settings_controller.binder.save(manager.config)
 
     site = self.Ui.comboBox_custom_website.currentText()
     if site in Website and site != Website.AIRAV.value:
@@ -745,7 +739,7 @@ def save_config(self: "MyMAinWindow"):
     try:
         scrape_like_text = Flags.scrape_like_text
         if manager.config.scrape_like == "single":
-            scrape_like_text += f" · {manager.config.website_single.value}"
+            scrape_like_text += f" · {manager.config.selected_site.value}"
         if manager.config.soft_link == 1:
             scrape_like_text += " · 软连接开"
         elif manager.config.soft_link == 2:

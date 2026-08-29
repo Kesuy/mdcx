@@ -9,7 +9,9 @@ from types import TracebackType
 from ..consts import IS_PYINSTALLER, MAIN_PATH, MARK_FILE
 from ..utils import executor
 from .computed import Computed
+from .io import atomic_write_text
 from .models import Config
+from .secrets import secret_store
 from .v1 import ConfigV1, load_v1
 
 
@@ -78,12 +80,21 @@ class ConfigManager:
         if self._path.suffix == ".ini":  # handle v1 config
             return self.handle_v1()
         try:
-            d = json.loads(self._path.read_text(encoding="UTF-8"))
+            d = secret_store.hydrate(json.loads(self._path.read_text(encoding="UTF-8")))
             errors = Config.update(d)
             config = Config.model_validate(d)
             self._replace_config(config)
             return errors
         except Exception as e:
+            backup = self._path.with_suffix(self._path.suffix + ".bak")
+            if backup.is_file():
+                try:
+                    d = secret_store.hydrate(json.loads(backup.read_text(encoding="UTF-8")))
+                    errors = Config.update(d)
+                    self._replace_config(Config.model_validate(d))
+                    return [f"配置文件 {self._path} 损坏，已从备份恢复。", *errors]
+                except Exception:
+                    pass
             self._replace_config(Config())
             msg = f" 配置文件 {self._path} 验证失败. 错误信息: \n{str(e)}"
             return msg.splitlines()
@@ -124,8 +135,12 @@ class ConfigManager:
             return
         executor.submit(old_computed.close_when_idle())
 
+    def _serialized_config(self) -> str:
+        protected = secret_store.protect(self.config.model_dump(mode="json"))
+        return json.dumps(protected.data, ensure_ascii=False, indent=2)
+
     def save(self):
-        self._path.write_text(self.config.model_dump_json(indent=2), encoding="UTF-8")
+        atomic_write_text(self._path, self._serialized_config(), backup=True)
 
     def reset(self):
         """写入默认配置"""
@@ -135,11 +150,25 @@ class ConfigManager:
             try:
                 template = json.loads(template_path.read_text(encoding="UTF-8"))
                 Config.update(template)
-                self._path.write_text(Config.model_validate(template).model_dump_json(indent=2), encoding="UTF-8")
+                atomic_write_text(
+                    self._path,
+                    Config.model_validate(template).model_dump_json(indent=2),
+                    backup=True,
+                )
                 return
             except Exception:
                 pass
-        self._path.write_text(Config().model_dump_json(indent=2), encoding="UTF-8")
+        atomic_write_text(self._path, Config().model_dump_json(indent=2), backup=True)
+
+    def shutdown(self) -> None:
+        """Close network clients and the shared asyncio loop explicitly."""
+        computed = getattr(self, "computed", None)
+        if computed is not None:
+            try:
+                executor.run(computed.close())
+            except Exception:
+                pass
+        executor.shutdown()
 
     @staticmethod
     def _get_default_template_path() -> Path:
@@ -164,8 +193,7 @@ class ConfigManager:
             mark_dir = os.path.dirname(MARK_FILE)
             if mark_dir:
                 os.makedirs(mark_dir, exist_ok=True)
-        with open(MARK_FILE, "w", encoding="UTF-8") as f:
-            f.write(str(path))
+        atomic_write_text(Path(MARK_FILE), str(path))
 
     @staticmethod
     def read_mark_file() -> str:

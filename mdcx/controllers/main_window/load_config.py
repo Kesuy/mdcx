@@ -171,7 +171,7 @@ def load_config(self: "MyMAinWindow"):
         # region website
         AllItems = [self.Ui.comboBox_website_all.itemText(i) for i in range(self.Ui.comboBox_website_all.count())]
         # 指定单个刮削网站
-        website_single_value = website_display_name(manager.config.website_single)
+        website_single_value = website_display_name(manager.config.selected_site)
         if website_single_value in AllItems:
             self.Ui.comboBox_website_all.setCurrentIndex(AllItems.index(website_single_value))
         else:
@@ -906,19 +906,8 @@ def load_config(self: "MyMAinWindow"):
         # endregion
 
         # region network
-        # 启用代理
-        self.Ui.checkBox_use_proxy.setChecked(manager.config.use_proxy)
-        # 代理地址
-        self.Ui.lineEdit_proxy.setText(manager.config.proxy)
-        # Cloudflare bypass 服务地址
-        self.Ui.lineEdit_cf_bypass_url.setText(manager.config.cf_bypass_url)
-        # Cloudflare bypass 独立代理地址
-        self.Ui.lineEdit_cf_bypass_proxy.setText(manager.config.cf_bypass_proxy)
-        # 超时时间
-        self.Ui.horizontalSlider_timeout.setValue(int(manager.config.timeout))
+        self.settings_controller.binder.load(manager.config)
         self.Ui.lcdNumber_timeout.display(int(manager.config.timeout))
-        # 重试次数
-        self.Ui.horizontalSlider_retry.setValue(int(manager.config.retry))
         self.Ui.lcdNumber_retry.display(int(manager.config.retry))
 
         # site config
@@ -1103,7 +1092,7 @@ def load_config(self: "MyMAinWindow"):
         try:
             scrape_like_text = Flags.scrape_like_text
             if manager.config.scrape_like == "single":
-                scrape_like_text += f" · {manager.config.website_single.value}"
+                scrape_like_text += f" · {manager.config.selected_site.value}"
             if manager.config.soft_link == 1:
                 scrape_like_text += " · 软连接开"
             elif manager.config.soft_link == 2:

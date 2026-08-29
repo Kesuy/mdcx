@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 import time
+import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
@@ -20,8 +21,7 @@ import httpx
 from aiolimiter import AsyncLimiter
 from curl_cffi import AsyncSession, Response
 from curl_cffi.requests.exceptions import ConnectionError, RequestException, Timeout
-from curl_cffi.requests.session import HttpMethod
-from curl_cffi.requests.utils import not_set
+from curl_cffi.requests.session import NOT_SET, HttpMethod
 from PIL import Image
 
 from .network_fingerprint import (
@@ -39,18 +39,24 @@ from .utils import collapse_inline_script_splits
 
 class AsyncWebLimiters:
     def __init__(self):
-        self.limiters: dict[str, AsyncLimiter] = {
-            "127.0.0.1": AsyncLimiter(300, 1),
-            "localhost": AsyncLimiter(300, 1),
-        }
+        self._by_loop: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, AsyncLimiter]] = (
+            weakref.WeakKeyDictionary()
+        )
+        self._lock = threading.RLock()
 
     def get(self, key: str, rate: float = 8, period: float = 1) -> AsyncLimiter:
         """默认对所有域名启用 8 req/s 的速率限制"""
-        return self.limiters.setdefault(key, AsyncLimiter(rate, period))
+        loop = asyncio.get_running_loop()
+        with self._lock:
+            limiters = self._by_loop.setdefault(loop, {})
+            if key in {"127.0.0.1", "localhost"}:
+                rate, period = 300, 1
+            return limiters.setdefault(key, AsyncLimiter(rate, period))
 
     def remove(self, key: str):
-        if key in self.limiters:
-            del self.limiters[key]
+        with self._lock:
+            for limiters in self._by_loop.values():
+                limiters.pop(key, None)
 
 
 @dataclass
@@ -323,14 +329,17 @@ class AsyncWebClient:
         cf_bypass_proxy: str | None = None,
         log_fn: Callable[[str], None] | None = None,
         limiters: AsyncWebLimiters | None = None,
+        verify_tls: bool = True,
+        ca_bundle: str | None = None,
     ):
         self.retry = retry
         self.proxy = proxy
         self.timeout = timeout
         self.max_clients = 100
+        tls_verify: bool | str = (ca_bundle.strip() if ca_bundle else "") or verify_tls
         self._session_kwargs = {
             "max_clients": self.max_clients,
-            "verify": False,
+            "verify": tls_verify,
             "max_redirects": 20,
             "timeout": timeout,
         }
@@ -407,7 +416,7 @@ class AsyncWebClient:
             return self._leases
 
     def _request_timeout_seconds(self, timeout: float | httpx.Timeout | None) -> float | None:
-        if timeout is None or timeout is not_set:
+        if timeout is None or timeout is NOT_SET:
             return float(self.timeout) + 5.0
         if isinstance(timeout, (int, float)):
             return float(timeout) + 5.0
@@ -1550,7 +1559,7 @@ class AsyncWebClient:
                                 params=params,
                                 data=data,
                                 json=json_data,
-                                timeout=timeout or not_set,
+                                timeout=timeout or NOT_SET,
                                 stream=stream,
                                 allow_redirects=allow_redirects,
                             )
@@ -1565,7 +1574,7 @@ class AsyncWebClient:
                             params=params,
                             data=data,
                             json=json_data,
-                            timeout=timeout or not_set,
+                            timeout=timeout or NOT_SET,
                             stream=stream,
                             allow_redirects=allow_redirects,
                         )

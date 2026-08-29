@@ -5,8 +5,8 @@ import httpx
 
 from ..llm import LLMClient
 from ..manual import ManualConfig
+from ..network_fingerprint import select_fingerprint
 from ..signals import signal
-from ..utils import get_random_headers
 from ..web_async import AsyncWebClient
 from .enums import CleanAction
 from .models import Config
@@ -16,7 +16,7 @@ class Computed:
     def __init__(self, config: Config):
         self.can_clean = CleanAction.I_KNOW in config.clean_enable and CleanAction.I_AGREE in config.clean_enable
 
-        self.random_headers = get_random_headers()
+        self.random_headers = dict(select_fingerprint("localhost").headers)
 
         proxy = config.proxy if config.use_proxy else None
         self.llm_client = LLMClient(
@@ -25,6 +25,9 @@ class Computed:
             proxy=proxy,
             timeout=httpx.Timeout(config.timeout, read=config.translate_config.llm_read_timeout),
             rate=(max(config.translate_config.llm_max_req_sec, 1), max(1, 1 / config.translate_config.llm_max_req_sec)),
+            verify_tls=config.verify_tls,
+            ca_bundle=config.ca_bundle or None,
+            api_mode=config.translate_config.llm_api_mode,
         )
 
         self.async_client = AsyncWebClient(
@@ -34,6 +37,8 @@ class Computed:
             cf_bypass_url=config.cf_bypass_url,
             cf_bypass_proxy=config.cf_bypass_proxy,
             log_fn=signal.add_log,
+            verify_tls=config.verify_tls,
+            ca_bundle=config.ca_bundle or None,
         )
 
         official_websites_dic = {}

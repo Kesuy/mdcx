@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import platform
 import shutil
 import subprocess
@@ -35,6 +36,7 @@ EXCLUDED_MODULES = [
     "matplotlib_inline",
     "rich",
     "typer",
+    "imageio_ffmpeg",
 ]
 
 
@@ -89,8 +91,7 @@ class BuildManager:
                 shutil.rmtree(dist)
 
             self._generate_spec()
-            if self.is_mac:
-                self._modify_spec()
+            self._modify_spec()
             self._build_app()
 
             if self.create_dmg and self.is_mac:
@@ -132,7 +133,7 @@ class BuildManager:
             logger.info(f"\tcreate-dmg 版本: {r}")
 
         logger.info("检查必要文件...")
-        required_files = ["main.py", "mdcx", "resources/Img/MDCx.icns", "resources", "libs"]
+        required_files = ["main.py", "mdcx", "resources/Img/MDCx.icns", "resources"]
         for file_path in required_files:
             if not Path(file_path).exists():
                 raise BuildError(f"文件检查失败: {file_path}")
@@ -155,8 +156,6 @@ class BuildManager:
             "./mdcx",
             "--add-data",
             "resources:resources",
-            "--add-data",
-            "libs:.",
             "--icon",
             "resources/Img/MDCx.icns",
             "--hidden-import",
@@ -168,8 +167,8 @@ class BuildManager:
         self._run_command(cmd, "生成 .spec 文件完成", "spec 文件生成失败")
 
     def _modify_spec(self):
-        """修改.spec文件添加版本信息"""
-        logger.info("(macOS) 向 .spec 文件添加版本信息...")
+        """Apply deterministic platform-specific fixes to the generated spec."""
+        logger.info("应用平台构建规则...")
 
         spec_file = Path(f"{self.app_name}.spec")
         if not spec_file.exists():
@@ -178,26 +177,40 @@ class BuildManager:
         try:
             content = spec_file.read_text(encoding="utf-8")
 
-            # 查找bundle_identifier行
-            lines = content.splitlines()
-            new_lines = []
+            if self.is_mac:
+                lines = content.splitlines()
+                new_lines = []
+                for i, line in enumerate(lines, 1):
+                    new_lines.append(line)
+                    if "bundle_identifier" in line:
+                        indent = len(line) - len(line.lstrip())
+                        info_plist = f"{' ' * indent}info_plist={{\n"
+                        info_plist += f"{' ' * (indent + 4)}'CFBundleShortVersionString': '{self.app_version}',\n"
+                        info_plist += f"{' ' * (indent + 4)}'CFBundleVersion': '{self.app_version}',\n"
+                        info_plist += f"{' ' * indent}}},"
+                        new_lines.append(info_plist)
+                        logger.debug(f"在第 {i + 1} 行添加 info_plist")
+                content = "\n".join(new_lines)
 
-            for i, line in enumerate(lines, 1):
-                new_lines.append(line)
-                if "bundle_identifier" in line:
-                    # 在下一行添加info_plist
-                    indent = len(line) - len(line.lstrip())
-                    info_plist = f"{' ' * indent}info_plist={{\n"
-                    info_plist += f"{' ' * (indent + 4)}'CFBundleShortVersionString': '{self.app_version}',\n"
-                    info_plist += f"{' ' * (indent + 4)}'CFBundleVersion': '{self.app_version}',\n"
-                    info_plist += f"{' ' * indent}}},"
-                    new_lines.append(info_plist)
-                    logger.debug(f"在第 {i + 1} 行添加 info_plist")
+            if self.is_windows:
+                marker = "pyz = PYZ(a.pure)"
+                if marker not in content:
+                    raise BuildError("无法定位 PyInstaller Analysis 输出")
+                # Qt 6 uses the Windows ICU ABI from System32. PyInstaller may
+                # otherwise pick an unrelated icuuc.dll from PATH (for example
+                # Poppler), producing a frozen app that fails to import QtCore.
+                filter_icu = (
+                    "# Keep incompatible third-party ICU DLLs out of the Qt runtime.\n"
+                    "a.binaries = [\n"
+                    "    item for item in a.binaries\n"
+                    "    if item[0].lower() != 'icuuc.dll'\n"
+                    "    and not item[0].lower().startswith('icudt')\n"
+                    "]\n\n"
+                )
+                content = content.replace(marker, f"{filter_icu}{marker}", 1)
 
-            new_content = "\n".join(new_lines)
-            spec_file.write_text(new_content, encoding="utf-8")
-
-            logger.info(".spec 文件修改成功，已添加版本信息")
+            spec_file.write_text(content, encoding="utf-8")
+            logger.info(".spec 文件平台规则应用成功")
 
         except Exception as e:
             raise BuildError("spec文件修改失败") from e
@@ -227,6 +240,34 @@ class BuildManager:
             if app_path.is_file():
                 app_size = app_path.stat().st_size
                 logger.info(f"大小: {app_size / 1024 / 1024:.1f} MB")
+        self._smoke_test_app(app_path)
+
+    def _smoke_test_app(self, app_path: Path):
+        """Launch the frozen startup path and reject unusable artifacts."""
+        executable = app_path
+        if self.is_mac:
+            executable = app_path / "Contents" / "MacOS" / self.app_name
+        env = os.environ.copy()
+        env.setdefault("MDCX_OFFLINE", "1")
+        env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        logger.info("验证冻结程序启动和 Qt 运行时...")
+        try:
+            result = subprocess.run(
+                [str(executable), "--smoke-test"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=45,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise BuildError("冻结程序启动验证超时，可能存在 DLL 错误对话框") from e
+        except OSError as e:
+            raise BuildError(f"无法启动构建产物: {e}") from e
+        if result.returncode != 0:
+            output = result.stdout.strip() or "无控制台输出"
+            raise BuildError(f"冻结程序启动验证失败 ({result.returncode}): {output}")
+        logger.info("冻结程序启动验证通过")
 
     def _create_dmg(self):
         """创建DMG文件"""

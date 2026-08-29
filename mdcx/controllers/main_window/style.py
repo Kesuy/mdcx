@@ -39,6 +39,15 @@ LIGHT_TOKENS = {
     "selection_text": "#111827",
     "tree_hover": "rgba(76, 110, 255, 18)",
     "tree_border": "rgba(76, 110, 255, 170)",
+    "on_accent": "#FFFFFF",
+    "input_bg": "#FFFFFF",
+    "navigation": "#F5F7FF",
+    "danger": "#C62828",
+    "warning": "#B26A00",
+    "success": "#12805C",
+    "radius_sm": "4px",
+    "radius_md": "8px",
+    "radius_lg": "10px",
 }
 
 DARK_TOKENS = {
@@ -60,6 +69,15 @@ DARK_TOKENS = {
     "selection_text": "#FFFFFF",
     "tree_hover": "rgba(102, 132, 255, 34)",
     "tree_border": "rgba(142, 163, 255, 190)",
+    "on_accent": "#FFFFFF",
+    "input_bg": "#18222D",
+    "navigation": "#1F272F",
+    "danger": "#FF7B7B",
+    "warning": "#F2B35D",
+    "success": "#58C69A",
+    "radius_sm": "4px",
+    "radius_md": "8px",
+    "radius_lg": "10px",
 }
 
 
@@ -69,6 +87,29 @@ def _tokens(dark: bool) -> dict[str, str]:
 
 def get_theme_tokens(dark: bool) -> dict[str, str]:
     return _tokens(dark)
+
+
+def _theme_qss(style: str, dark: bool) -> str:
+    """Resolve legacy color literals through the semantic theme palette."""
+    t = _tokens(dark)
+    replacements = {
+        "#4C6EFF": t["accent"],
+        "#6684FF": t["accent"] if dark else t["accent_hover"],
+        "#8EA3FF": t["accent_hover"],
+        "#4C6EE0": t["accent_pressed"],
+        "#3F5FE6": t["accent_pressed"],
+        "#D8DEE9": t["border"],
+        "#2F3A46": t["border"],
+        "#111827": t["text"],
+        "#E5E7EB": t["text"],
+        "#FFFFFF": t["on_accent"],
+        "#18222D": t["surface"],
+        "#1D2834": t["surface_muted"],
+        "#1F272F": t["navigation"],
+    }
+    for literal, value in replacements.items():
+        style = style.replace(literal, value)
+    return style
 
 
 def apply_application_palette(dark: bool) -> None:
@@ -88,7 +129,7 @@ def apply_application_palette(dark: bool) -> None:
     palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(t["surface"]))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(t["text"]))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(t["accent"]))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(t["on_accent"]))
     palette.setColor(QPalette.ColorRole.Link, QColor(t["link"]))
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(t["placeholder"]))
     palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(t["text_disabled"]))
@@ -108,7 +149,7 @@ def apply_application_palette(dark: bool) -> None:
 def build_tree_widget_style(dark: bool) -> str:
     t = _tokens(dark)
     return f"""
-        QTreeWidget {{
+        QTreeWidget, QTreeView {{
             outline: 0;
             border: 0;
             color: {t["text"]};
@@ -117,34 +158,34 @@ def build_tree_widget_style(dark: bool) -> str:
             selection-background-color: transparent;
             selection-color: {t["selection_text"]};
         }}
-        QTreeWidget::item {{
+        QTreeWidget::item, QTreeView::item {{
             color: {t["text"]};
             border: 1px solid transparent;
             border-radius: 4px;
             padding: 2px 4px;
         }}
-        QTreeWidget::item:hover {{
+        QTreeWidget::item:hover, QTreeView::item:hover {{
             color: {t["text"]};
             background: {t["tree_hover"]};
             border: 1px solid {t["tree_border"]};
         }}
-        QTreeWidget::item:selected,
-        QTreeWidget::item:selected:active {{
+        QTreeWidget::item:selected, QTreeView::item:selected,
+        QTreeWidget::item:selected:active, QTreeView::item:selected:active {{
             color: {t["selection_text"]};
             background: {t["selection_bg"]};
             border: 1px solid {t["tree_border"]};
         }}
-        QTreeWidget::item:selected:!active {{
+        QTreeWidget::item:selected:!active, QTreeView::item:selected:!active {{
             color: {t["selection_text"]};
             background: {t["selection_bg_inactive"]};
             border: 1px solid {t["tree_border"]};
         }}
-        QTreeWidget::branch {{
+        QTreeWidget::branch, QTreeView::branch {{
             background: transparent;
             border: 0;
             image: none;
         }}
-        QTreeWidget::branch:selected {{
+        QTreeWidget::branch:selected, QTreeView::branch:selected {{
             background: transparent;
             image: none;
         }}
@@ -365,7 +406,9 @@ def set_style(self: "MyMAinWindow"):
         """)
     # 设置页
     self.Ui.page_setting.setStyleSheet(
-        _qss_resources("""
+        _qss_resources(
+            _theme_qss(
+                """
         * {
             font-size:13px;
         }
@@ -457,17 +500,22 @@ def set_style(self: "MyMAinWindow"):
             background-color: rgba(245,245,246,220);
             border-radius: 10px;
         }
-        """)
+        """,
+                False,
+            )
+        )
     )
     # 整个页面
     self.Ui.centralwidget.setStyleSheet(
-        _qss_resources(f"""
+        _qss_resources(
+            _theme_qss(
+                f"""
         * {{
             font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Segoe UI';
             font-size:13px;
             color: black;
         }}
-        QTreeWidget
+        QTreeWidget, QTreeView
         {{
             background-color: rgba(246, 246, 246, 0);
             font-size: 12px;
@@ -555,6 +603,16 @@ def set_style(self: "MyMAinWindow"):
             image: url(resources/Img/chevron_down_light.svg);
             width: 14px;
             height: 14px;
+        }}
+        QComboBox#result_status_combo, QComboBox#result_sort_combo{{
+            padding: 2px 24px 2px 6px;
+        }}
+        QComboBox#result_status_combo::drop-down, QComboBox#result_sort_combo::drop-down{{
+            width: 20px;
+        }}
+        QComboBox#result_status_combo::down-arrow, QComboBox#result_sort_combo::down-arrow{{
+            width: 12px;
+            height: 12px;
         }}
         QComboBox:focus{{
             border: 1px solid #4C6EFF;
@@ -721,7 +779,10 @@ def set_style(self: "MyMAinWindow"):
             width: 3px; /*区块宽度*/
             margin: 0px;
         }}
-        """)
+        """,
+                False,
+            )
+        )
     )
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
 
@@ -826,7 +887,9 @@ def set_dark_style(self: "MyMAinWindow"):
         """)
     # 设置页
     self.Ui.page_setting.setStyleSheet(
-        _qss_resources("""
+        _qss_resources(
+            _theme_qss(
+                """
         * {
             font-size:13px;
         }
@@ -933,17 +996,22 @@ def set_dark_style(self: "MyMAinWindow"):
             background: #4C6EE0;
             border: 1px solid #4C6EE0;
         }
-        """)
+        """,
+                True,
+            )
+        )
     )
     # 整个页面
     self.Ui.centralwidget.setStyleSheet(
-        _qss_resources(f"""
+        _qss_resources(
+            _theme_qss(
+                f"""
         * {{
             font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Segoe UI';
             font-size:13px;
             color: white;
         }}
-        QTreeWidget
+        QTreeWidget, QTreeView
         {{
             background-color: rgba(246, 246, 246, 0);
             font-size: 12px;
@@ -1173,6 +1241,16 @@ def set_dark_style(self: "MyMAinWindow"):
             width: 14px;
             height: 14px;
         }}
+        QComboBox#result_status_combo, QComboBox#result_sort_combo {{
+            padding: 2px 24px 2px 6px;
+        }}
+        QComboBox#result_status_combo::drop-down, QComboBox#result_sort_combo::drop-down {{
+            width: 20px;
+        }}
+        QComboBox#result_status_combo::down-arrow, QComboBox#result_sort_combo::down-arrow {{
+            width: 12px;
+            height: 12px;
+        }}
 
         QComboBox QAbstractItemView {{
             color:white;
@@ -1197,6 +1275,9 @@ def set_dark_style(self: "MyMAinWindow"):
             width: 3px; /*区块宽度*/
             margin: 0px;
         }}
-        """)
+        """,
+                True,
+            )
+        )
     )
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(True))

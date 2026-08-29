@@ -1,3 +1,5 @@
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -26,6 +28,23 @@ def _configure_naming(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(manager.config, "soft_link", 0)
     monkeypatch.setattr(manager.config, "prevent_char", "")
     monkeypatch.setattr(manager.config, "media_type", [".wmv", ".mp4"])
+
+
+def _make_directory_link(link: Path, target: Path) -> None:
+    """Create a directory link without requiring Windows Developer Mode."""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        completed = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout).decode(errors="replace")
+            raise OSError(f"failed to create test junction: {detail}") from exc
 
 
 def _build_data() -> CrawlersResult:
@@ -315,13 +334,13 @@ async def test_reorganize_scraped_media_refuses_broken_symlink_target(monkeypatc
     old_movie.write_bytes(b"movie")
     target_folder = output / "天宮まりる" / "H4610-ORI696 望月 奈々 天宮まりる"
     target_folder.parent.mkdir(parents=True)
-    target_folder.symlink_to(tmp_path / "missing-target", target_is_directory=True)
+    _make_directory_link(target_folder, tmp_path / "missing-target")
 
     with pytest.raises(MediaReorganizationError, match="目标目录已存在"):
         await reorganize_scraped_media(_build_file_info(old_movie), _build_data(), OtherInfo.empty(), output)
 
     assert old_movie.exists()
-    assert target_folder.is_symlink()
+    assert target_folder.is_symlink() or target_folder.is_junction()
 
 
 @pytest.mark.asyncio
@@ -330,7 +349,7 @@ async def test_reorganize_scraped_media_refuses_symlink_success_folder(monkeypat
     real_output = tmp_path / "real-output"
     real_output.mkdir()
     output = tmp_path / "JAV_output"
-    output.symlink_to(real_output, target_is_directory=True)
+    _make_directory_link(output, real_output)
     old_folder = output / "望月奈々" / "H4610-ORI696 望月 奈々 望月奈々"
     old_folder.mkdir(parents=True)
     old_movie = old_folder / "H4610-ORI696 望月奈々.wmv"
@@ -369,7 +388,7 @@ async def test_reorganize_scraped_media_handles_windows_case_only_names(
     assert result.new_file_path == expected_folder / "H4610-ORI696 actor.wmv"
     assert (expected_folder / "H4610-ORI696 actor.wmv").read_bytes() == b"movie"
     assert (expected_folder / "H4610-ORI696 actor.nfo").read_text(encoding="utf-8") == "nfo"
-    assert not (output / "ACTOR").exists()
+    assert "ACTOR" not in {path.name for path in output.iterdir()}
 
 
 @pytest.mark.asyncio

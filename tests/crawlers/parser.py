@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, NotRequired, TypedDict
 
-import pytest
 from aiofiles import open as aio_open
 from parsel import Selector
 
@@ -45,7 +44,7 @@ class ParserTestBase:
 
         html_files = self.scan_html_files()
         if not html_files:
-            pytest.skip("未找到 HTML 测试文件")
+            return await self.run_smoke_test()
 
         cases = self.load_cases()
 
@@ -76,6 +75,31 @@ class ParserTestBase:
         print(f"\n测试完成: 总计 {total_tests}, 通过 {passed_tests}, 失败 {failed_tests}")
 
         return failed_tests == 0
+
+    async def run_smoke_test(self) -> bool:
+        """Keep every registered parser executable even before snapshots are added."""
+        parser = self.parser_class()
+        ctx = Context(
+            input=CrawlerInput(
+                appoint_number="",
+                appoint_url="",
+                file_path=None,
+                mosaic="",
+                number="",
+                short_number="",
+                language=Language.UNDEFINED,
+                org_language=Language.UNDEFINED,
+            )
+        )
+        result = await parser.parse(ctx, Selector(text="<html></html>"))
+        serialized = self.serialize_result(result)
+        required_fields = {"title", "actors", "tags", "not_support"}
+        missing = required_fields.difference(serialized)
+        if missing:
+            print(f"解析器空文档冒烟测试缺少字段: {sorted(missing)}")
+            return False
+        print(f"未提供 HTML 快照，已通过空文档冒烟测试: {self.parser_name}")
+        return True
 
     async def run_one_test(self, html_file: Path, case_data: TestCase) -> bool:
         """运行单个 HTML 文件的回归测试"""

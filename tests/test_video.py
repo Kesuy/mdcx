@@ -3,12 +3,14 @@ import subprocess
 
 import pytest
 
-from mdcx.utils.video import get_video_metadata_ffmpeg, get_video_metadata_pyav
+from mdcx.utils.video import find_ffmpeg_executable, get_video_metadata_ffmpeg, get_video_metadata_pyav
 
 
 def create_dummy_video(path, size="320x240", vcodec="libx264", fmt="mp4", pix_fmt=None):
     # 支持不同分辨率、编码、格式
-    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc=duration=1:size={size}:rate=1"]
+    executable = find_ffmpeg_executable()
+    assert executable is not None, "The locked development environment must provide a runnable FFmpeg"
+    cmd = [executable, "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc=duration=1:size={size}:rate=1"]
     if pix_fmt:
         cmd += ["-pix_fmt", pix_fmt]
     cmd += ["-c:v", vcodec, path]

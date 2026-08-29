@@ -9,7 +9,7 @@ on:
     branches:
       - master
       - develop
-    types: [review_requested, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   quality:
@@ -27,3 +27,23 @@ jobs:
 
       - name: Run ruff check
         run: uvx ruff@0.15.12 check --output-format=github
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MDCX_OFFLINE: "1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --dev
+      - name: Run tests
+        run: uv run --locked pytest tests -q

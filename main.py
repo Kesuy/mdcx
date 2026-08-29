@@ -30,7 +30,8 @@ def run(argv: list[str] | None = None) -> int:
     # Qt 6 使用 logical pixel；明确保留 125%/150% 等非整数缩放，避免固定布局被取整放大。
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
 
-    app = QApplication(sys.argv if argv is None else argv)
+    effective_argv = sys.argv if argv is None else argv
+    app = QApplication(effective_argv)
     app.setStyle("Fusion")
     if platform.system() != "Windows":
         app.setWindowIcon(QIcon("resources/Img/MDCx.ico"))  # 设置任务栏图标
@@ -43,6 +44,14 @@ def run(argv: list[str] | None = None) -> int:
 
     ImageFile.LOAD_TRUNCATED_IMAGES = True
     apply_application_palette(False)
+
+    # The build pipeline invokes this mode against the frozen artifact. It
+    # validates Qt DLL loading and the complete startup import tree without
+    # opening a window or entering the event loop.
+    if "--smoke-test" in effective_argv:
+        print("MDCx frozen startup smoke test passed")
+        return 0
+
     show_constants()
 
     ui = MyMAinWindow()

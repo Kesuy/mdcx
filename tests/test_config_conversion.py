@@ -265,7 +265,7 @@ def test_version_2_config_enables_fc2cmadb_first_without_reordering_other_fc2_si
     Config.update(data)
     config = Config.model_validate(data)
 
-    assert config.config_version == 3
+    assert config.config_version == 4
     assert config.website_fc2 == [Website.FC2PPVDB, Website.FC2HUB, Website.FC2, Website.FC2CLUB]
     assert config.get_type_field_config(FixedScrapingType.FC2, CrawlerResultFields.TITLE).site_prority == [
         Website.FC2PPVDB,

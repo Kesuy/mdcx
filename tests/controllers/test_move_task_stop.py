@@ -35,6 +35,19 @@ class _MessageBox:
         return self.StandardButton.Yes
 
 
+class _TaskManager:
+    def __init__(self, *, running: bool):
+        self.running = running
+        self.submitted = []
+
+    def is_running(self, name: str) -> bool:
+        assert name == "move-media-files"
+        return self.running
+
+    def submit_sync(self, name, function, **kwargs):
+        self.submitted.append((name, function, kwargs))
+
+
 def _signal(logs: list[str]):
     return SimpleNamespace(
         stop=False,
@@ -82,63 +95,36 @@ def test_move_stop_finishes_current_file_and_does_not_start_later_files(monkeypa
     assert any("当前文件操作已安全完成" in log for log in logs)
 
 
-def test_move_start_is_rejected_while_previous_thread_is_alive(monkeypatch):
+def test_move_start_is_rejected_while_previous_task_is_running(monkeypatch):
     logs: list[str] = []
     window = MyMAinWindow.__new__(MyMAinWindow)
-    window.threads_list = [SimpleNamespace(is_alive=lambda: True)]
+    window.task_manager = _TaskManager(running=True)
     window._thread_stop_event = threading.Event()
     window._thread_stop_event.set()
     window.pushButton_show_log_clicked = lambda: None
-    thread_created = False
-
-    def create_thread(*_args, **_kwargs):
-        nonlocal thread_created
-        thread_created = True
-        raise AssertionError("a replacement thread must not be created")
-
     monkeypatch.setattr(main_window_module, "QMessageBox", _MessageBox)
     monkeypatch.setattr(main_window_module, "signal_qt", _signal(logs))
-    monkeypatch.setattr(main_window_module.threading, "Thread", create_thread)
 
     window.pushButton_move_mp4_clicked()
 
-    assert thread_created is False
+    assert window.task_manager.submitted == []
     assert window._thread_stop_event.is_set()
     assert any("未启动新的移动任务" in log for log in logs)
 
 
-def test_next_move_start_clears_stop_event_after_previous_thread_exits(monkeypatch):
+def test_next_move_start_clears_stop_event_after_previous_task_exits(monkeypatch):
     logs: list[str] = []
     window = MyMAinWindow.__new__(MyMAinWindow)
-    window.threads_list = [SimpleNamespace(is_alive=lambda: False)]
+    window.task_manager = _TaskManager(running=False)
     window._thread_stop_event = threading.Event()
     window._thread_stop_event.set()
     window.pushButton_show_log_clicked = lambda: None
-    created_threads = []
-
-    class StartedThread:
-        def __init__(self, *, target):
-            self.target = target
-            self.started = False
-
-        def start(self):
-            self.started = True
-
-        def is_alive(self):
-            return self.started
-
-    def create_thread(*, target):
-        thread = StartedThread(target=target)
-        created_threads.append(thread)
-        return thread
-
     monkeypatch.setattr(main_window_module, "QMessageBox", _MessageBox)
     monkeypatch.setattr(main_window_module, "signal_qt", _signal(logs))
-    monkeypatch.setattr(main_window_module.threading, "Thread", create_thread)
 
     window.pushButton_move_mp4_clicked()
 
     assert not window._thread_stop_event.is_set()
-    assert len(created_threads) == 1
-    assert created_threads[0].started is True
-    assert window.threads_list == created_threads
+    assert len(window.task_manager.submitted) == 1
+    assert window.task_manager.submitted[0][0] == "move-media-files"
+    assert window.task_manager.submitted[0][1] == window._move_file_thread

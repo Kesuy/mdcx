@@ -56,6 +56,9 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.pytest-tmp/
+.pytest-cache/
+.uv-cache/
 cover/
 
 # Translations
@@ -187,4 +190,3 @@ highdpi_passthrough
 
 scripts/local/
 AGENTS.md
-uv.toml

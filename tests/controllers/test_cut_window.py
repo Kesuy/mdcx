@@ -201,12 +201,13 @@ def test_same_path_rotation_preserves_source_permissions(tmp_path, monkeypatch, 
     source_path = tmp_path / "TEST-001-fanart.jpg"
     Image.new("RGB", (12, 8), "navy").save(source_path)
     source_path.chmod(0o600)
+    expected_mode = stat.S_IMODE(source_path.stat().st_mode)
     window = _window()
     rotated = Image.new("RGB", (8, 12), "navy")
     try:
         window._save_full_image(rotated, source_path, source_path)
 
-        assert stat.S_IMODE(source_path.stat().st_mode) == 0o600
+        assert stat.S_IMODE(source_path.stat().st_mode) == expected_mode
     finally:
         rotated.close()
         window.close()

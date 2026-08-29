@@ -670,7 +670,7 @@ class FileScraper:
             if website_temp:
                 website_name = website_temp
         elif self.config.scrape_like == "single":
-            website_name = self.config.website_single
+            website_name = self.config.selected_site
 
         return website_name
 

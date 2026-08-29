@@ -3,7 +3,7 @@ from typing import Any
 
 from .enums import DownloadableFile, HDPicSource, Website
 
-CURRENT_CONFIG_VERSION = 3
+CURRENT_CONFIG_VERSION = 4
 
 
 def _str_to_list(v: str | list[Any] | None, sep: str = ",", unique: bool = True) -> list[str]:
@@ -155,10 +155,13 @@ def migrate_config_data(data: dict[str, Any]) -> list[str]:
     _migrate_builtin_naming_templates(data)
     _migrate_removed_hd_pic_sources(data)
 
-    if _is_removed_airav_site(data.get("website_single")):
-        data["website_single"] = Website.AIRAV_CC.value
+    legacy_single_site = data.pop("website_single", None)
+    if legacy_single_site is not None:
+        data.setdefault("selected_site", legacy_single_site)
+    if _is_removed_airav_site(data.get("selected_site")):
+        data["selected_site"] = Website.AIRAV_CC.value
     for key, value in list(data.items()):
-        if key.startswith("website_") and key != "website_single":
+        if key.startswith("website_"):
             data[key] = _migrate_site_list(value)
     if source_version < 3 and "website_fc2" in data:
         data["website_fc2"] = _prepend_fc2cmadb_site(data["website_fc2"])
