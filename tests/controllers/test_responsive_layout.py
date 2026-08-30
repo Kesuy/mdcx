@@ -342,11 +342,18 @@ def test_sidebar_and_artwork_follow_splitter_resizes_without_leaving_gaps():
     APP.processEvents()
     APP.processEvents()
 
-    assert shell_splitter.handleWidth() == 3
-    assert "background: transparent" in shell_splitter.styleSheet()
+    assert shell_splitter.handleWidth() == 1
+    assert "rgba(120, 120, 120, 35)" in shell_splitter.styleSheet()
     assert window.Ui.left_backgroud_widget.width() == window.Ui.widget_setting.width()
     assert window.Ui.left_backgroud_widget.geometry().right() == window.Ui.widget_setting.rect().right()
     assert window.Ui.label_show_version.width() == window.Ui.widget_setting.width()
+    assert window.Ui.stackedWidget.x() == window.Ui.widget_setting.geometry().right() + 2
+    assert window.Ui.progressBar_scrape.geometry().top() == 0
+    assert window.Ui.progressBar_scrape.geometry().left() == window.Ui.stackedWidget.geometry().left()
+    assert window.Ui.progressBar_scrape.width() == window.Ui.stackedWidget.width()
+    sidebar_bottom = window.Ui.widget_setting.mapToGlobal(QPoint(0, window.Ui.widget_setting.height() - 1)).y()
+    content_bottom = window.Ui.stackedWidget.mapToGlobal(QPoint(0, window.Ui.stackedWidget.height() - 1)).y()
+    assert sidebar_bottom == content_bottom
 
     content_splitter = window._main_splitter
     expanded_height = window.Ui.label_poster.height()

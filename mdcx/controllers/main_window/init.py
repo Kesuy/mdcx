@@ -42,8 +42,7 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.progressBar_scrape.setValue(0)  # 进度条清0
     self.Ui.progressBar_scrape.setTextVisible(False)  # 不显示进度条文字
     self.Ui.pushButton_start_cap.setCheckable(True)  # 主界面开始按钮可点状态
-    if isinstance(self.Ui.treeWidget_number, QTreeWidget):
-        self.Ui.treeWidget_number = ResultTreeView.replace(self.Ui.treeWidget_number)
+    install_result_tree_view(self)
     setup_result_sort_ui(self)
     setup_local_nfo_button(self)
     self.init_QTreeWidget()  # 初始化树状图
@@ -153,6 +152,13 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.widget_nfo.hide()
     setup_site_priority_ui(self)
     setup_responsive_ui(self)
+
+
+def install_result_tree_view(self: "MyMAinWindow") -> None:
+    """Install the final result view before any signals are connected."""
+
+    if isinstance(self.Ui.treeWidget_number, QTreeWidget):
+        self.Ui.treeWidget_number = ResultTreeView.replace(self.Ui.treeWidget_number)
 
 
 def setup_result_sort_ui(self: "MyMAinWindow") -> None:

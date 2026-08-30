@@ -146,13 +146,12 @@ def _sync_shell_sidebar(window: "MyMAinWindow") -> None:
     ui = window.Ui
     splitter = window._shell_splitter
     sidebar_width = ui.widget_setting.width()
-    content_width = max(1, splitter.width() - sidebar_width)
     bottom_margin = PAGE_BOTTOM_MARGIN
     footer_bottom = max(0, splitter.height() - bottom_margin)
     _set_geometry(ui.left_backgroud_widget, 0, 0, sidebar_width, splitter.height())
     _set_geometry(ui.label_show_version, 0, max(0, footer_bottom - 201), sidebar_width, 201)
     _set_geometry(ui.label_local_number, 0, max(0, footer_bottom - 21), 21, 21)
-    _set_geometry(ui.progressBar_scrape, sidebar_width - 1, -1, content_width + 3, 7)
+    _set_geometry(ui.progressBar_scrape, ui.stackedWidget.x(), 0, ui.stackedWidget.width(), 5)
 
 
 def _sync_after_shell_splitter_move(window: "MyMAinWindow") -> None:
@@ -184,8 +183,10 @@ def _setup_shell_splitter(window: "MyMAinWindow") -> None:
     splitter = QSplitter(Qt.Orientation.Horizontal, ui.centralwidget)
     splitter.setObjectName("window_shell_splitter")
     splitter.setChildrenCollapsible(False)
-    splitter.setHandleWidth(3)
-    splitter.setStyleSheet("QSplitter#window_shell_splitter::handle:horizontal { background: transparent; }")
+    splitter.setHandleWidth(1)
+    splitter.setStyleSheet(
+        "QSplitter#window_shell_splitter::handle:horizontal { background: rgba(120, 120, 120, 35); }"
+    )
     splitter.addWidget(ui.widget_setting)
     splitter.addWidget(ui.stackedWidget)
     ui.widget_setting.setMinimumWidth(64)
@@ -804,7 +805,7 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
         _set_geometry(ui.left_backgroud_widget, 0, 0, STACKED_LEFT, metrics.window_height)
         _set_geometry(ui.label_show_version, 0, 489 + metrics.height_delta, STACKED_LEFT, 201)
         _set_geometry(ui.label_local_number, 0, 680 + metrics.height_delta, 21, 21)
-        _set_geometry(ui.progressBar_scrape, 209, -1, metrics.stacked_width + 3, 7)
+        _set_geometry(ui.progressBar_scrape, STACKED_LEFT, 0, metrics.stacked_width, 5)
 
     if not hasattr(window, "_main_splitter"):
         _set_geometry(ui.label_file_path, 30, 10, metrics.path_width, 50)

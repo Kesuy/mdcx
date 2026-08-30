@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QComboBox, QPushButton, QTreeWidget, QTreeWidgetItem
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
@@ -145,3 +147,43 @@ def test_clicking_each_result_displays_that_items_bound_data():
     second_index = harness.Ui.treeWidget_number.indexFromItem(harness.item_succ.child(1))
     harness.treeWidget_number_index_clicked(second_index)
     assert shown[-1] is second
+
+
+def test_real_main_window_connects_clicks_after_replacing_designer_tree(monkeypatch):
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    window = MyMAinWindow()
+    tree = window.Ui.treeWidget_number
+    assert isinstance(tree, ResultTreeView)
+    assert tree.receivers(tree.clicked) >= 1
+
+    first_data = CrawlersResult.empty()
+    first_data.number = "FC2-1111111"
+    first_data.title = "first"
+    first = ShowData(FileInfo.empty(), first_data, OtherInfo.empty(), "1.FC2-1111111")
+    second_data = CrawlersResult.empty()
+    second_data.number = "FC2-2222222"
+    second_data.title = "second"
+    second = ShowData(FileInfo.empty(), second_data, OtherInfo.empty(), "2.FC2-2222222")
+    window.show_list_name("succ", first)
+    window.show_list_name("succ", second)
+    assert window.show_data is second
+
+    window.resize(1100, 700)
+    window.show()
+    tree.expandAll()
+    APP.processEvents()
+    first_index = tree.indexFromItem(window.item_succ.child(0))
+    first_rect = tree.visualRect(first_index)
+    assert first_rect.isValid() and not first_rect.isEmpty()
+
+    QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=first_rect.center())
+    APP.processEvents()
+
+    assert window.show_data is first
+    assert window.Ui.label_number.property("mdcxFullText") == "FC2-1111111"
+    for timer_name in ("timer", "timer_scrape", "timer_update", "timer_remain_task"):
+        getattr(window, timer_name).stop()
+    window.hide()
+    window.deleteLater()
+    APP.processEvents()

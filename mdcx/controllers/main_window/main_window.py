@@ -67,7 +67,7 @@ from mdcx.views.MDCx import Ui_MDCx
 
 from .file_controller import FileController, FileOperationKind, classify_file_failure
 from .handlers import show_netstatus
-from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
+from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget, install_result_tree_view
 from .load_config import load_config
 from .network_controller import NetworkController
 from .nfo_controller import NfoController
@@ -211,6 +211,9 @@ class MyMAinWindow(QMainWindow):
         self.cutwindow: CutWindow | None = None
         self.preview_image_loader = PreviewImageLoader(self)
         self.preview_image_loader.loaded.connect(self._apply_preview_images)
+        # Replace the generated tree before Init_Singal. Connecting first would
+        # leave mouse/selection handlers attached to the deleted QTreeWidget.
+        install_result_tree_view(self)
         self.Init_Singal()  # 信号连接
         self.Init_Ui()  # 设置Ui初始状态
         self.load_config()  # 加载配置
