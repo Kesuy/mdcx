@@ -2,6 +2,7 @@
 
 import os
 from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +13,13 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, QSlider, QTextEdit
 
 from mdcx.controllers.main_window.config_binding import ConfigBinder, SettingBinding
-from mdcx.controllers.main_window.settings_page import format_duration, is_valid_http_url, parse_duration
+from mdcx.controllers.main_window.settings_page import (
+    format_duration,
+    is_valid_http_url,
+    parse_duration,
+    validate_name_template,
+)
+from mdcx.models.types import CrawlersResult, FileInfo
 
 APP = QApplication.instance() or QApplication([])
 
@@ -105,3 +112,16 @@ def test_http_url_validation_accepts_supported_urls(value: str):
 @pytest.mark.parametrize("value", ["api.example.com", "ftp://example.com", "https://bad host/v1"])
 def test_http_url_validation_rejects_ambiguous_or_unsupported_urls(value: str):
     assert not is_valid_http_url(value)
+
+
+def test_name_template_validation_reports_real_jinja_syntax_errors():
+    file_info = FileInfo.empty()
+    file_info.number = "ABC-123"
+    file_info.file_path = Path("D:/Media/ABC-123.mp4")
+    file_info.file_name = "ABC-123"
+    result = CrawlersResult.empty()
+    result.number = "ABC-123"
+    result.title = "Title"
+
+    assert validate_name_template("{{ number }} - {{ title }}", file_info, result) == ""
+    assert validate_name_template("{% if studio %}{{ studio }}", file_info, result)

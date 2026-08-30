@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from mdcx.config.models import str_to_list
+from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 
 from .config_binding import ConfigBinder, SettingBinding
 
@@ -42,6 +43,27 @@ def is_valid_http_url(value: str) -> bool:
         return True
     parsed = urlsplit(value.strip())
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc) and " " not in parsed.netloc
+
+
+def validate_name_template(template: str, file_info, result) -> str:
+    if not template.strip():
+        return ""
+    try:
+        render_name(
+            template,
+            file_info,
+            result,
+            NameRenderOptions(
+                target=NamingTarget.FILE,
+                show_definition_suffix=False,
+                show_cnword_suffix=False,
+                show_moword_suffix=False,
+                max_length=120,
+            ),
+        )
+    except Exception as error:
+        return str(error)
+    return ""
 
 
 class SettingsPageController:
@@ -267,6 +289,7 @@ class SettingsPageController:
         self._numeric_widgets: list[QLineEdit] = []
         self._format_widgets: dict[QLineEdit, str] = {}
         self._url_widgets: dict[QLineEdit, str] = {}
+        self._template_widgets: list[QLineEdit] = []
         locale = QLocale.c()
         for name in ("lineEdit_escape_size", "lineEdit_clean_file_size"):
             widget = getattr(self.ui, name)
@@ -292,10 +315,19 @@ class SettingsPageController:
         for name in ("lineEdit_llm_url", "lineEdit_deeplx_url", "lineEdit_cf_bypass_url"):
             widget = getattr(self.ui, name)
             self._url_widgets[widget] = "请输入完整的 http:// 或 https:// 地址"
+        for name in (
+            "lineEdit_dir_name",
+            "lineEdit_local_name",
+            "lineEdit_media_name",
+            "lineEdit_update_c_filetemplate",
+            "lineEdit_update_titletemplate",
+        ):
+            self._template_widgets.append(getattr(self.ui, name))
         for widget in (
             *self._numeric_widgets,
             *self._format_widgets,
             *self._url_widgets,
+            *self._template_widgets,
             self.ui.lineEdit_ca_bundle,
         ):
             self._install_inline_error(widget)
@@ -352,6 +384,14 @@ class SettingsPageController:
         for widget, message in self._url_widgets.items():
             if not is_valid_http_url(widget.text()):
                 self._set_validation_error(widget, message)
+                errors.append(widget.objectName())
+            else:
+                self._set_validation_error(widget)
+        file_info, result = self.window._build_name_preview_sample()
+        for widget in self._template_widgets:
+            message = validate_name_template(widget.text(), file_info, result)
+            if message:
+                self._set_validation_error(widget, f"命名模板语法错误：{message}")
                 errors.append(widget.objectName())
             else:
                 self._set_validation_error(widget)
