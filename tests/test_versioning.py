@@ -126,3 +126,18 @@ def test_bump_dry_run_rejects_invalid_explicit_version():
     assert result.exit_code == 1
     assert "版本号格式无效" in result.output
     assert "预览模式" not in result.output
+
+
+def test_bump_command_completes_with_unicode_status_output(tmp_path, monkeypatch):
+    from scripts import bump
+
+    consts = tmp_path / "consts.py"
+    consts.write_text('LOCAL_VERSION = "4.0.2"\n', encoding="utf-8")
+    monkeypatch.setattr(bump, "get_consts_file", lambda: consts)
+
+    result = CliRunner().invoke(bump.app, ["--version", "4.0.3", "--force"])
+
+    assert result.exit_code == 0
+    assert "4.0.2" in result.output
+    assert "4.0.3" in result.output
+    assert consts.read_text(encoding="utf-8") == 'LOCAL_VERSION = "4.0.3"\n'

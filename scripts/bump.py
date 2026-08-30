@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -15,7 +16,17 @@ app = typer.Typer(
     rich_markup_mode="rich",
     context_settings={"help_option_names": ["-h", "--help"]},
 )
-console = Console()
+
+
+def configure_stdio_utf8() -> None:
+    """Keep release tooling output reliable on legacy Windows consoles."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+configure_stdio_utf8()
+console = Console(legacy_windows=False)
 
 
 def get_project_root() -> Path:
