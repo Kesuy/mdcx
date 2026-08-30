@@ -16,8 +16,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from .accessibility import install_accessibility
 from .nfo_editor_layout import setup_nfo_editor_form
 from .result_panel import RESULT_PANE_MIN_WIDTH, ResultPanel
+from .tool_page_layout import install_tool_page_layout
 from .ui_text import set_elided_label_text
 
 if TYPE_CHECKING:
@@ -515,6 +517,7 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
 
 
 def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
+    install_tool_page_layout(window.Ui)
     scroll_area = window.Ui.scrollArea_10
     scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     scroll_area.setWidgetResizable(True)
@@ -531,13 +534,15 @@ def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
     content_layout.setContentsMargins(12, 12, 12, 12)
     content_layout.setSpacing(18)
     for group in groups:
-        # These designer groups contain absolutely positioned children and
-        # therefore report a title-only sizeHint(). Preserve their authored
-        # geometry before putting them in a layout, otherwise Qt collapses
-        # every form to a one-line group-box title.
-        group.setFixedSize(group.size())
-        group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
+        if group.layout() is None:
+            # Compatibility fallback for third-party/generated groups not yet
+            # migrated to a page component.
+            group.setFixedSize(group.size())
+            group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
+            continue
+        group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        content_layout.addWidget(group)
     content_layout.addStretch(1)
     window._tool_scroll_metrics = (scroll_area, content, groups)
 
@@ -728,6 +733,7 @@ def setup_responsive_ui(window: "MyMAinWindow") -> None:
         _setup_main_page_layout(window)
         _setup_simple_page_layouts(window)
         _setup_overlay_layouts(window)
+        install_accessibility(window)
 
     if not hasattr(window, "_resize_grip"):
         window._resize_grip = QSizeGrip(window.Ui.centralwidget)

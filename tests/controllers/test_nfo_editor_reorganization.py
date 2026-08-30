@@ -4,8 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from mdcx.controllers.main_window import main_window as main_window_module
+from mdcx.controllers.main_window import nfo_controller as main_window_module
 from mdcx.controllers.main_window.main_window import MyMAinWindow
+from mdcx.controllers.main_window.nfo_controller import build_nfo_changes
 from mdcx.core.media_reorganization import MediaReorganizationError, MediaReorganizationResult
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 
@@ -58,6 +59,20 @@ def _ui() -> SimpleNamespace:
         label_save_tips=_Label(),
         label_nfo=_Label(),
     )
+
+
+def test_build_nfo_changes_only_returns_fields_with_real_differences():
+    data = CrawlersResult.empty()
+    data.actor = "旧演员"
+    data.title = "相同标题"
+
+    changes = build_nfo_changes(data, {"actor": "新演员", "title": "相同标题"})
+
+    assert len(changes) == 1
+    assert changes[0].field == "actor"
+    assert changes[0].label == "演员"
+    assert changes[0].old_value == "旧演员"
+    assert changes[0].new_value == "新演员"
 
 
 @pytest.mark.parametrize("outcome", ["moved", "unchanged", "failure", "partial_failure", "write_failure"])

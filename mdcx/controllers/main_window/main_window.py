@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import html
 import os
 import re
@@ -10,6 +9,7 @@ import time
 import traceback
 import webbrowser
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -51,14 +51,8 @@ from mdcx.config.resources import resources
 from mdcx.consts import GITHUB_ISSUES_URL, GITHUB_RELEASES_URL, IS_WINDOWS, LOCAL_VERSION
 from mdcx.controllers.main_window.result_sorting import ResultSortEntry, ResultSortMode, sort_result_entries
 from mdcx.core.local_nfo_loader import LocalNfoLoadError, load_local_nfo
-from mdcx.core.media_reorganization import (
-    MediaReorganizationError,
-    reorganize_scraped_media,
-    update_runtime_paths_after_reorganization,
-)
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
-from mdcx.core.nfo import write_nfo
-from mdcx.core.scraper import again_search, get_remain_list, start_new_scrape
+from mdcx.core.scraper import again_search, start_new_scrape
 from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.image import PreviewImageLoader
 from mdcx.models.enums import FileMode
@@ -73,19 +67,15 @@ from mdcx.tools.emby_actor_info import creat_kodi_actors, show_emby_actor_list, 
 from mdcx.tools.missing import check_missing_number
 from mdcx.tools.subtitle import add_sub_for_all_video
 from mdcx.utils import (
-    SCRAPE_TASK_GROUP,
     add_html,
     add_html_plain_text,
     executor,
     get_current_time,
-    get_used_time,
-    kill_a_thread,
     split_path,
 )
 from mdcx.utils.file import (
     create_hardlink_sync,
     create_symlink_sync,
-    delete_file_sync,
     open_file_thread,
     resolve_link_source_sync,
     resolve_success_record_source_sync,
@@ -93,16 +83,30 @@ from mdcx.utils.file import (
 from mdcx.versioning import is_newer_version
 from mdcx.views.MDCx import Ui_MDCx
 
+from .file_controller import FileController, FileOperationKind, classify_file_failure
 from .handlers import show_netstatus
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from .load_config import load_config
 from .network_controller import NetworkController
+from .nfo_controller import NfoController
 from .responsive_layout import apply_responsive_layout, show_responsive_overlay
 from .result_model import ResultItem, create_result_item
 from .save_config import save_config
+from .scrape_controller import ScrapeController
 from .settings_page import SettingsPageController
 from .site_priority_dialog import apply_site_priority_theme
-from .style import apply_application_palette, build_menu_style, set_dark_style, set_style
+from .style import (
+    apply_application_palette,
+    build_action_button_style,
+    build_code_editor_style,
+    build_menu_style,
+    build_section_title_style,
+    build_sidebar_background_style,
+    build_sidebar_button_style,
+    build_status_text_style,
+    set_dark_style,
+    set_style,
+)
 from .ui_text import set_elided_label_text
 
 if TYPE_CHECKING:
@@ -122,28 +126,6 @@ WINDOWS_RESERVED_DIR_NAMES = {
 }
 
 
-NFO_EDITOR_WIDGETS: dict[str, tuple[str, bool]] = {
-    "number": ("lineEdit_nfo_number", False),
-    "actor": ("lineEdit_nfo_actor", False),
-    "year": ("lineEdit_nfo_year", False),
-    "title": ("lineEdit_nfo_title", False),
-    "originaltitle": ("lineEdit_nfo_originaltitle", False),
-    "outline": ("textEdit_nfo_outline", True),
-    "originalplot": ("textEdit_nfo_originalplot", True),
-    "tag": ("textEdit_nfo_tag", True),
-    "release": ("lineEdit_nfo_release", False),
-    "runtime": ("lineEdit_nfo_runtime", False),
-    "score": ("lineEdit_nfo_score", False),
-    "wanted": ("lineEdit_nfo_wanted", False),
-    "director": ("lineEdit_nfo_director", False),
-    "series": ("lineEdit_nfo_series", False),
-    "studio": ("lineEdit_nfo_studio", False),
-    "publisher": ("lineEdit_nfo_publisher", False),
-    "poster": ("lineEdit_nfo_poster", False),
-    "thumb": ("lineEdit_nfo_cover", False),
-    "trailer": ("lineEdit_nfo_trailer", False),
-}
-NFO_MIXED_VALUE_PLACEHOLDER = "（多个值，保持为空则不修改）"
 DEFAULT_LINK_DIR_NAME = "unnamed"
 
 
@@ -235,6 +217,7 @@ class MyMAinWindow(QMainWindow):
         self._nfo_batch_show_names: list[str] = []
         self._nfo_dirty_fields: set[str] = set()
         self._nfo_editor_loading = False
+        self._nfo_diff_confirmation_enabled = True
         self.show_name = None
         self.options: QFileDialog.Option
         self.tray_icon: QSystemTrayIcon
@@ -246,7 +229,10 @@ class MyMAinWindow(QMainWindow):
         resources.get_fonts()
         self.Ui = Ui_MDCx()  # 实例化 Ui
         self.Ui.setupUi(self)  # 初始化 Ui
+        self.file_controller = FileController(self)
         self.network_controller = NetworkController(self)
+        self.nfo_controller = NfoController(self)
+        self.scrape_controller = ScrapeController(self)
         self._bind_system_theme_refresh()
         self._setup_fc2ppvdb_cookie_ui()
         self._setup_baidu_translate_ui()
@@ -293,6 +279,27 @@ class MyMAinWindow(QMainWindow):
             self.cutwindow = CutWindow(self)
         return self.cutwindow
 
+    def _get_nfo_controller(self) -> NfoController:
+        controller = vars(self).get("nfo_controller")
+        if controller is None:
+            controller = NfoController(self)
+            self.nfo_controller = controller
+        return controller
+
+    def _get_file_controller(self) -> FileController:
+        controller = vars(self).get("file_controller")
+        if controller is None:
+            controller = FileController(self)
+            self.file_controller = controller
+        return controller
+
+    def _get_scrape_controller(self) -> ScrapeController:
+        controller = vars(self).get("scrape_controller")
+        if controller is None:
+            controller = ScrapeController(self)
+            self.scrape_controller = controller
+        return controller
+
     def _setup_name_template_preview(self) -> None:
         self.Ui.plainTextEdit_name_template_preview.setPlainText(
             self.Ui.lineEdit_media_name.text()
@@ -333,6 +340,7 @@ class MyMAinWindow(QMainWindow):
     def _update_name_template_preview(self) -> None:
         template = self.Ui.plainTextEdit_name_template_preview.toPlainText()
         if not template.strip():
+            self.Ui.label_name_template_preview_result.setStyleSheet(build_status_text_style(self.dark_mode, "neutral"))
             self.Ui.label_name_template_preview_result.setText("状态：等待输入模板")
             return
         try:
@@ -350,11 +358,11 @@ class MyMAinWindow(QMainWindow):
                 ),
             )
         except Exception as exc:
-            self.Ui.label_name_template_preview_result.setStyleSheet("color: rgb(190, 0, 0);")
+            self.Ui.label_name_template_preview_result.setStyleSheet(build_status_text_style(self.dark_mode, "danger"))
             self.Ui.label_name_template_preview_result.setText("状态：语法错误\n" + html.escape(str(exc), quote=False))
             return
 
-        self.Ui.label_name_template_preview_result.setStyleSheet("color: rgb(8, 128, 128);")
+        self.Ui.label_name_template_preview_result.setStyleSheet(build_status_text_style(self.dark_mode, "success"))
         self.Ui.label_name_template_preview_result.setText(
             "状态：语法正确\n"
             f"结果：{html.escape(rendered.text, quote=False)}\n"
@@ -363,6 +371,8 @@ class MyMAinWindow(QMainWindow):
 
     # region Init
     def _setup_fc2ppvdb_cookie_ui(self):
+        dark_mode = bool(getattr(self, "dark_mode", False))
+
         def move_grid_item(item, row: int, column: int):
             index = self.Ui.gridLayout_10.indexOf(item)
             layout_item = self.Ui.gridLayout_10.takeAt(index)
@@ -381,8 +391,7 @@ class MyMAinWindow(QMainWindow):
         def add_section_title(name: str, text: str, row: int, *, separated: bool = False):
             label = QLabel(text, self.Ui.gridLayoutWidget_10)
             label.setObjectName(name)
-            border = "border-top: 1px solid rgba(8, 128, 128, 90);" if separated else ""
-            label.setStyleSheet(f"font-weight: bold; color: rgb(8, 128, 128); padding: 6px 2px 2px; {border}")
+            label.setStyleSheet(build_section_title_style(dark_mode, separated=separated))
             self.Ui.gridLayout_10.addWidget(label, row, 0, 1, 2)
             return label
 
@@ -417,11 +426,7 @@ class MyMAinWindow(QMainWindow):
         sizePolicy.setHeightForWidth(self.Ui.plainTextEdit_cookie_fc2ppvdb.sizePolicy().hasHeightForWidth())
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setSizePolicy(sizePolicy)
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setMinimumSize(400, 80)
-        self.Ui.plainTextEdit_cookie_fc2ppvdb.setStyleSheet(
-            " border: 1px solid rgba(0,0,0, 50);\n"
-            "                                border-radius: 1px;\n"
-            '                                font: "Courier";'
-        )
+        self.Ui.plainTextEdit_cookie_fc2ppvdb.setStyleSheet(build_code_editor_style(dark_mode))
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlaceholderText(
             "登录 fc2cmadb 后，从浏览器开发者工具的 Request Headers 复制完整 Cookie（不要填写账号密码）"
         )
@@ -915,49 +920,24 @@ class MyMAinWindow(QMainWindow):
     # 重置左侧按钮样式
     def set_left_button_style(self):
         try:
-            if self.dark_mode:
-                self.Ui.left_backgroud_widget.setStyleSheet(
-                    f"background: #1F272F;border-right: 1px solid #20303F;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-                )
-                self.Ui.pushButton_main.setStyleSheet(
-                    "QPushButton:hover#pushButton_main{color: white;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_log.setStyleSheet(
-                    "QPushButton:hover#pushButton_log{color: white;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_net.setStyleSheet(
-                    "QPushButton:hover#pushButton_net{color: white;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_tool.setStyleSheet(
-                    "QPushButton:hover#pushButton_tool{color: white;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_setting.setStyleSheet(
-                    "QPushButton:hover#pushButton_setting{color: white;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_about.setStyleSheet(
-                    "QPushButton:hover#pushButton_about{color: white;background-color: rgba(160,160,165,40);}"
-                )
-            else:
-                self.Ui.pushButton_main.setStyleSheet(
-                    "QPushButton:hover#pushButton_main{color: black;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_log.setStyleSheet(
-                    "QPushButton:hover#pushButton_log{color: black;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_net.setStyleSheet(
-                    "QPushButton:hover#pushButton_net{color: black;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_tool.setStyleSheet(
-                    "QPushButton:hover#pushButton_tool{color: black;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_setting.setStyleSheet(
-                    "QPushButton:hover#pushButton_setting{color: black;background-color: rgba(160,160,165,40);}"
-                )
-                self.Ui.pushButton_about.setStyleSheet(
-                    "QPushButton:hover#pushButton_about{color: black;background-color: rgba(160,160,165,40);}"
-                )
+            self.Ui.left_backgroud_widget.setStyleSheet(
+                build_sidebar_background_style(self.dark_mode, self.window_radius)
+            )
+            for button in (
+                self.Ui.pushButton_main,
+                self.Ui.pushButton_log,
+                self.Ui.pushButton_net,
+                self.Ui.pushButton_tool,
+                self.Ui.pushButton_setting,
+                self.Ui.pushButton_about,
+            ):
+                button.setStyleSheet(build_sidebar_button_style(button.objectName(), self.dark_mode))
         except Exception:
             signal_qt.show_traceback_log(traceback.format_exc())
+
+    def _apply_sidebar_selection(self, button: QPushButton) -> None:
+        self.set_left_button_style()
+        button.setStyleSheet(build_sidebar_button_style(button.objectName(), self.dark_mode, active=True))
 
     # endregion
 
@@ -1025,193 +1005,61 @@ class MyMAinWindow(QMainWindow):
     # region 左侧切换页面
     # 点左侧的主界面按钮
     def pushButton_main_clicked(self):
-        self.Ui.left_backgroud_widget.setStyleSheet(
-            f"background: #F5F5F6;border-right: 1px solid #EDEDED;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-        )
         self.Ui.stackedWidget.setCurrentIndex(0)
-        self.set_left_button_style()
-        self.Ui.pushButton_main.setStyleSheet("font-weight: bold; background-color: rgba(160,160,165,60);")
+        self._apply_sidebar_selection(self.Ui.pushButton_main)
 
     # 点左侧的日志按钮
     def pushButton_show_log_clicked(self):
-        self.Ui.left_backgroud_widget.setStyleSheet(
-            f"background: #F5F7FF;border-right: 1px solid #E1E7FF;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-        )
         self.Ui.stackedWidget.setCurrentIndex(1)
-        self.set_left_button_style()
-        self.Ui.pushButton_log.setStyleSheet(
-            "font-weight: bold; background-color: rgba(160,160,165,60);"
-        )  # self.Ui.textBrowser_log_main.verticalScrollBar().setValue(  #     self.Ui.textBrowser_log_main.verticalScrollBar().maximum())  # self.Ui.textBrowser_log_main_2.verticalScrollBar().setValue(  #     self.Ui.textBrowser_log_main_2.verticalScrollBar().maximum())
+        self._apply_sidebar_selection(self.Ui.pushButton_log)
 
     # 点左侧的工具按钮
     def pushButton_tool_clicked(self):
-        self.Ui.left_backgroud_widget.setStyleSheet(
-            f"background: #F5F7FF;border-right: 1px solid #E1E7FF;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-        )
         self.Ui.stackedWidget.setCurrentIndex(3)
-        self.set_left_button_style()
-        self.Ui.pushButton_tool.setStyleSheet("font-weight: bold; background-color: rgba(160,160,165,60);")
+        self._apply_sidebar_selection(self.Ui.pushButton_tool)
 
     # 点左侧的设置按钮
     def pushButton_setting_clicked(self):
-        self.Ui.left_backgroud_widget.setStyleSheet(
-            f"background: #EEF3FF;border-right: 1px solid #D8E2FF;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-        )
         self.Ui.stackedWidget.setCurrentIndex(4)
-        self.set_left_button_style()
+        self._apply_sidebar_selection(self.Ui.pushButton_setting)
         try:
-            if self.dark_mode:
-                self.Ui.pushButton_setting.setStyleSheet("font-weight: bold; background-color: rgba(160,160,165,60);")
-            else:
-                self.Ui.pushButton_setting.setStyleSheet("font-weight: bold; background-color: rgba(160,160,165,100);")
             self._check_mac_config_folder()
         except Exception:
             signal_qt.show_traceback_log(traceback.format_exc())
 
     # 点击左侧【检测网络】按钮，切换到检测网络页面
     def pushButton_show_net_clicked(self):
-        self.Ui.left_backgroud_widget.setStyleSheet(
-            f"background: #F5F7FF;border-right: 1px solid #E1E7FF;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-        )
         self.Ui.stackedWidget.setCurrentIndex(2)
-        self.set_left_button_style()
-        self.Ui.pushButton_net.setStyleSheet("font-weight: bold; background-color: rgba(160,160,165,60);")
+        self._apply_sidebar_selection(self.Ui.pushButton_net)
 
     # 点左侧的关于按钮
     def pushButton_about_clicked(self):
-        self.Ui.left_backgroud_widget.setStyleSheet(
-            f"background: #F5F7FF;border-right: 1px solid #E1E7FF;border-top-left-radius: {self.window_radius}px;border-bottom-left-radius: {self.window_radius}px;"
-        )
         self.Ui.stackedWidget.setCurrentIndex(5)
-        self.set_left_button_style()
-        self.Ui.pushButton_about.setStyleSheet("font-weight: bold; background-color: rgba(160,160,165,60);")
+        self._apply_sidebar_selection(self.Ui.pushButton_about)
 
     # endregion
 
     # region 主界面
     # 开始刮削按钮
     def pushButton_start_scrape_clicked(self):
-        if self.Ui.pushButton_start_cap.text() == "开始":
-            if not get_remain_list():
-                start_new_scrape(FileMode.Default)
-        elif self.Ui.pushButton_start_cap.text() == "■ 停止":
-            self.pushButton_stop_scrape_clicked()
+        self._get_scrape_controller().toggle()
 
     # 停止确认弹窗
     def pushButton_stop_scrape_clicked(self):
-        if Switch.SHOW_DIALOG_STOP_SCRAPE in manager.config.switch_on:
-            box = QMessageBox(QMessageBox.Icon.Warning, "停止刮削", "确定要停止刮削吗？")
-            box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            box.button(QMessageBox.StandardButton.Yes).setText("停止刮削")
-            box.button(QMessageBox.StandardButton.No).setText("取消")
-            box.setDefaultButton(QMessageBox.StandardButton.No)
-            reply = box.exec()
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-        if self.Ui.pushButton_start_cap.text() == "■ 停止":
-            Flags.stop_requested = True
-            signal_qt.stop = True
-            executor.run(save_success_list())
-            Flags.rest_time_convert_ = Flags.rest_time_convert
-            Flags.rest_time_convert = 0
-            self.Ui.pushButton_start_cap.setText(" ■ 停止中 ")
-            self.Ui.pushButton_start_cap2.setText(" ■ 停止中 ")
-            signal_qt.show_scrape_info("⛔️ 刮削停止中...")
-            executor.cancel_async(group=SCRAPE_TASK_GROUP)  # 仅取消刮削任务，不中断连接池关闭等后台工作
-            if not self.threads_list:
-                self.stop_used_time = 0.0
-                self.show_stop_info_thread()
-                return
-            self.task_manager.submit_sync("stop-workers", self._kill_threads)
+        self._get_scrape_controller().stop()
 
     # 显示停止信息
     def _show_stop_info(self):
-        signal_qt.reset_buttons_status.emit()
-        try:
-            Flags.rest_time_convert = Flags.rest_time_convert_
-            if Flags.stop_other:
-                signal_qt.show_scrape_info("⛔️ 已手动停止！")
-                signal_qt.show_log_text(
-                    "⛔️ 已手动停止！\n================================================================================"
-                )
-                self.set_label_file_path.emit("⛔️ 已手动停止！")
-                return
-            signal_qt.exec_set_processbar.emit(0)
-            end_time = time.time()
-            used_time = str(round((end_time - Flags.start_time), 2))
-            if Flags.scrape_done:
-                average_time = str(round((end_time - Flags.start_time) / Flags.scrape_done, 2))
-            else:
-                average_time = used_time
-            signal_qt.show_scrape_info("⛔️ 刮削已手动停止！")
-            self.set_label_file_path.emit(
-                f"⛔️ 刮削已手动停止！\n   已刮削 {Flags.scrape_done} 个视频, 还剩余 {Flags.total_count - Flags.scrape_done} 个! 刮削用时 {used_time} 秒"
-            )
-            signal_qt.show_log_text(
-                f"\n ⛔️ 刮削已手动停止！\n 😊 已刮削 {Flags.scrape_done} 个视频, 还剩余 {Flags.total_count - Flags.scrape_done} 个! 刮削用时 {used_time} 秒, 停止用时 {self.stop_used_time} 秒"
-            )
-            signal_qt.show_log_text("================================================================================")
-            signal_qt.show_log_text(
-                " ⏰ Start time".ljust(13) + ": " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(Flags.start_time))
-            )
-            signal_qt.show_log_text(
-                " 🏁 End time".ljust(13) + ": " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time))
-            )
-            signal_qt.show_log_text(f"{' ⏱ Used time'.ljust(13)}: {used_time}S")
-            signal_qt.show_log_text(f"{' 🍕 Per time'.ljust(13)}: {average_time}S")
-            signal_qt.show_log_text("================================================================================")
-            Flags.again_dic.clear()
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
-        finally:
-            signal_qt.stop = False
-        print(threading.enumerate())
+        self._get_scrape_controller().show_stop_info()
 
     def show_stop_info_thread(
         self,
     ):
-        self.task_manager.submit_sync("show-stop-info", self._show_stop_info)
+        self._get_scrape_controller().schedule_stop_info()
 
     # 关闭线程池和扫描线程
     def _kill_threads(self):
-        Flags.total_kills = len(self.threads_list)
-        Flags.now_kill = 0
-        start_time = time.time()
-        self.set_label_file_path.emit(f"⛔️ 正在停止刮削...\n   正在停止已在运行的任务线程（1/{Flags.total_kills}）...")
-        signal_qt.show_log_text(
-            f"\n ⛔️ {get_current_time()} 已停止添加新的刮削任务，正在停止已在运行的任务线程（{Flags.total_kills}）..."
-        )
-        signal_qt.show_traceback_log(f"⛔️ 正在停止正在运行的任务线程 ({Flags.total_kills}) ...")
-        i = 0
-        for each in self.threads_list:
-            i += 1
-            signal_qt.show_traceback_log(f"正在停止线程: {i}/{Flags.total_kills} {each.name} ...")
-        signal_qt.show_traceback_log(
-            "线程正在停止中，请稍后...\n 🍯 停止时间与线程数量及线程正在执行的任务有关，比如正在执行网络请求、文件下载等IO操作时，需要等待其释放资源。。。\n"
-        )
-        signal_qt.stop = True
-        self._thread_stop_event.set()
-        alive_threads: list[threading.Thread] = []
-        for each in self.threads_list:  # 等待线程协作式停止，不在任意文件操作中注入异常
-            if not kill_a_thread(each):
-                alive_threads.append(each)
-
-        self.stop_used_time = get_used_time(start_time)
-        stopped_count = Flags.total_kills - len(alive_threads)
-        signal_qt.show_log_text(f" 🕷 {get_current_time()} 已停止线程：{stopped_count}/{Flags.total_kills}")
-        if alive_threads:
-            alive_names = ", ".join(each.name for each in alive_threads)
-            signal_qt.show_traceback_log(f"线程仍在完成当前操作，将不再强制终止：{alive_names}")
-            signal_qt.show_log_text(f" 🟡 以下线程仍在完成当前操作：{alive_names}")
-        else:
-            signal_qt.show_traceback_log(f"所有线程已停止！！！({self.stop_used_time}s)\n ⛔️ 刮削已手动停止！\n")
-            signal_qt.show_log_text(f" ⛔️ {get_current_time()} 所有线程已停止！({self.stop_used_time}s)")
-        thread_remain_list = []
-        [thread_remain_list.append(t.name) for t in threading.enumerate()]  # 剩余线程名字列表
-        thread_remain = ", ".join(thread_remain_list)
-        print(f"✅ 剩余线程 ({len(thread_remain_list)}): {thread_remain}")
-        self.show_stop_info_thread()
+        self._get_scrape_controller().kill_workers()
 
     # 进度条
     def set_processbar(self, value):
@@ -1534,10 +1382,8 @@ class MyMAinWindow(QMainWindow):
         return result
 
     def _build_delete_preview(self, paths: list[Path], limit: int = 8) -> str:
-        preview = "\n".join(str(path) for path in paths[:limit])
-        if len(paths) > limit:
-            preview += f"\n... 其余 {len(paths) - limit} 项省略"
-        return preview
+        plan = self._get_file_controller().build_plan(FileOperationKind.DELETE_FILES, paths)
+        return plan.preview(limit)
 
     def _shorten_text(self, text: str, limit: int) -> str:
         text = str(text).strip()
@@ -1546,41 +1392,7 @@ class MyMAinWindow(QMainWindow):
         return text[: limit - 1] + "…"
 
     def _normalize_delete_error_reason(self, error_text: str) -> str:
-        if not error_text:
-            return "未知错误"
-
-        lines = [line.strip() for line in str(error_text).splitlines() if line.strip()]
-        full_text = "\n".join(lines).lower()
-
-        if "symbolic link privilege not held" in full_text or "winerror 1314" in full_text:
-            return "当前没有创建软链接权限，请尝试以管理员身份运行或开启开发者模式"
-
-        if (
-            "winerror 17" in full_text
-            or "different disk drive" in full_text
-            or "cross-device link" in full_text
-            or "not same device" in full_text
-        ):
-            return "硬链接要求源文件与目标路径位于同一磁盘，请改用软链接"
-
-        if "目标已存在:" in str(error_text):
-            for line in lines:
-                if "目标已存在:" in line:
-                    return line.strip()
-
-        for line in lines:
-            if line.startswith("错误:"):
-                return line.removeprefix("错误:").strip()
-
-        for line in reversed(lines):
-            if "PermissionError:" in line:
-                return line.split("PermissionError:", 1)[1].strip()
-            if "FileNotFoundError:" in line:
-                return line.split("FileNotFoundError:", 1)[1].strip()
-            if "OSError:" in line:
-                return line.split("OSError:", 1)[1].strip()
-
-        return lines[-1]
+        return classify_file_failure(error_text).reason
 
     def _build_action_result_text(self, success_count: int, failure_count: int, skipped_count: int = 0) -> str:
         parts = [f"成功 {success_count} 个"]
@@ -1595,23 +1407,33 @@ class MyMAinWindow(QMainWindow):
         success_count: int,
         failure_details: list[tuple[Path, str]],
         skipped_count: int = 0,
+        retry_callback: Callable[[], None] | None = None,
     ) -> None:
         if not failure_details:
             return
 
         preview_limit = 3
-        preview_lines = [
-            f"- {self._shorten_text(str(path), 90)}\n  原因：{self._shorten_text(reason, 70)}"
-            for path, reason in failure_details[:preview_limit]
-        ]
+        preview_lines = []
+        for path, reason in failure_details[:preview_limit]:
+            failure = classify_file_failure(reason)
+            preview_lines.append(
+                f"- {self._shorten_text(str(path), 90)}\n"
+                f"  类别：{failure.category.value}\n"
+                f"  原因：{self._shorten_text(failure.reason, 70)}"
+            )
         if len(failure_details) > preview_limit:
             preview_lines.append(f"... 其余 {len(failure_details) - preview_limit} 条请展开“显示详情”或查看日志")
 
         detail_limit = 20
-        detail_lines = [
-            f"{index}. {path}\n   原因：{reason}"
-            for index, (path, reason) in enumerate(failure_details[:detail_limit], start=1)
-        ]
+        detail_lines = []
+        for index, (path, reason) in enumerate(failure_details[:detail_limit], start=1):
+            failure = classify_file_failure(reason)
+            detail_lines.append(
+                f"{index}. {path}\n"
+                f"   类别：{failure.category.value}\n"
+                f"   原因：{failure.reason}\n"
+                f"   建议：{failure.suggestion}"
+            )
         if len(failure_details) > detail_limit:
             detail_lines.append(f"... 其余 {len(failure_details) - detail_limit} 条请查看日志")
         detail_text = "\n\n".join(detail_lines)
@@ -1623,6 +1445,9 @@ class MyMAinWindow(QMainWindow):
         )
         box.setDetailedText(detail_text)
         view_log_button = box.addButton("查看日志", QMessageBox.ButtonRole.ActionRole)
+        retry_button = None
+        if retry_callback is not None:
+            retry_button = box.addButton("重试失败项", QMessageBox.ButtonRole.ActionRole)
         box.addButton("确定", QMessageBox.ButtonRole.AcceptRole)
         self._bind_localized_message_box_detail_buttons(box)
         box.exec()
@@ -1630,6 +1455,8 @@ class MyMAinWindow(QMainWindow):
         if box.clickedButton() == view_log_button:
             self.pushButton_show_log_clicked()
             self.show_hide_logs(True)
+        elif retry_button is not None and box.clickedButton() == retry_button:
+            retry_callback()
 
     def _localize_message_box_detail_buttons(self, box: QMessageBox) -> None:
         for button in box.findChildren(QPushButton):
@@ -2154,37 +1981,14 @@ class MyMAinWindow(QMainWindow):
             return
 
         file_paths = [file_path for _, file_path in delete_targets]
-        if len(file_paths) == 1:
-            box_text = f"将要删除文件: \n{file_paths[0]}\n\n 你确定要删除吗？"
-        else:
-            box_text = (
-                f"将要删除 {len(file_paths)} 个文件：\n{self._build_delete_preview(file_paths)}\n\n你确定要继续吗？"
-            )
-
-        box = QMessageBox(QMessageBox.Icon.Warning, "删除文件", box_text)
-        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.button(QMessageBox.StandardButton.Yes).setText("删除文件")
-        box.button(QMessageBox.StandardButton.No).setText("取消")
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        reply = box.exec()
-        if reply != QMessageBox.StandardButton.Yes:
+        plan = self._get_file_controller().build_plan(FileOperationKind.DELETE_FILES, file_paths)
+        if not self._get_file_controller().confirm_plan(plan, accept_text="确认删除文件"):
             return
 
         signal_qt.show_log_text(" 🗑 开始删除文件")
         signal_qt.show_log_text(f" 📦 本次待删除文件数: {len(file_paths)}")
 
-        success_show_names = []
-        failure_details: list[tuple[Path, str]] = []
-        for show_name, file_path in delete_targets:
-            result, error_info = delete_file_sync(file_path)
-            if result:
-                if show_name:
-                    success_show_names.append(show_name)
-                signal_qt.show_log_text(f" ✅ 已删除文件: {file_path}")
-            else:
-                reason = self._normalize_delete_error_reason(error_info)
-                failure_details.append((file_path, reason))
-                signal_qt.show_log_text(f" ❌ 删除文件失败: {file_path}\n    原因: {reason}")
+        success_show_names, failure_details, failed_targets = self._get_file_controller().delete_files(delete_targets)
 
         self._remove_deleted_result_items(success_show_names)
         fail_count = len(failure_details)
@@ -2194,7 +1998,12 @@ class MyMAinWindow(QMainWindow):
             signal_qt.show_scrape_info(
                 f"💡 文件删除完成，成功 {success_count} 个，失败 {fail_count} 个！{get_current_time()}"
             )
-            self._show_action_failure_feedback("删除文件", success_count, failure_details)
+            self._show_action_failure_feedback(
+                "删除文件",
+                success_count,
+                failure_details,
+                retry_callback=lambda: self._get_file_controller().retry_delete_files(failed_targets),
+            )
         elif success_count == 1:
             signal_qt.show_scrape_info(f"💡 已删除文件！{get_current_time()}")
         else:
@@ -2224,43 +2033,22 @@ class MyMAinWindow(QMainWindow):
                 folder_to_show_names[folder_path].append(show_name)
 
         folder_paths = sorted(folder_to_show_names, key=lambda p: len(p.parts), reverse=True)
-        if len(folder_paths) == 1:
-            box_text = f"将要删除文件夹: \n{folder_paths[0]}\n\n 你确定要删除吗？"
-        else:
-            box_text = (
-                f"将要删除 {len(folder_paths)} 个文件夹（来源于 {len(file_paths)} 个选中项）：\n"
-                f"{self._build_delete_preview(folder_paths)}\n\n你确定要继续吗？"
-            )
-
-        box = QMessageBox(QMessageBox.Icon.Warning, "删除文件", box_text)
-        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.button(QMessageBox.StandardButton.Yes).setText("删除文件和文件夹")
-        box.button(QMessageBox.StandardButton.No).setText("取消")
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        reply = box.exec()
-        if reply != QMessageBox.StandardButton.Yes:
+        plan = self._get_file_controller().build_plan(
+            FileOperationKind.DELETE_FOLDERS,
+            folder_paths,
+            source_count=len(file_paths),
+            deduplicate=True,
+        )
+        if not self._get_file_controller().confirm_plan(plan, accept_text="确认删除文件和文件夹"):
             return
 
         signal_qt.show_log_text(" 🗑 开始删除文件夹")
         signal_qt.show_log_text(f" 📦 本次待删除文件夹数: {len(folder_paths)}")
 
-        success_folder_count = 0
-        success_show_names: list[str] = []
-        failure_details: list[tuple[Path, str]] = []
-        for folder_path in folder_paths:
-            try:
-                shutil.rmtree(folder_path)
-                success_folder_count += 1
-                success_show_names.extend(folder_to_show_names.get(folder_path, []))
-                signal_qt.show_log_text(f" ✅ 已删除文件夹: {folder_path}")
-            except FileNotFoundError:
-                success_folder_count += 1
-                success_show_names.extend(folder_to_show_names.get(folder_path, []))
-                signal_qt.show_log_text(f" ✅ 文件夹不存在，按已删除处理: {folder_path}")
-            except Exception as error:
-                reason = self._normalize_delete_error_reason(str(error))
-                failure_details.append((folder_path, reason))
-                signal_qt.show_log_text(f" ❌ 删除文件夹失败: {folder_path}\n    原因: {reason}")
+        ordered_targets = {folder_path: folder_to_show_names[folder_path] for folder_path in folder_paths}
+        success_folder_count, success_show_names, failure_details, failed_targets = (
+            self._get_file_controller().delete_folders(ordered_targets)
+        )
 
         if success_show_names:
             self._remove_deleted_result_items(success_show_names)
@@ -2271,7 +2059,12 @@ class MyMAinWindow(QMainWindow):
             self.show_scrape_info(
                 f"💡 文件夹删除完成，成功 {success_folder_count} 个，失败 {fail_count} 个！{get_current_time()}"
             )
-            self._show_action_failure_feedback("删除文件夹", success_folder_count, failure_details)
+            self._show_action_failure_feedback(
+                "删除文件夹",
+                success_folder_count,
+                failure_details,
+                retry_callback=lambda: self._get_file_controller().retry_delete_folders(failed_targets),
+            )
         elif success_folder_count == 1:
             self.show_scrape_info(f"💡 已删除文件夹！{get_current_time()}")
         else:
@@ -2337,287 +2130,43 @@ class MyMAinWindow(QMainWindow):
 
     # region 主界面编辑nfo
     def _connect_nfo_editor_dirty_signals(self) -> None:
-        for field_name, (widget_name, is_plain_text) in NFO_EDITOR_WIDGETS.items():
-            widget = getattr(self.Ui, widget_name)
-            changed_signal = widget.textChanged if is_plain_text else widget.textEdited
-            changed_signal.connect(
-                lambda *_args, current_field=field_name: self._mark_nfo_editor_field_dirty(current_field)
-            )
+        self._get_nfo_controller().connect_dirty_signals()
 
     def _mark_nfo_editor_field_dirty(self, field_name: str) -> None:
-        if not self._nfo_editor_loading and self._nfo_batch_show_names:
-            self._nfo_dirty_fields.add(field_name)
+        self._get_nfo_controller().mark_field_dirty(field_name)
 
     def _read_nfo_editor_field(self, field_name: str) -> str:
-        widget_name, is_plain_text = NFO_EDITOR_WIDGETS[field_name]
-        widget = getattr(self.Ui, widget_name)
-        return widget.toPlainText() if is_plain_text else widget.text()
+        return self._get_nfo_controller().read_field(field_name)
 
     def _set_nfo_editor_field(self, field_name: str, value: str, *, mixed: bool = False) -> None:
-        widget_name, is_plain_text = NFO_EDITOR_WIDGETS[field_name]
-        widget = getattr(self.Ui, widget_name)
-        widget.setPlaceholderText(NFO_MIXED_VALUE_PLACEHOLDER if mixed else "")
-        if is_plain_text:
-            widget.setPlainText(value)
-        else:
-            widget.setText(value)
+        self._get_nfo_controller().set_field(field_name, value, mixed=mixed)
 
     @staticmethod
     def _nfo_data_field_value(data: CrawlersResult, field_name: str) -> str:
-        if field_name == "actor" and data.all_actor and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
-            return data.all_actor
-        return str(getattr(data, field_name))
+        return NfoController.data_field_value(data, field_name)
 
     @staticmethod
     def _apply_nfo_editor_patch(data: CrawlersResult, patch: dict[str, str]) -> None:
-        for field_name, value in patch.items():
-            if field_name == "actor" and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
-                data.all_actor = value
-            setattr(data, field_name, value)
+        NfoController.apply_patch(data, patch)
 
     def _show_nfo_info(self, selected_show_data: list[ShowData] | None = None):
-        try:
-            if selected_show_data is None:
-                if not self.show_name:
-                    return
-                selected_show_data = [self.json_array[self.show_name]]
-            if not selected_show_data:
-                return
-
-            self._nfo_editor_loading = True
-            self._nfo_dirty_fields.clear()
-            is_batch = len(selected_show_data) > 1
-            self._nfo_batch_show_names = [entry.show_name for entry in selected_show_data] if is_batch else []
-            self.now_show_name = None if is_batch else selected_show_data[0].show_name
-            if is_batch:
-                self.Ui.label_nfo.setText(
-                    f"已选择 {len(selected_show_data)} 项 · 仅保存修改字段 · 保存后按当前规则自动整理"
-                )
-            else:
-                self.Ui.label_nfo.setText(str(selected_show_data[0].file_info.file_path))
-
-            for field_name in NFO_EDITOR_WIDGETS:
-                values = [self._nfo_data_field_value(entry.data, field_name) for entry in selected_show_data]
-                has_mixed_values = any(value != values[0] for value in values[1:])
-                self._set_nfo_editor_field(field_name, "" if has_mixed_values else values[0], mixed=has_mixed_values)
-
-            self.Ui.comboBox_nfo.setEnabled(not is_batch)
-            self.Ui.comboBox_nfo.setToolTip("批量模式下国家由各项目番号和类型保留" if is_batch else "")
-            json_data = selected_show_data[0].data
-            all_items = [self.Ui.comboBox_nfo.itemText(i) for i in range(self.Ui.comboBox_nfo.count())]
-            if json_data.country in all_items:
-                self.Ui.comboBox_nfo.setCurrentIndex(all_items.index(json_data.country))
-        except Exception:
-            if not signal_qt.stop:
-                signal_qt.show_traceback_log(traceback.format_exc())
-        finally:
-            self._nfo_editor_loading = False
+        self._get_nfo_controller().show(selected_show_data)
 
     def _save_batch_nfo_info(self) -> None:
-        show_entries = [self.json_array[name] for name in self._nfo_batch_show_names if name in self.json_array]
-        if len(show_entries) != len(self._nfo_batch_show_names):
-            self.Ui.label_save_tips.setText(f"保存失败，部分所选项目已失效! {get_current_time()}")
-            return
-        if not self._nfo_dirty_fields:
-            self.Ui.label_save_tips.setText(f"没有修改任何字段! {get_current_time()}")
-            return
-
-        patch = {field_name: self._read_nfo_editor_field(field_name) for field_name in self._nfo_dirty_fields}
-        selected_ids = {id(entry) for entry in show_entries}
-        processed_ids: set[int] = set()
-        success_count = 0
-        failure_count = 0
-        for entry in show_entries:
-            if id(entry) in processed_ids:
-                continue
-            original_data = copy.deepcopy(entry.data)
-            self._apply_nfo_editor_patch(entry.data, patch)
-            try:
-                saved, affected_entries = self._save_nfo_entry(entry, original_data)
-            except Exception:
-                saved = False
-                affected_entries = [entry]
-                if not signal_qt.stop:
-                    signal_qt.show_traceback_log(traceback.format_exc())
-            affected_selected_ids = {id(item) for item in affected_entries} & selected_ids
-            processed_ids.update(affected_selected_ids)
-            if saved:
-                success_count += len(affected_selected_ids)
-            else:
-                failure_count += len(affected_selected_ids)
-
-        changed_fields = "、".join(self._nfo_dirty_fields)
-        self._nfo_dirty_fields.clear()
-        self.Ui.label_nfo.setText(
-            f"批量编辑完成 · 成功 {success_count} 项 · 失败 {failure_count} 项 · 已按当前规则自动整理"
-        )
-        self.Ui.label_save_tips.setText(
-            f"批量保存完成：成功 {success_count}，失败 {failure_count}! {get_current_time()}"
-        )
-        signal_qt.show_log_text(
-            f"\n 🍀 批量更新 NFO 完成：成功 {success_count}，失败 {failure_count}\n    修改字段：{changed_fields}"
-        )
+        self._get_nfo_controller().save_batch()
 
     def _find_related_cd_entries(self, show_data: ShowData, old_number: str) -> list[ShowData]:
-        file_info = show_data.file_info
-        if not file_info.cd_part:
-            return []
-        current_cd_part = str(file_info.cd_part)
-        current_base = file_info.file_path.stem
-        if current_base.casefold().endswith(current_cd_part.casefold()):
-            current_base = current_base[: -len(current_cd_part)]
-
-        def is_same_cd_group(entry: ShowData) -> bool:
-            entry_cd_part = str(entry.file_info.cd_part or "")
-            entry_base = entry.file_info.file_path.stem
-            if entry_cd_part and entry_base.casefold().endswith(entry_cd_part.casefold()):
-                entry_base = entry_base[: -len(entry_cd_part)]
-            return entry_base.casefold() == current_base.casefold()
-
-        return [
-            entry
-            for entry in self.json_array.values()
-            if entry is not show_data
-            and entry.file_info.cd_part
-            and entry.file_info.file_path.parent == file_info.file_path.parent
-            and entry.data.number == old_number
-            and is_same_cd_group(entry)
-        ]
+        return self._get_nfo_controller().find_related_cd_entries(show_data, old_number)
 
     def _save_nfo_entry(
         self,
         show_data: ShowData,
         original_current_data: CrawlersResult,
     ) -> tuple[bool, list[ShowData]]:
-        json_data = show_data.data
-        file_info = show_data.file_info
-        old_number = original_current_data.number
-        nfo_path = file_info.file_path.with_suffix(".nfo")
-        nfo_folder = nfo_path.parent
-        related_cd_entries = self._find_related_cd_entries(show_data, old_number)
-        affected_entries = [show_data, *related_cd_entries]
-        data_backups = [(show_data, original_current_data)] + [
-            (entry, copy.deepcopy(entry.data)) for entry in related_cd_entries
-        ]
-        nfo_paths = [nfo_path] + [entry.file_info.file_path.with_suffix(".nfo") for entry in related_cd_entries]
-        nfo_backups = {path: (path.exists(), path.read_bytes() if path.exists() else b"") for path in nfo_paths}
-        nfo_saved = executor.run(write_nfo(file_info, json_data, nfo_path, nfo_folder, update=True))
-        if nfo_saved:
-            for related_entry in related_cd_entries:
-                related_entry.data = copy.deepcopy(json_data)
-                related_nfo_path = related_entry.file_info.file_path.with_suffix(".nfo")
-                if not executor.run(
-                    write_nfo(
-                        related_entry.file_info,
-                        related_entry.data,
-                        related_nfo_path,
-                        related_nfo_path.parent,
-                        update=True,
-                    )
-                ):
-                    nfo_saved = False
-                    break
-        if not nfo_saved:
-            for path, (existed, content) in nfo_backups.items():
-                if existed:
-                    path.write_bytes(content)
-                elif path.exists():
-                    path.unlink()
-            for entry, data_backup in data_backups:
-                entry.data = data_backup
-            self.Ui.label_save_tips.setText(f"保存失败，已恢复原信息! {get_current_time()}")
-            return False, affected_entries
-
-        old_file_path = file_info.file_path
-        Flags.file_done_dic.pop(old_number, None)
-        Flags.file_done_dic.pop(json_data.number, None)
-        try:
-            success_folder = get_movie_path_setting(old_file_path).success_folder
-            reorganized = executor.run(reorganize_scraped_media(file_info, json_data, show_data.other, success_folder))
-            if reorganized.moved:
-                path_mapping = dict(reorganized.path_mapping) or {
-                    old_file_path: reorganized.new_file_path,
-                }
-                for related_show_data in self.json_array.values():
-                    related_old_path = related_show_data.file_info.file_path
-                    related_new_path = path_mapping.get(related_old_path)
-                    if related_new_path is None or related_show_data is show_data:
-                        continue
-                    update_runtime_paths_after_reorganization(
-                        related_show_data.file_info,
-                        related_show_data.other,
-                        related_old_path,
-                        related_new_path,
-                    )
-                for source_path, target_path in path_mapping.items():
-                    original_sources = Flags.file_new_path_dic.pop(source_path, None)
-                    if original_sources is not None:
-                        Flags.file_new_path_dic[target_path] = original_sources
-                    if source_path in Flags.success_list:
-                        Flags.success_list.discard(source_path)
-                        Flags.success_list.add(target_path)
-                executor.run(save_success_list())
-                self.Ui.label_nfo.setText(str(reorganized.new_file_path))
-                self.Ui.label_save_tips.setText(f"已保存并整理! {get_current_time()}")
-                signal_qt.show_log_text(
-                    f"\n 🍀 编辑信息后自动整理完成\n    原路径: {old_file_path}\n    新路径: {reorganized.new_file_path}"
-                )
-            else:
-                self.Ui.label_save_tips.setText(f"已保存! {get_current_time()}")
-        except MediaReorganizationError as error:
-            incomplete_mapping = dict(error.path_mapping)
-            for related_show_data in self.json_array.values():
-                related_old_path = related_show_data.file_info.file_path
-                related_actual_path = incomplete_mapping.get(related_old_path)
-                if related_actual_path is None or related_show_data is show_data:
-                    continue
-                update_runtime_paths_after_reorganization(
-                    related_show_data.file_info,
-                    related_show_data.other,
-                    related_old_path,
-                    related_actual_path,
-                )
-            for source_path, actual_path in incomplete_mapping.items():
-                original_sources = Flags.file_new_path_dic.pop(source_path, None)
-                if original_sources is not None:
-                    Flags.file_new_path_dic[actual_path] = original_sources
-                if source_path in Flags.success_list:
-                    Flags.success_list.discard(source_path)
-                    Flags.success_list.add(actual_path)
-            actual_file_path = file_info.file_path
-            if actual_file_path != old_file_path and old_file_path not in incomplete_mapping:
-                original_sources = Flags.file_new_path_dic.pop(old_file_path, None)
-                if original_sources is not None:
-                    Flags.file_new_path_dic[actual_file_path] = original_sources
-                if old_file_path in Flags.success_list:
-                    Flags.success_list.discard(old_file_path)
-                    Flags.success_list.add(actual_file_path)
-            if incomplete_mapping or actual_file_path != old_file_path:
-                executor.run(save_success_list())
-                self.Ui.label_nfo.setText(str(actual_file_path))
-            self.Ui.label_save_tips.setText(f"信息已保存，自动整理失败! {get_current_time()}")
-            signal_qt.show_log_text(f"\n 🟡 信息已保存，但无法按当前设置自动整理：{error}")
-        self.set_main_info(show_data)
-        return True, affected_entries
+        return self._get_nfo_controller().save_entry(show_data, original_current_data)
 
     def save_nfo_info(self) -> bool:
-        try:
-            if vars(self).get("_nfo_batch_show_names", []):
-                self._save_batch_nfo_info()
-                return True
-            if self.now_show_name is None:
-                return False
-            show_data = self.json_array[self.now_show_name]
-            json_data = show_data.data
-            original_current_data = copy.deepcopy(json_data)
-            patch = {field_name: self._read_nfo_editor_field(field_name) for field_name in NFO_EDITOR_WIDGETS}
-            self._apply_nfo_editor_patch(json_data, patch)
-            saved, _affected_entries = self._save_nfo_entry(show_data, original_current_data)
-            return saved
-        except Exception:
-            if not signal_qt.stop:
-                signal_qt.show_traceback_log(traceback.format_exc())
-            return False
+        return self._get_nfo_controller().save()
 
     # endregion
 
@@ -3562,10 +3111,10 @@ class MyMAinWindow(QMainWindow):
         self.Ui.pushButton_find_missing_number.setEnabled(False)
         self.Ui.pushButton_find_missing_number.setText("正在刮削中...")
         self.Ui.pushButton_start_cap.setStyleSheet(
-            "QPushButton#pushButton_start_cap{color: white;background-color:#DC2626;}QPushButton:hover#pushButton_start_cap{color: white;background-color:#EF4444;}QPushButton:pressed#pushButton_start_cap{color: white;background-color:#B91C1C;}"
+            build_action_button_style("pushButton_start_cap", self.dark_mode, danger=True)
         )
         self.Ui.pushButton_start_cap2.setStyleSheet(
-            "QPushButton#pushButton_start_cap2{color: white;background-color:#DC2626;}QPushButton:hover#pushButton_start_cap2{color: white;background-color:#EF4444;}QPushButton:pressed#pushButton_start_cap2{color: white;background-color:#B91C1C;}"
+            build_action_button_style("pushButton_start_cap2", self.dark_mode, danger=True)
         )
 
     def reset_buttons_status(self):
@@ -3596,12 +3145,8 @@ class MyMAinWindow(QMainWindow):
         self.Ui.pushButton_find_missing_number.setEnabled(True)
         self.pushButton_find_missing_number.emit("检查缺失番号")
 
-        self.Ui.pushButton_start_cap.setStyleSheet(
-            "QPushButton#pushButton_start_cap{color: white;background-color:#4C6EFF;}QPushButton:hover#pushButton_start_cap{color: white;background-color: rgba(76,110,255,240)}QPushButton:pressed#pushButton_start_cap{color: white;background-color:#4C6EE0}"
-        )
-        self.Ui.pushButton_start_cap2.setStyleSheet(
-            "QPushButton#pushButton_start_cap2{color: white;background-color:#4C6EFF;}QPushButton:hover#pushButton_start_cap2{color: white;background-color: rgba(76,110,255,240)}QPushButton:pressed#pushButton_start_cap2{color: white;background-color:#4C6EE0}"
-        )
+        self.Ui.pushButton_start_cap.setStyleSheet(build_action_button_style("pushButton_start_cap", self.dark_mode))
+        self.Ui.pushButton_start_cap2.setStyleSheet(build_action_button_style("pushButton_start_cap2", self.dark_mode))
         Flags.file_mode = FileMode.Default
         self.threads_list = [thread for thread in self.threads_list if thread.is_alive()]
         if len(Flags.failed_list):

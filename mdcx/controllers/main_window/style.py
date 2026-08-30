@@ -268,6 +268,96 @@ def build_scrollbar_style(dark: bool) -> str:
     """
 
 
+def build_validation_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return f"""
+        QLineEdit[validationError="true"] {{
+            border: 1px solid {t["danger"]};
+        }}
+        QLabel[validationMessage="true"] {{
+            color: {t["danger"]};
+            font-size: 11px;
+            padding: 0 2px;
+        }}
+    """
+
+
+def build_sidebar_background_style(dark: bool, radius: int) -> str:
+    t = _tokens(dark)
+    return (
+        f"background: {t['navigation']};"
+        f"border-right: 1px solid {t['border']};"
+        f"border-top-left-radius: {radius}px;"
+        f"border-bottom-left-radius: {radius}px;"
+    )
+
+
+def build_sidebar_button_style(object_name: str, dark: bool, *, active: bool = False) -> str:
+    t = _tokens(dark)
+    background = t["selection_bg"] if active else "transparent"
+    weight = "600" if active else "400"
+    return f"""
+        QPushButton#{object_name} {{
+            color: {t["text"]};
+            background: {background};
+            font-weight: {weight};
+        }}
+        QPushButton#{object_name}:hover {{
+            color: {t["text"]};
+            background: {t["tree_hover"]};
+        }}
+    """
+
+
+def build_action_button_style(object_name: str, dark: bool, *, danger: bool = False) -> str:
+    t = _tokens(dark)
+    normal = t["danger"] if danger else t["accent"]
+    hover = t["warning"] if danger else t["accent_hover"]
+    pressed = t["danger"] if danger else t["accent_pressed"]
+    return f"""
+        QPushButton#{object_name} {{ color: {t["on_accent"]}; background: {normal}; }}
+        QPushButton#{object_name}:hover {{ color: {t["on_accent"]}; background: {hover}; }}
+        QPushButton#{object_name}:pressed {{ color: {t["on_accent"]}; background: {pressed}; }}
+    """
+
+
+def build_status_text_style(dark: bool, state: str = "neutral") -> str:
+    t = _tokens(dark)
+    color = t.get(state, t["text_muted"])
+    return f"color: {color};"
+
+
+def build_section_title_style(dark: bool, *, separated: bool = False) -> str:
+    t = _tokens(dark)
+    border = f"border-top: 1px solid {t['border']};" if separated else ""
+    return f"font-weight: 600; color: {t['success']}; padding: 6px 2px 2px; {border}"
+
+
+def build_code_editor_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return (
+        f"color: {t['text']}; background: {t['input_bg']}; "
+        f"border: 1px solid {t['border']}; border-radius: {t['radius_sm']}; font-family: Courier;"
+    )
+
+
+def _apply_dynamic_semantic_styles(self: "MyMAinWindow", dark: bool) -> None:
+    preview = getattr(self.Ui, "label_name_template_preview_result", None)
+    if preview is not None:
+        preview_text = preview.text()
+        state = "danger" if "语法错误" in preview_text else "success" if "语法正确" in preview_text else "neutral"
+        preview.setStyleSheet(build_status_text_style(dark, state))
+
+    for name in ("label_javdb_cookie_section", "label_javbus_cookie_section", "label_fc2cmadb_cookie_section"):
+        label = getattr(self.Ui, name, None)
+        if label is not None:
+            label.setStyleSheet(build_section_title_style(dark, separated=name != "label_javdb_cookie_section"))
+
+    cookie_editor = getattr(self.Ui, "plainTextEdit_cookie_fc2ppvdb", None)
+    if cookie_editor is not None:
+        cookie_editor.setStyleSheet(build_code_editor_style(dark))
+
+
 def _apply_log_document_style(self: "MyMAinWindow", dark: bool) -> None:
     t = _tokens(dark)
     document_style = f"""
@@ -299,6 +389,7 @@ def set_style(self: "MyMAinWindow"):
         return
 
     apply_application_palette(False)
+    _apply_dynamic_semantic_styles(self, False)
     _apply_log_document_style(self, False)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
 
@@ -774,6 +865,7 @@ def set_style(self: "MyMAinWindow"):
             background: #F8FAFF;
         }}
         {build_scrollbar_style(False)}
+        {build_validation_style(False)}
         QProgressBar::chunk{{
             background-color: #5777FF;
             width: 3px; /*区块宽度*/
@@ -789,6 +881,7 @@ def set_style(self: "MyMAinWindow"):
 
 def set_dark_style(self: "MyMAinWindow"):
     apply_application_palette(True)
+    _apply_dynamic_semantic_styles(self, True)
     _apply_log_document_style(self, True)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(True))
 
@@ -1270,6 +1363,7 @@ def set_dark_style(self: "MyMAinWindow"):
             background: #6684FF;
         }}
         {build_scrollbar_style(True)}
+        {build_validation_style(True)}
         QProgressBar::chunk{{
             background-color: #5777FF;
             width: 3px; /*区块宽度*/

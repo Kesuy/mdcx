@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QStackedWidget,
     QTreeWidget,
@@ -175,6 +176,46 @@ def _generated_ui_window() -> QMainWindow:
     setup_result_sort_ui(window)
     setup_local_nfo_button(window)
     return window
+
+
+def test_tool_page_groups_use_page_owned_layouts_instead_of_fixed_geometry():
+    window = _generated_ui_window()
+
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_tool)
+    window.resize(1200, 850)
+    window.show()
+    APP.processEvents()
+
+    for group in (
+        window.Ui.groupBox_7,
+        window.Ui.groupBox_19,
+        window.Ui.groupBox_6,
+        window.Ui.groupBox_13,
+        window.Ui.groupBox_21,
+    ):
+        assert group.layout() is not None
+        assert group.maximumWidth() == 16777215
+        assert group.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding
+
+    assert window.Ui.groupBox_7.layout().indexOf(window.Ui.lineEdit_single_file_path) >= 0
+    assert window.Ui.groupBox_6.layout().indexOf(window.Ui.lineEdit_escape_dir_move) >= 0
+    assert window.Ui.groupBox_13.layout().indexOf(window.Ui.pushButton_select_thumb) >= 0
+    window.close()
+
+
+def test_primary_workflows_have_accessible_names_buddies_and_tab_order():
+    window = _generated_ui_window()
+
+    setup_responsive_ui(window)
+
+    assert window.Ui.pushButton_start_cap.accessibleName() == "开始或停止刮削"
+    assert window.result_filter_edit.accessibleName() == "搜索刮削结果"
+    assert window.Ui.lineEdit_single_file_path.accessibleName() == "单文件路径"
+    assert window.Ui.label_3.buddy() is window.Ui.lineEdit_single_file_path
+    assert window.Ui.label_10.buddy() is window.Ui.lineEdit_appoint_url
+    assert window.Ui.pushButton_select_media_folder.nextInFocusChain() is window.Ui.pushButton_start_cap
+    window.close()
 
 
 def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_controls():
@@ -486,7 +527,7 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     window.close()
 
 
-def test_tool_page_centers_its_fixed_width_forms_and_keeps_scrollbar_at_right():
+def test_tool_page_expands_layout_managed_forms_and_keeps_scrollbar_at_right():
     window = _generated_ui_window()
     setup_responsive_ui(window)
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_tool)
@@ -501,15 +542,16 @@ def test_tool_page_centers_its_fixed_width_forms_and_keeps_scrollbar_at_right():
     assert content.width() == scroll_area.viewport().width()
     assert isinstance(content.layout(), QVBoxLayout)
     assert content.layout().spacing() == 18
-    expected_group_sizes = {
-        window.Ui.groupBox_7: (701, 271),
-        window.Ui.groupBox_19: (701, 241),
-        window.Ui.groupBox_6: (701, 171),
-        window.Ui.groupBox_13: (701, 141),
-        window.Ui.groupBox_21: (701, 311),
-    }
-    for group, expected_size in expected_group_sizes.items():
-        assert (group.width(), group.height()) == expected_size
+    groups = (
+        window.Ui.groupBox_7,
+        window.Ui.groupBox_19,
+        window.Ui.groupBox_6,
+        window.Ui.groupBox_13,
+        window.Ui.groupBox_21,
+    )
+    for group in groups:
+        assert group.width() == content.width() - 24
+        assert group.layout() is not None
         assert abs(group.geometry().center().x() - content.rect().center().x()) <= 1
         visible_children = [child for child in group.children() if isinstance(child, QWidget) and child.isVisible()]
         assert visible_children

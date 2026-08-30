@@ -11,8 +11,11 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QToolButton,
+    QVBoxLayout,
     QWidget,
 )
+
+from mdcx.config.models import str_to_list
 
 from .config_binding import ConfigBinder, SettingBinding
 
@@ -24,12 +27,161 @@ class SettingsPageController:
         self.window = window
         self.ui = window.Ui
         self._advanced_widgets: list[QWidget] = []
+        self._validation_messages: dict[QLineEdit, QLabel] = {}
         self._setup_network_security()
         self._setup_secret_fields()
         self._setup_numeric_validation()
         self.binder = ConfigBinder(
             self.ui,
             [
+                SettingBinding(
+                    "lineEdit_movie_type",
+                    "media_type",
+                    parser=lambda value: str_to_list(value.lower(), "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding(
+                    "lineEdit_sub_type",
+                    "sub_type",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter=lambda value: "|".join(value).replace(".txt|", ""),
+                ),
+                SettingBinding(
+                    "lineEdit_escape_dir", "folders", parser=lambda value: str_to_list(value, ","), formatter=",".join
+                ),
+                SettingBinding(
+                    "lineEdit_escape_string", "string", parser=lambda value: str_to_list(value, ","), formatter=",".join
+                ),
+                SettingBinding("lineEdit_escape_size", "file_size", parser=float),
+                SettingBinding(
+                    "lineEdit_clean_file_ext",
+                    "clean_ext",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding(
+                    "lineEdit_clean_file_name",
+                    "clean_name",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding(
+                    "lineEdit_clean_file_contains",
+                    "clean_contains",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding("lineEdit_clean_file_size", "clean_size", parser=float),
+                SettingBinding(
+                    "lineEdit_clean_excluded_file_ext",
+                    "clean_ignore_ext",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding(
+                    "lineEdit_clean_excluded_file_contains",
+                    "clean_ignore_contains",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding("lineEdit_movie_path", "media_path"),
+                SettingBinding("lineEdit_movie_softlink_path", "softlink_path"),
+                SettingBinding("lineEdit_success", "success_output_folder"),
+                SettingBinding("lineEdit_fail", "failed_output_folder"),
+                SettingBinding("lineEdit_extrafanart_dir", "extrafanart_folder", parser=lambda value: value.strip()),
+                SettingBinding("checkBox_scrape_softlink_path", "scrape_softlink_path"),
+                SettingBinding("lineEdit_nfo_tagline", "nfo_tagline"),
+                SettingBinding("lineEdit_nfo_tag_series", "nfo_tag_series"),
+                SettingBinding("lineEdit_nfo_tag_studio", "nfo_tag_studio"),
+                SettingBinding("lineEdit_nfo_tag_publisher", "nfo_tag_publisher"),
+                SettingBinding("lineEdit_nfo_tag_actor", "nfo_tag_actor"),
+                SettingBinding(
+                    "lineEdit_nfo_tag_actor_contains",
+                    "nfo_tag_actor_contains",
+                    parser=lambda value: str_to_list(value, "|"),
+                    formatter="|".join,
+                ),
+                SettingBinding("lineEdit_baidu_appid", "translate_config.baidu_appid"),
+                SettingBinding("lineEdit_baidu_key", "translate_config.baidu_key"),
+                SettingBinding("lineEdit_deepl_key", "translate_config.deepl_key", parser=lambda value: value.strip()),
+                SettingBinding(
+                    "lineEdit_deeplx_url", "translate_config.deeplx_url", parser=lambda value: value.strip()
+                ),
+                SettingBinding("lineEdit_llm_model", "translate_config.llm_model"),
+                SettingBinding("lineEdit_llm_key", "translate_config.llm_key"),
+                SettingBinding("textEdit_llm_prompt_title", "translate_config.llm_prompt_title"),
+                SettingBinding("textEdit_llm_prompt_outline", "translate_config.llm_prompt_outline"),
+                SettingBinding("doubleSpinBox_llm_max_req_sec", "translate_config.llm_max_req_sec", parser=float),
+                SettingBinding("spinBox_llm_max_try", "translate_config.llm_max_try", parser=int),
+                SettingBinding("doubleSpinBox_llm_temperature", "translate_config.llm_temperature", parser=float),
+                SettingBinding("horizontalSlider_thread", "thread_number", parser=int),
+                SettingBinding("horizontalSlider_thread_time", "thread_time", parser=int),
+                SettingBinding("horizontalSlider_javdb_time", "javdb_time", parser=int),
+                SettingBinding("lineEdit_update_a_folder", "update_a_folder"),
+                SettingBinding("lineEdit_update_b_folder", "update_b_folder"),
+                SettingBinding("lineEdit_update_c_filetemplate", "update_c_filetemplate"),
+                SettingBinding("lineEdit_update_d_folder", "update_d_folder"),
+                SettingBinding("lineEdit_update_titletemplate", "update_titletemplate"),
+                SettingBinding("checkBox_cover", "show_poster"),
+                SettingBinding("checkBox_use_local_number_images", "use_local_number_images"),
+                SettingBinding("lineEdit_dir_name", "folder_name"),
+                SettingBinding("lineEdit_local_name", "naming_file"),
+                SettingBinding("lineEdit_media_name", "naming_media"),
+                SettingBinding("lineEdit_prevent_char", "prevent_char"),
+                SettingBinding("lineEdit_actor_no_name", "actor_no_name"),
+                SettingBinding("lineEdit_actor_name_more", "actor_name_more"),
+                SettingBinding("lineEdit_release_rule", "release_rule"),
+                SettingBinding(
+                    "lineEdit_folder_name_max",
+                    "folder_name_max",
+                    parser=int,
+                    formatter=lambda value: value if 0 < value <= 255 else 60,
+                ),
+                SettingBinding(
+                    "lineEdit_file_name_max",
+                    "file_name_max",
+                    parser=int,
+                    formatter=lambda value: value if 0 < value <= 255 else 60,
+                ),
+                SettingBinding("lineEdit_actor_name_max", "actor_name_max", parser=int),
+                SettingBinding("lineEdit_umr_style", "umr_style"),
+                SettingBinding("lineEdit_leak_style", "leak_style"),
+                SettingBinding("lineEdit_wuma_style", "wuma_style"),
+                SettingBinding("lineEdit_youma_style", "youma_style"),
+                SettingBinding("checkBox_foldername_mosaic", "folder_moword"),
+                SettingBinding("checkBox_filename_mosaic", "file_moword"),
+                SettingBinding("checkBox_foldername_4k", "folder_hd"),
+                SettingBinding("checkBox_filename_4k", "file_hd"),
+                SettingBinding("checkBox_actor_realname", "actor_realname"),
+                SettingBinding("checkBox_amazon_skip_poster_size_precheck", "amazon_skip_poster_size_precheck"),
+                SettingBinding("checkBox_amazon_strict_pic_verify", "amazon_strict_pic_verify"),
+                SettingBinding("lineEdit_sub_folder", "subtitle_folder"),
+                SettingBinding("checkBox_sub_add_chs", "subtitle_add_chs"),
+                SettingBinding("checkBox_sub_rescrape", "subtitle_add_rescrape"),
+                SettingBinding("lineEdit_api_key", "api_key"),
+                SettingBinding("lineEdit_user_id", "user_id"),
+                SettingBinding("lineEdit_actor_photo_folder", "actor_photo_folder"),
+                SettingBinding("lineEdit_actor_db_path", "info_database_path"),
+                SettingBinding("checkBox_actor_db", "use_database"),
+                SettingBinding("checkBox_actor_photo_kodi", "actor_photo_kodi_auto"),
+                SettingBinding("plainTextEdit_cookie_javdb", "javdb"),
+                SettingBinding("plainTextEdit_cookie_fc2ppvdb", "fc2ppvdb"),
+                SettingBinding("plainTextEdit_cookie_javbus", "javbus"),
+                SettingBinding("lineEdit_api_token_theporndb", "theporndb_api_token"),
+                SettingBinding("lineEdit_rest_count", "rest_count", parser=int, formatter=lambda value: value or 1),
+                SettingBinding("checkBox_show_web_log", "show_web_log"),
+                SettingBinding("checkBox_show_from_log", "show_from_log"),
+                SettingBinding("checkBox_show_data_log", "show_data_log"),
+                SettingBinding(
+                    "lineEdit_local_library_path",
+                    "local_library",
+                    parser=lambda value: str_to_list(value),
+                    formatter=",".join,
+                ),
+                SettingBinding("lineEdit_actors_name", "actors_name", parser=lambda value: value.replace("\n", "")),
+                SettingBinding("lineEdit_netdisk_path", "netdisk_path"),
+                SettingBinding("lineEdit_localdisk_path", "localdisk_path"),
+                SettingBinding("checkBox_create_link", "auto_link"),
                 SettingBinding("checkBox_use_proxy", "use_proxy"),
                 SettingBinding("lineEdit_proxy", "proxy", parser=lambda value: value.strip()),
                 SettingBinding("checkBox_verify_tls", "verify_tls"),
@@ -102,21 +254,58 @@ class SettingsPageController:
             widget = getattr(self.ui, name)
             widget.setValidator(QIntValidator(0, maximum, widget))
             self._numeric_widgets.append(widget)
+        for widget in (*self._numeric_widgets, self.ui.lineEdit_ca_bundle):
+            self._install_inline_error(widget)
+
+    def _install_inline_error(self, widget: QLineEdit) -> None:
+        parent = widget.parentWidget()
+        parent_layout = parent.layout() if parent is not None else None
+        if parent_layout is None:
+            return
+
+        container = QWidget(parent)
+        container.setObjectName(f"{widget.objectName()}_validation_container")
+        stack = QVBoxLayout(container)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.setSpacing(2)
+        replaced = parent_layout.replaceWidget(widget, container)
+        if replaced is None:
+            container.deleteLater()
+            return
+        widget.setParent(container)
+        stack.addWidget(widget)
+        message = QLabel(container)
+        message.setProperty("validationMessage", True)
+        message.setWordWrap(True)
+        message.hide()
+        stack.addWidget(message)
+        self._validation_messages[widget] = message
+
+    def _set_validation_error(self, widget: QLineEdit, message: str = "") -> None:
+        has_error = bool(message)
+        widget.setProperty("validationError", has_error)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+        label = self._validation_messages.get(widget)
+        if label is not None:
+            label.setText(message)
+            label.setVisible(has_error)
 
     def validate(self) -> list[str]:
         errors = []
         for widget in self._numeric_widgets:
             acceptable = widget.hasAcceptableInput() and bool(widget.text().strip())
-            widget.setProperty("validationError", not acceptable)
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
             if not acceptable:
-                widget.setToolTip("请输入有效的非负数字")
+                self._set_validation_error(widget, "请输入有效的非负数字")
                 errors.append(widget.objectName())
+            else:
+                self._set_validation_error(widget)
         ca_path = self.ui.lineEdit_ca_bundle.text().strip()
         if ca_path and not Path(ca_path).expanduser().is_file():
-            self.ui.lineEdit_ca_bundle.setToolTip("找不到指定的 CA 证书文件")
+            self._set_validation_error(self.ui.lineEdit_ca_bundle, "找不到指定的 CA 证书文件")
             errors.append("lineEdit_ca_bundle")
+        else:
+            self._set_validation_error(self.ui.lineEdit_ca_bundle)
         return errors
 
     def install_search_bar(self, layout) -> None:

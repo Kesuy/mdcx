@@ -68,28 +68,11 @@ def save_config(self: "MyMAinWindow"):
         "wanted": CrawlerResultFields.WANTED,
     }
 
+    # Save all schema-backed fields first so specialized normalization below
+    # always reads the latest validated UI values.
+    self.settings_controller.binder.save(manager.config)
+
     # region media & escape
-    manager.config.media_path = self.Ui.lineEdit_movie_path.text()  # 待刮削目录
-    manager.config.softlink_path = self.Ui.lineEdit_movie_softlink_path.text()  # 软链接目录目录
-    manager.config.success_output_folder = self.Ui.lineEdit_success.text()  # 成功输出目录
-    manager.config.failed_output_folder = self.Ui.lineEdit_fail.text()  # 失败输出目录
-    manager.config.extrafanart_folder = self.Ui.lineEdit_extrafanart_dir.text().strip()  # 剧照目录
-
-    media_type_text = self.Ui.lineEdit_movie_type.text().lower()
-    manager.config.media_type = str_to_list(media_type_text, "|")
-    sub_type_text = self.Ui.lineEdit_sub_type.text()
-    manager.config.sub_type = str_to_list(sub_type_text, "|")
-
-    folders_text = self.Ui.lineEdit_escape_dir.text()
-    manager.config.folders = str_to_list(folders_text, ",")
-    string_text = self.Ui.lineEdit_escape_string.text()
-    manager.config.string = str_to_list(string_text, ",")
-    manager.config.scrape_softlink_path = get_checkbox(self.Ui.checkBox_scrape_softlink_path)
-
-    try:  # 过滤小文件大小
-        manager.config.file_size = float(self.Ui.lineEdit_escape_size.text())
-    except Exception:
-        manager.config.file_size = 0.0
     manager.config.no_escape = get_checkboxes(
         (self.Ui.checkBox_no_escape_file, NoEscape.NO_SKIP_SMALL_FILE),
         (self.Ui.checkBox_no_escape_dir, NoEscape.FOLDER),
@@ -101,20 +84,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region clean
-    clean_ext_text = self.Ui.lineEdit_clean_file_ext.text()
-    manager.config.clean_ext = str_to_list(clean_ext_text, "|")
-    clean_name_text = self.Ui.lineEdit_clean_file_name.text()
-    manager.config.clean_name = str_to_list(clean_name_text, "|")
-    clean_contains_text = self.Ui.lineEdit_clean_file_contains.text()
-    manager.config.clean_contains = str_to_list(clean_contains_text, "|")
-    try:
-        manager.config.clean_size = float(self.Ui.lineEdit_clean_file_size.text())  # 清理文件大小小于等于
-    except Exception:
-        manager.config.clean_size = 0.0
-    clean_ignore_ext_text = self.Ui.lineEdit_clean_excluded_file_ext.text()
-    manager.config.clean_ignore_ext = str_to_list(clean_ignore_ext_text, "|")
-    clean_ignore_contains_text = self.Ui.lineEdit_clean_excluded_file_contains.text()
-    manager.config.clean_ignore_contains = str_to_list(clean_ignore_contains_text, "|")
     manager.config.clean_enable = get_checkboxes(
         (self.Ui.checkBox_clean_file_ext, CleanAction.CLEAN_EXT),
         (self.Ui.checkBox_clean_file_name, CleanAction.CLEAN_NAME),
@@ -191,7 +160,6 @@ def save_config(self: "MyMAinWindow"):
     )
     manager.config.set_field_language(field_mapping["actor"], actor_language)
     manager.config.set_field_translate(field_mapping["actor"], get_checkbox(self.Ui.checkBox_actor_translate))
-    manager.config.actor_realname = get_checkbox(self.Ui.checkBox_actor_realname)
     # all_actors
     manager.config.set_field_language(CrawlerResultFields.ALL_ACTORS, actor_language)
     manager.config.set_field_translate(CrawlerResultFields.ALL_ACTORS, get_checkbox(self.Ui.checkBox_actor_translate))
@@ -254,13 +222,6 @@ def save_config(self: "MyMAinWindow"):
 
     manager.config.fill_missing_type_field_configs()
     refresh_site_priority_ui(self)
-    manager.config.nfo_tagline = self.Ui.lineEdit_nfo_tagline.text()  # tagline格式
-    manager.config.nfo_tag_series = self.Ui.lineEdit_nfo_tag_series.text()  # nfo_tag_series 格式
-    manager.config.nfo_tag_studio = self.Ui.lineEdit_nfo_tag_studio.text()  # nfo_tag_studio 格式
-    manager.config.nfo_tag_publisher = self.Ui.lineEdit_nfo_tag_publisher.text()  # nfo_tag_publisher 格式
-    manager.config.nfo_tag_actor = self.Ui.lineEdit_nfo_tag_actor.text()  # nfo_tag_actor 格式
-    nfo_tag_actor_contains_text = self.Ui.lineEdit_nfo_tag_actor_contains.text()
-    manager.config.nfo_tag_actor_contains = str_to_list(nfo_tag_actor_contains_text, "|")
 
     # 注意：whole_fields 和 none_fields 已弃用，不再设置这些字段
     # 它们的功能已经通过新的字段配置API来实现
@@ -310,27 +271,12 @@ def save_config(self: "MyMAinWindow"):
         (self.Ui.checkBox_deeplx, Translator.DEEPLX),
         (self.Ui.checkBox_llm, Translator.LLM),
     )
-    manager.config.translate_config.baidu_appid = self.Ui.lineEdit_baidu_appid.text()
-    manager.config.translate_config.baidu_key = self.Ui.lineEdit_baidu_key.text()
-    manager.config.translate_config.deepl_key = self.Ui.lineEdit_deepl_key.text().strip()  # deepl api key
-    manager.config.translate_config.deeplx_url = self.Ui.lineEdit_deeplx_url.text().strip()  # deeplx url
-
     llm_url_text = self.Ui.lineEdit_llm_url.text()
     if llm_url_text:
         manager.config.translate_config.llm_url = HttpUrl(llm_url_text)
-    manager.config.translate_config.llm_model = self.Ui.lineEdit_llm_model.text()
-    manager.config.translate_config.llm_key = self.Ui.lineEdit_llm_key.text()
-    manager.config.translate_config.llm_prompt_title = self.Ui.textEdit_llm_prompt_title.toPlainText()
-    manager.config.translate_config.llm_prompt_outline = self.Ui.textEdit_llm_prompt_outline.toPlainText()
-    manager.config.translate_config.llm_max_req_sec = self.Ui.doubleSpinBox_llm_max_req_sec.value()
-    manager.config.translate_config.llm_max_try = self.Ui.spinBox_llm_max_try.value()
-    manager.config.translate_config.llm_temperature = self.Ui.doubleSpinBox_llm_temperature.value()
     # endregion
 
     # region common
-    manager.config.thread_number = self.Ui.horizontalSlider_thread.value()  # 线程数量
-    manager.config.thread_time = self.Ui.horizontalSlider_thread_time.value()  # 线程延时
-    manager.config.javdb_time = self.Ui.horizontalSlider_javdb_time.value()  # javdb 延时
     # 主模式设置
     manager.config.main_mode = get_radio_buttons(
         (self.Ui.radioButton_mode_common, 1),
@@ -355,11 +301,6 @@ def save_config(self: "MyMAinWindow"):
         manager.config.update_mode = "d"
     else:
         manager.config.update_mode = "c"
-    manager.config.update_a_folder = self.Ui.lineEdit_update_a_folder.text()  # 更新模式 - a 目录
-    manager.config.update_b_folder = self.Ui.lineEdit_update_b_folder.text()  # 更新模式 - b 目录
-    manager.config.update_c_filetemplate = self.Ui.lineEdit_update_c_filetemplate.text()  # 更新模式 - c 文件命名规则
-    manager.config.update_d_folder = self.Ui.lineEdit_update_d_folder.text()  # 更新模式 - d 目录
-    manager.config.update_titletemplate = self.Ui.lineEdit_update_titletemplate.text()  # 更新模式 - emby视频标题
     # 链接模式设置
     if self.Ui.radioButton_soft_on.isChecked():  # 软链接开
         manager.config.soft_link = 1
@@ -373,11 +314,9 @@ def save_config(self: "MyMAinWindow"):
     manager.config.failed_file_move = self.Ui.radioButton_fail_move_on.isChecked()
     manager.config.success_file_rename = self.Ui.radioButton_succ_rename_on.isChecked()
     manager.config.del_empty_folder = self.Ui.radioButton_del_empty_folder_on.isChecked()
-    manager.config.show_poster = self.Ui.checkBox_cover.isChecked()
     # endregion
 
     # region download
-    manager.config.use_local_number_images = self.Ui.checkBox_use_local_number_images.isChecked()
     manager.config.download_files = get_checkboxes(
         (self.Ui.checkBox_download_poster, DownloadableFile.POSTER),
         (self.Ui.checkBox_download_thumb, DownloadableFile.THUMB),
@@ -421,10 +360,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region name
-    manager.config.folder_name = self.Ui.lineEdit_dir_name.text()  # 视频文件夹命名
-    manager.config.naming_file = self.Ui.lineEdit_local_name.text()  # 视频文件名命名
-    manager.config.naming_media = self.Ui.lineEdit_media_name.text()  # nfo标题命名
-    manager.config.prevent_char = self.Ui.lineEdit_prevent_char.text()  # 防屏蔽字符
 
     manager.config.fields_rule = get_checkboxes(
         (self.Ui.checkBox_title_del_actor, FieldRule.DEL_ACTOR),
@@ -444,19 +379,8 @@ def save_config(self: "MyMAinWindow"):
             suffix_sort_list.append(SuffixSort.DEFINITION)
     manager.config.suffix_sort = suffix_sort_list
 
-    manager.config.actor_no_name = self.Ui.lineEdit_actor_no_name.text()  # 未知演员
-    manager.config.actor_name_more = self.Ui.lineEdit_actor_name_more.text()  # 等演员
-    release_rule = self.Ui.lineEdit_release_rule.text()  # 发行日期
+    release_rule = manager.config.release_rule
     manager.config.release_rule = re.sub(r'[\\/:*?"<>|\r\n]+', "-", release_rule).strip()
-
-    manager.config.folder_name_max = int(self.Ui.lineEdit_folder_name_max.text())  # 长度命名规则-目录
-    manager.config.file_name_max = int(self.Ui.lineEdit_file_name_max.text())  # 长度命名规则-文件名
-    manager.config.actor_name_max = int(self.Ui.lineEdit_actor_name_max.text())  # 长度命名规则-演员数量
-
-    manager.config.umr_style = self.Ui.lineEdit_umr_style.text()  # 无码破解版本命名
-    manager.config.leak_style = self.Ui.lineEdit_leak_style.text()  # 无码流出版本命名
-    manager.config.wuma_style = self.Ui.lineEdit_wuma_style.text()  # 无码版本命名
-    manager.config.youma_style = self.Ui.lineEdit_youma_style.text()  # 有码版本命名
 
     # 分集命名规则
     manager.config.cd_name = get_radio_buttons(
@@ -486,10 +410,6 @@ def save_config(self: "MyMAinWindow"):
         (self.Ui.radioButton_videosize_path, "path"),
         default="none",
     )
-    manager.config.folder_moword = get_checkbox(self.Ui.checkBox_foldername_mosaic)
-    manager.config.file_moword = get_checkbox(self.Ui.checkBox_filename_mosaic)
-    manager.config.folder_hd = get_checkbox(self.Ui.checkBox_foldername_4k)
-    manager.config.file_hd = get_checkbox(self.Ui.checkBox_filename_4k)
     # endregion
 
     # region subtitle
@@ -498,10 +418,7 @@ def save_config(self: "MyMAinWindow"):
     manager.config.cnword_style = self.Ui.lineEdit_cnword_style.text()  # 中文字幕字符样式
     manager.config.folder_cnword = get_checkbox(self.Ui.checkBox_foldername)
     manager.config.file_cnword = get_checkbox(self.Ui.checkBox_filename)
-    manager.config.subtitle_folder = self.Ui.lineEdit_sub_folder.text()  # 字幕文件目录
     manager.config.subtitle_add = get_checkbox(self.Ui.radioButton_add_sub_on)
-    manager.config.subtitle_add_chs = get_checkbox(self.Ui.checkBox_sub_add_chs)
-    manager.config.subtitle_add_rescrape = get_checkbox(self.Ui.checkBox_sub_rescrape)
     # endregion
 
     # region emby
@@ -512,17 +429,12 @@ def save_config(self: "MyMAinWindow"):
         emby_url = "http://" + emby_url
     if emby_url:
         manager.config.emby_url = HttpUrl(emby_url)
-    manager.config.api_key = self.Ui.lineEdit_api_key.text()  # emby密钥
-    manager.config.user_id = self.Ui.lineEdit_user_id.text()  # emby用户ID
-    manager.config.actor_photo_folder = self.Ui.lineEdit_actor_photo_folder.text()  # 头像图片目录
     gfriends_github = self.Ui.lineEdit_net_actor_photo.text().strip(" /")  # gfriends github 项目地址
     if not gfriends_github:
         gfriends_github = "https://github.com/gfriends/gfriends"
     elif "://" not in gfriends_github:
         gfriends_github = "https://" + gfriends_github
     manager.config.gfriends_github = HttpUrl(gfriends_github)
-    manager.config.info_database_path = self.Ui.lineEdit_actor_db_path.text()  # 信息数据库
-    manager.config.use_database = self.Ui.checkBox_actor_db.isChecked()
     if manager.config.use_database:
         ActressDB.init_db()
 
@@ -557,7 +469,6 @@ def save_config(self: "MyMAinWindow"):
     )
 
     manager.config.emby_on = emby_actions
-    manager.config.actor_photo_kodi_auto = get_checkbox(self.Ui.checkBox_actor_photo_kodi)
     # endregion
 
     # region mark
@@ -619,8 +530,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region network
-    self.settings_controller.binder.save(manager.config)
-
     site = self.Ui.comboBox_custom_website.currentText()
     if site in Website and site != Website.AIRAV.value:
         site = Website(site)
@@ -631,17 +540,11 @@ def save_config(self: "MyMAinWindow"):
         elif site in manager.config.site_configs:
             manager.config.site_configs[site].custom_url = None
 
-    manager.config.javdb = self.Ui.plainTextEdit_cookie_javdb.toPlainText()  # javdb cookie
-    manager.config.fc2ppvdb = self.Ui.plainTextEdit_cookie_fc2ppvdb.toPlainText()  # fc2ppvdb cookie
-    manager.config.javbus = self.Ui.plainTextEdit_cookie_javbus.toPlainText()  # javbus cookie
-    manager.config.theporndb_api_token = self.Ui.lineEdit_api_token_theporndb.text()  # api token
     if manager.config.javdb:
         manager.config.javdb = manager.config.javdb.replace("locale=en", "locale=zh")
     # endregion
 
     # region other
-    manager.config.rest_count = int(self.Ui.lineEdit_rest_count.text())  # 间歇刮削文件数量
-
     rest_time_text = self.Ui.lineEdit_rest_time.text()  # 格式: HH:MM:SS
     if re.match(r"^\d{2}:\d{2}:\d{2}$", rest_time_text):
         h, m, s = map(int, rest_time_text.split(":"))
@@ -692,9 +595,6 @@ def save_config(self: "MyMAinWindow"):
     manager.config.switch_on = switch_actions
 
     # 日志设置
-    manager.config.show_web_log = get_checkbox(self.Ui.checkBox_show_web_log)
-    manager.config.show_from_log = get_checkbox(self.Ui.checkBox_show_from_log)
-    manager.config.show_data_log = get_checkbox(self.Ui.checkBox_show_data_log)
     manager.config.save_log = get_radio_buttons(
         (self.Ui.radioButton_log_on, True),
         (self.Ui.radioButton_log_off, False),
@@ -705,13 +605,8 @@ def save_config(self: "MyMAinWindow"):
         (self.Ui.radioButton_update_off, False),
         default=True,
     )
-    manager.config.local_library = str_to_list(self.Ui.lineEdit_local_library_path.text())  # 本地资源库
-    manager.config.actors_name = self.Ui.lineEdit_actors_name.text().replace("\n", "")  # 演员名
-    manager.config.netdisk_path = self.Ui.lineEdit_netdisk_path.text()  # 网盘路径
-    manager.config.localdisk_path = self.Ui.lineEdit_localdisk_path.text()  # 本地磁盘路径
     manager.config.window_title = "hide" if self.Ui.checkBox_hide_window_title.isChecked() else "show"
     # endregion
-    manager.config.auto_link = get_checkbox(self.Ui.checkBox_create_link)  # 刮削中自动创建软链接
 
     # 保存
     manager.save()

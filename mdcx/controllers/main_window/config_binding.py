@@ -4,7 +4,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtWidgets import QAbstractButton, QAbstractSlider, QLineEdit, QPlainTextEdit, QSpinBox
+from PyQt6.QtWidgets import (
+    QAbstractButton,
+    QAbstractSlider,
+    QDoubleSpinBox,
+    QLineEdit,
+    QPlainTextEdit,
+    QSpinBox,
+    QTextEdit,
+)
 
 
 def _resolve(root: object, path: str) -> tuple[object, str]:
@@ -36,9 +44,9 @@ class ConfigBinder:
             return widget.isChecked()
         if isinstance(widget, QLineEdit):
             return widget.text()
-        if isinstance(widget, QPlainTextEdit):
+        if isinstance(widget, QPlainTextEdit | QTextEdit):
             return widget.toPlainText()
-        if isinstance(widget, QSpinBox | QAbstractSlider):
+        if isinstance(widget, QSpinBox | QDoubleSpinBox | QAbstractSlider):
             return widget.value()
         raise TypeError(f"不支持的设置控件: {type(widget).__name__}")
 
@@ -48,8 +56,10 @@ class ConfigBinder:
             widget.setChecked(bool(value))
         elif isinstance(widget, QLineEdit):
             widget.setText(str(value or ""))
-        elif isinstance(widget, QPlainTextEdit):
+        elif isinstance(widget, QPlainTextEdit | QTextEdit):
             widget.setPlainText(str(value or ""))
+        elif isinstance(widget, QDoubleSpinBox):
+            widget.setValue(float(value))
         elif isinstance(widget, QSpinBox | QAbstractSlider):
             widget.setValue(int(value))
         else:
