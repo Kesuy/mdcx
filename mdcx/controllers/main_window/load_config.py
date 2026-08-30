@@ -9,15 +9,12 @@ from PyQt6.QtWidgets import QFileDialog
 
 from mdcx.config.enums import (
     CDChar,
-    CleanAction,
     DownloadableFile,
     EmbyAction,
     FieldRule,
-    HDPicSource,
     KeepableFile,
     MarkType,
     NfoInclude,
-    NoEscape,
     OutlineShow,
     ReadMode,
     Switch,
@@ -101,33 +98,9 @@ def load_config(self: "MyMAinWindow"):
         # region escape
         # 排除目录-工具页面
         self.Ui.lineEdit_escape_dir_move.setText(",".join(manager.config.folders))
-        # 不过滤文件、文件夹
-        set_checkboxes(
-            manager.config.no_escape,
-            (self.Ui.checkBox_no_escape_file, NoEscape.NO_SKIP_SMALL_FILE),
-            (self.Ui.checkBox_no_escape_dir, NoEscape.FOLDER),
-            (self.Ui.checkBox_skip_success_file, NoEscape.SKIP_SUCCESS_FILE),
-            (self.Ui.checkBox_record_success_file, NoEscape.RECORD_SUCCESS_FILE),
-            (self.Ui.checkBox_check_symlink, NoEscape.CHECK_SYMLINK),
-            (self.Ui.checkBox_check_symlink_definition, NoEscape.SYMLINK_DEFINITION),
-        )
         # endregion
 
         # region clean
-        # region clean_enable
-        set_checkboxes(
-            manager.config.clean_enable,
-            (self.Ui.checkBox_clean_file_ext, CleanAction.CLEAN_EXT),
-            (self.Ui.checkBox_clean_file_name, CleanAction.CLEAN_NAME),
-            (self.Ui.checkBox_clean_file_contains, CleanAction.CLEAN_CONTAINS),
-            (self.Ui.checkBox_clean_file_size, CleanAction.CLEAN_SIZE),
-            (self.Ui.checkBox_clean_excluded_file_ext, CleanAction.CLEAN_IGNORE_EXT),
-            (self.Ui.checkBox_clean_excluded_file_contains, CleanAction.CLEAN_IGNORE_CONTAINS),
-            (self.Ui.checkBox_i_understand_clean, CleanAction.I_KNOW),
-            (self.Ui.checkBox_i_agree_clean, CleanAction.I_AGREE),
-            (self.Ui.checkBox_auto_clean, CleanAction.AUTO_CLEAN),
-        )
-        # endregion
         # endregion
 
         # region website
@@ -493,12 +466,6 @@ def load_config(self: "MyMAinWindow"):
             (self.Ui.checkBox_old_theme_videos, KeepableFile.THEME_VIDEOS),
         )
 
-        # 下载高清图片 - 新配置直接使用枚举列表，不需要版本兼容性检查
-        download_hd_pics = manager.config.download_hd_pics
-        set_checkboxes(
-            download_hd_pics,
-            (self.Ui.checkBox_amazon_big_pic, HDPicSource.AMAZON),
-        )
         self.update_amazon_strict_pic_verify_state()
         # endregion
 

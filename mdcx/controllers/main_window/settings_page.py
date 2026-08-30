@@ -18,10 +18,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from mdcx.config.enums import CleanAction, HDPicSource, NoEscape
 from mdcx.config.models import str_to_list
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 
-from .config_binding import ChoiceBinding, ConfigBinder, SettingBinding
+from .config_binding import ChoiceBinding, ConfigBinder, MultiChoiceBinding, SettingBinding
 
 
 def parse_duration(value: str) -> timedelta:
@@ -282,6 +283,37 @@ class SettingsPageController:
                     "update_check",
                     (("radioButton_update_on", True), ("radioButton_update_off", False)),
                     True,
+                ),
+            ],
+            multi_choices=[
+                MultiChoiceBinding(
+                    "no_escape",
+                    (
+                        ("checkBox_no_escape_file", NoEscape.NO_SKIP_SMALL_FILE),
+                        ("checkBox_no_escape_dir", NoEscape.FOLDER),
+                        ("checkBox_skip_success_file", NoEscape.SKIP_SUCCESS_FILE),
+                        ("checkBox_record_success_file", NoEscape.RECORD_SUCCESS_FILE),
+                        ("checkBox_check_symlink", NoEscape.CHECK_SYMLINK),
+                        ("checkBox_check_symlink_definition", NoEscape.SYMLINK_DEFINITION),
+                    ),
+                ),
+                MultiChoiceBinding(
+                    "clean_enable",
+                    (
+                        ("checkBox_clean_file_ext", CleanAction.CLEAN_EXT),
+                        ("checkBox_clean_file_name", CleanAction.CLEAN_NAME),
+                        ("checkBox_clean_file_contains", CleanAction.CLEAN_CONTAINS),
+                        ("checkBox_clean_file_size", CleanAction.CLEAN_SIZE),
+                        ("checkBox_clean_excluded_file_ext", CleanAction.CLEAN_IGNORE_EXT),
+                        ("checkBox_clean_excluded_file_contains", CleanAction.CLEAN_IGNORE_CONTAINS),
+                        ("checkBox_i_understand_clean", CleanAction.I_KNOW),
+                        ("checkBox_i_agree_clean", CleanAction.I_AGREE),
+                        ("checkBox_auto_clean", CleanAction.AUTO_CLEAN),
+                    ),
+                ),
+                MultiChoiceBinding(
+                    "download_hd_pics",
+                    (("checkBox_amazon_big_pic", HDPicSource.AMAZON),),
                 ),
             ],
         )

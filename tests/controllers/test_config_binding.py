@@ -12,7 +12,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, QRadioButton, QSlider, QTextEdit
 
-from mdcx.controllers.main_window.config_binding import ChoiceBinding, ConfigBinder, SettingBinding
+from mdcx.controllers.main_window.config_binding import (
+    ChoiceBinding,
+    ConfigBinder,
+    MultiChoiceBinding,
+    SettingBinding,
+)
 from mdcx.controllers.main_window.settings_page import (
     format_duration,
     is_valid_http_url,
@@ -113,6 +118,25 @@ def test_choice_binding_round_trips_values_and_uses_declared_default():
     config.server_type = "unsupported"
     binder.load(config)
     assert ui.emby.isChecked()
+
+
+def test_multi_choice_binding_preserves_unknown_legacy_values():
+    ui = SimpleNamespace(first=QCheckBox(), second=QCheckBox())
+    config = SimpleNamespace(actions=["first", "legacy-action"])
+    binder = ConfigBinder(
+        ui,
+        [],
+        multi_choices=[MultiChoiceBinding("actions", (("first", "first"), ("second", "second")))],
+    )
+
+    binder.load(config)
+    assert ui.first.isChecked()
+    assert not ui.second.isChecked()
+
+    ui.first.setChecked(False)
+    ui.second.setChecked(True)
+    binder.save(config)
+    assert config.actions == ["second", "legacy-action"]
 
 
 def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():

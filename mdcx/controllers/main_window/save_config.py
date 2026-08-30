@@ -9,17 +9,14 @@ from PyQt6.QtCore import Qt
 
 from mdcx.config.enums import (
     CDChar,
-    CleanAction,
     DownloadableFile,
     EmbyAction,
     FieldRule,
     FixedScrapingType,
-    HDPicSource,
     KeepableFile,
     Language,
     MarkType,
     NfoInclude,
-    NoEscape,
     OutlineShow,
     ReadMode,
     SuffixSort,
@@ -72,28 +69,9 @@ def save_config(self: "MyMAinWindow"):
     self.settings_controller.binder.save(manager.config)
 
     # region media & escape
-    manager.config.no_escape = get_checkboxes(
-        (self.Ui.checkBox_no_escape_file, NoEscape.NO_SKIP_SMALL_FILE),
-        (self.Ui.checkBox_no_escape_dir, NoEscape.FOLDER),
-        (self.Ui.checkBox_skip_success_file, NoEscape.SKIP_SUCCESS_FILE),
-        (self.Ui.checkBox_record_success_file, NoEscape.RECORD_SUCCESS_FILE),
-        (self.Ui.checkBox_check_symlink, NoEscape.CHECK_SYMLINK),
-        (self.Ui.checkBox_check_symlink_definition, NoEscape.SYMLINK_DEFINITION),
-    )
     # endregion
 
     # region clean
-    manager.config.clean_enable = get_checkboxes(
-        (self.Ui.checkBox_clean_file_ext, CleanAction.CLEAN_EXT),
-        (self.Ui.checkBox_clean_file_name, CleanAction.CLEAN_NAME),
-        (self.Ui.checkBox_clean_file_contains, CleanAction.CLEAN_CONTAINS),
-        (self.Ui.checkBox_clean_file_size, CleanAction.CLEAN_SIZE),
-        (self.Ui.checkBox_clean_excluded_file_ext, CleanAction.CLEAN_IGNORE_EXT),
-        (self.Ui.checkBox_clean_excluded_file_contains, CleanAction.CLEAN_IGNORE_CONTAINS),
-        (self.Ui.checkBox_i_understand_clean, CleanAction.I_KNOW),
-        (self.Ui.checkBox_i_agree_clean, CleanAction.I_AGREE),
-        (self.Ui.checkBox_auto_clean, CleanAction.AUTO_CLEAN),
-    )
     # endregion
 
     # region website
@@ -342,9 +320,6 @@ def save_config(self: "MyMAinWindow"):
         (self.Ui.checkBox_old_theme_videos, KeepableFile.THEME_VIDEOS),
     )
 
-    manager.config.download_hd_pics = get_checkboxes(
-        (self.Ui.checkBox_amazon_big_pic, HDPicSource.AMAZON),
-    )
     manager.config.amazon_skip_poster_size_precheck = (
         self.Ui.checkBox_amazon_big_pic.isChecked() and self.Ui.checkBox_amazon_skip_poster_size_precheck.isChecked()
     )

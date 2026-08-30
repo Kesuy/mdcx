@@ -38,6 +38,13 @@ class ChoiceBinding:
     default: Any
 
 
+@dataclass(frozen=True)
+class MultiChoiceBinding:
+    path: str
+    choices: tuple[tuple[str, Any], ...]
+    preserve_unknown: bool = True
+
+
 class ConfigBinder:
     """Declarative two-way binding between generated Qt widgets and Config."""
 
@@ -46,10 +53,12 @@ class ConfigBinder:
         ui: object,
         bindings: list[SettingBinding],
         choices: list[ChoiceBinding] | None = None,
+        multi_choices: list[MultiChoiceBinding] | None = None,
     ):
         self.ui = ui
         self.bindings = bindings
         self.choices = choices or []
+        self.multi_choices = multi_choices or []
 
     @staticmethod
     def _read_widget(widget: object) -> Any:
@@ -89,6 +98,11 @@ class ConfigBinder:
             if selected is None:
                 selected = next(widget for widget, choice in binding.choices if choice == binding.default)
             getattr(self.ui, selected).setChecked(True)
+        for binding in self.multi_choices:
+            owner, name = _resolve(config, binding.path)
+            selected_values = getattr(owner, name)
+            for widget, choice in binding.choices:
+                getattr(self.ui, widget).setChecked(choice in selected_values)
 
     def save(self, config: object) -> None:
         for binding in self.bindings:
@@ -102,3 +116,10 @@ class ConfigBinder:
                 binding.default,
             )
             setattr(owner, name, value)
+        for binding in self.multi_choices:
+            owner, name = _resolve(config, binding.path)
+            known_values = {choice for _widget, choice in binding.choices}
+            values = [choice for widget, choice in binding.choices if getattr(self.ui, widget).isChecked()]
+            if binding.preserve_unknown:
+                values.extend(value for value in getattr(owner, name) if value not in known_values)
+            setattr(owner, name, values)
