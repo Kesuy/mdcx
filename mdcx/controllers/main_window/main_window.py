@@ -3,7 +3,6 @@ from __future__ import annotations
 import html
 import os
 import re
-import shutil
 import threading
 import time
 import traceback
@@ -33,14 +32,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mdcx.base.file import (
-    check_and_clean_files,
-    get_success_list,
-    movie_lists,
-    newtdisk_creat_symlink,
-    save_remain_list,
-    save_success_list,
-)
+from mdcx.base.file import get_success_list, newtdisk_creat_symlink, save_remain_list, save_success_list
 from mdcx.base.image import add_del_extrafanart_copy
 from mdcx.base.video import add_del_extras, add_del_theme_videos
 from mdcx.base.web import check_theporndb_api_token, check_version
@@ -103,26 +95,13 @@ from .style import (
     set_dark_style,
     set_style,
 )
+from .tool_controller import ToolController
 from .ui_text import set_elided_label_text
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QMouseEvent
 
     from ..cut_window import CutWindow
-
-
-LINK_DIR_INVALID_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
-WINDOWS_RESERVED_DIR_NAMES = {
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    *(f"COM{i}" for i in range(1, 10)),
-    *(f"LPT{i}" for i in range(1, 10)),
-}
-
-
-DEFAULT_LINK_DIR_NAME = "unnamed"
 
 
 class MyMAinWindow(QMainWindow):
@@ -229,6 +208,7 @@ class MyMAinWindow(QMainWindow):
         self.network_controller = NetworkController(self)
         self.nfo_controller = NfoController(self)
         self.scrape_controller = ScrapeController(self)
+        self.tool_controller = ToolController(self)
         self._bind_system_theme_refresh()
         self._setup_fc2ppvdb_cookie_ui()
         self._setup_baidu_translate_ui()
@@ -294,6 +274,13 @@ class MyMAinWindow(QMainWindow):
         if controller is None:
             controller = ScrapeController(self)
             self.scrape_controller = controller
+        return controller
+
+    def _get_tool_controller(self) -> ToolController:
+        controller = vars(self).get("tool_controller")
+        if controller is None:
+            controller = ToolController(self)
+            self.tool_controller = controller
         return controller
 
     def _setup_name_template_preview(self) -> None:
@@ -2276,81 +2263,13 @@ class MyMAinWindow(QMainWindow):
 
     # 工具-视频移动
     def pushButton_move_mp4_clicked(self):
-        box = QMessageBox(QMessageBox.Icon.Warning, "移动视频和字幕", "确定要移动视频和字幕吗？")
-        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.button(QMessageBox.StandardButton.Yes).setText("移动")
-        box.button(QMessageBox.StandardButton.No).setText("取消")
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        reply = box.exec()
-        if reply == QMessageBox.StandardButton.Yes:
-            self.pushButton_show_log_clicked()  # 点击开始移动按钮后跳转到日志页面
-            try:
-                if self.task_manager.is_running("move-media-files"):
-                    signal_qt.show_log_text("上一次移动任务仍在运行，未启动新的移动任务。")
-                    return
-                self._thread_stop_event.clear()
-                self.task_manager.submit_sync(
-                    "move-media-files",
-                    self._move_file_thread,
-                    on_error=self._move_file_failed,
-                )
-            except Exception:
-                signal_qt.show_traceback_log(traceback.format_exc())
-                signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().start_move_files()
 
     def _move_file_failed(self, error: str) -> None:
-        signal_qt.show_traceback_log(error)
-        signal_qt.show_log_text("移动视频任务异常终止，请查看错误日志。")
-        signal_qt.reset_buttons_status.emit()
+        self._get_tool_controller().move_failed(error)
 
     def _move_file_thread(self):
-        signal_qt.change_buttons_status.emit()
-        movie_items = []
-        for movie_path in get_movie_path_setting().movie_paths:
-            if not Path(movie_path).exists():
-                signal_qt.show_log_text(f" 🔴 Movie folder does not exist: {movie_path}")
-                continue
-            c = get_movie_path_setting(movie_path_override=movie_path)
-            ignore_dirs = c.ignore_dirs
-            ignore_dirs.append(movie_path / "Movie_moved")
-            movie_list = executor.run(
-                movie_lists(ignore_dirs, manager.config.media_type + manager.config.sub_type, movie_path)
-            )
-            movie_items.extend((movie_path, file_path) for file_path in movie_list)
-        if not movie_items:
-            signal_qt.show_log_text("No movie found!")
-            signal_qt.show_log_text("================================================================================")
-            signal_qt.reset_buttons_status.emit()
-            return
-        signal_qt.show_log_text("Start move movies...")
-        skip_list = []
-        for movie_path, file_path in movie_items:
-            if self._thread_stop_event.is_set() or signal_qt.stop or Flags.stop_requested:
-                signal_qt.show_log_text("移动任务已停止；当前文件操作已安全完成。")
-                break
-            des_path = movie_path / "Movie_moved"
-            if not des_path.exists():
-                signal_qt.show_log_text(f"Created folder: {des_path}")
-                os.makedirs(des_path)
-            file_name = file_path.name
-            file_ext = file_path.suffix.lower()
-            try:
-                shutil.move(file_path, des_path)
-                if file_ext in manager.config.media_type:
-                    signal_qt.show_log_text("   Move movie: " + file_name + " to Movie_moved Success!")
-                else:
-                    signal_qt.show_log_text("   Move sub: " + file_name + " to Movie_moved Success!")
-            except Exception as e:
-                skip_list.append([file_name, file_path, str(e)])
-        if skip_list:
-            signal_qt.show_log_text(f"\n{len(skip_list)} file(s) did not move!")
-            i = 0
-            for info in skip_list:
-                i += 1
-                signal_qt.show_log_text(f"[{i}] {info[0]}\n file path: {info[1]}\n {info[2]}\n")
-        signal_qt.show_log_text("Move movies finished!")
-        signal_qt.show_log_text("================================================================================")
-        signal_qt.reset_buttons_status.emit()
+        self._get_tool_controller().move_files()
 
     # endregion
 
@@ -2552,14 +2471,7 @@ class MyMAinWindow(QMainWindow):
 
     # 设置-刮削目录 点击检查待刮削目录并清理文件
     def pushButton_check_and_clean_files_clicked(self):
-        if not manager.computed.can_clean:
-            self.pushButton_save_config_clicked()
-        self.pushButton_show_log_clicked()
-        try:
-            executor.submit(check_and_clean_files())
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().clean_files()
 
     # 设置-字幕 为所有视频中的无字幕视频添加字幕
     def pushButton_add_sub_for_all_video_clicked(self):

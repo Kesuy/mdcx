@@ -3,7 +3,7 @@ from enum import IntFlag
 from pathlib import Path
 from types import SimpleNamespace
 
-from mdcx.controllers.main_window import main_window as main_window_module
+from mdcx.controllers.main_window import tool_controller as tool_controller_module
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.models.flags import Flags
 
@@ -19,7 +19,7 @@ class _MessageBox:
 
     StandardButton = _StandardButton
 
-    def __init__(self, *_args):
+    def __init__(self, *_args, **_kwargs):
         pass
 
     def setStandardButtons(self, _buttons):
@@ -81,12 +81,12 @@ def test_move_stop_finishes_current_file_and_does_not_start_later_files(monkeypa
         moved.append(source)
         window._thread_stop_event.set()
 
-    monkeypatch.setattr(main_window_module, "signal_qt", _signal(logs))
-    monkeypatch.setattr(main_window_module, "get_movie_path_setting", path_settings)
-    monkeypatch.setattr(main_window_module, "executor", SimpleNamespace(run=run_coroutine))
-    monkeypatch.setattr(main_window_module.shutil, "move", move_file)
-    monkeypatch.setattr(main_window_module.manager.config, "media_type", [".mp4"])
-    monkeypatch.setattr(main_window_module.manager.config, "sub_type", [])
+    monkeypatch.setattr(tool_controller_module, "signal_qt", _signal(logs))
+    monkeypatch.setattr(tool_controller_module, "get_movie_path_setting", path_settings)
+    monkeypatch.setattr(tool_controller_module, "executor", SimpleNamespace(run=run_coroutine))
+    monkeypatch.setattr(tool_controller_module.shutil, "move", move_file)
+    monkeypatch.setattr(tool_controller_module.manager.config, "media_type", [".mp4"])
+    monkeypatch.setattr(tool_controller_module.manager.config, "sub_type", [])
     monkeypatch.setattr(Flags, "stop_requested", False)
 
     window._move_file_thread()
@@ -102,8 +102,8 @@ def test_move_start_is_rejected_while_previous_task_is_running(monkeypatch):
     window._thread_stop_event = threading.Event()
     window._thread_stop_event.set()
     window.pushButton_show_log_clicked = lambda: None
-    monkeypatch.setattr(main_window_module, "QMessageBox", _MessageBox)
-    monkeypatch.setattr(main_window_module, "signal_qt", _signal(logs))
+    monkeypatch.setattr(tool_controller_module, "QMessageBox", _MessageBox)
+    monkeypatch.setattr(tool_controller_module, "signal_qt", _signal(logs))
 
     window.pushButton_move_mp4_clicked()
 
@@ -119,12 +119,12 @@ def test_next_move_start_clears_stop_event_after_previous_task_exits(monkeypatch
     window._thread_stop_event = threading.Event()
     window._thread_stop_event.set()
     window.pushButton_show_log_clicked = lambda: None
-    monkeypatch.setattr(main_window_module, "QMessageBox", _MessageBox)
-    monkeypatch.setattr(main_window_module, "signal_qt", _signal(logs))
+    monkeypatch.setattr(tool_controller_module, "QMessageBox", _MessageBox)
+    monkeypatch.setattr(tool_controller_module, "signal_qt", _signal(logs))
 
     window.pushButton_move_mp4_clicked()
 
     assert not window._thread_stop_event.is_set()
     assert len(window.task_manager.submitted) == 1
     assert window.task_manager.submitted[0][0] == "move-media-files"
-    assert window.task_manager.submitted[0][1] == window._move_file_thread
+    assert window.task_manager.submitted[0][1] == window._get_tool_controller().move_files
