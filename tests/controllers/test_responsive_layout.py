@@ -30,6 +30,7 @@ from mdcx.controllers.main_window.responsive_layout import (
     setup_responsive_ui,
     show_responsive_overlay,
 )
+from mdcx.controllers.main_window.settings_page import SettingsPageController
 from mdcx.controllers.main_window.style import set_style
 from mdcx.views.MDCx import Ui_MDCx
 
@@ -481,6 +482,7 @@ def test_simple_pages_expand_with_their_layouts_and_log_detail_collapses():
 
 def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     window = _generated_ui_window()
+    SettingsPageController(window)
     setup_responsive_ui(window)
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
     window.resize(1600, 900)
@@ -514,6 +516,17 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     assert nfo_scrollbar_x >= window.Ui.tabWidget.width() - 30
     assert nfo_scroll.widget().width() == nfo_scroll.viewport().width()
     assert window.Ui.groupBox_81.width() > 701
+    assert isinstance(nfo_scroll.widget().layout(), QVBoxLayout)
+
+    window.Ui.tabWidget.setCurrentIndex(2)
+    APP.processEvents()
+    website_scroll = window.Ui.scrollArea_8
+    website_content = website_scroll.widget()
+    assert isinstance(website_content.layout(), QVBoxLayout)
+    assert website_content.layout().indexOf(window.Ui.layoutWidget2) >= 0
+    assert window.Ui.layoutWidget2.width() > 701
+
+    assert all(metrics[0] == "layout" for metrics in window._settings_scroll_metrics)
 
     assert window.Ui.comboBox_change_config.size().width() == 151
     assert window.Ui.comboBox_change_config.size().height() == 30
@@ -558,6 +571,7 @@ def test_tool_page_expands_layout_managed_forms_and_keeps_scrollbar_at_right():
         assert all(group.rect().contains(child.geometry()) for child in visible_children)
     scrollbar_x = scroll_area.verticalScrollBar().mapTo(window.Ui.page_tool, QPoint()).x()
     assert scrollbar_x >= window.Ui.page_tool.width() - 30
+    assert window.Ui.page_tool.layout().contentsMargins().bottom() == 8
     window.close()
 
 

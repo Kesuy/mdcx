@@ -57,3 +57,5 @@ Qt 测试的 `QT_QPA_PLATFORM=offscreen`、离线模型模式和测试 FFmpeg �
 - EXE 可在未安装 Python 的 Windows 机器启动。
 - 归档中没有第三方 `icuuc.dll`、`icudt*.dll` 或测试 FFmpeg。
 - 版本号来自 `mdcx/consts.py`，与产物文件名和发布标签一致。
+- 工作流不得引用声明 `node20` 的 JavaScript action；升级 action 后先确认其 `runs.using` 为 `node24`。
+- 发布资产使用 GitHub CLI 上传；不要重新引入尚未迁移到 Node 24 的旧上传 action。

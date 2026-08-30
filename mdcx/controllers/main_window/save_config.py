@@ -12,7 +12,6 @@ from mdcx.config.enums import (
     EmbyAction,
     FieldRule,
     FixedScrapingType,
-    Language,
     MarkType,
     NfoInclude,
     OutlineShow,
@@ -26,7 +25,6 @@ from mdcx.config.enums import (
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.config.models import SiteConfig, str_to_list
-from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
 from mdcx.tools.actress_db import ActressDB
@@ -42,25 +40,6 @@ def save_config(self: "MyMAinWindow"):
     """
     从 UI 获取配置并保存到 config 对象中, 并更新配置文件
     """
-    field_mapping = {
-        "title": CrawlerResultFields.TITLE,
-        "outline": CrawlerResultFields.OUTLINE,
-        "actor": CrawlerResultFields.ACTORS,
-        "tag": CrawlerResultFields.TAGS,
-        "series": CrawlerResultFields.SERIES,
-        "studio": CrawlerResultFields.STUDIO,
-        "publisher": CrawlerResultFields.PUBLISHER,
-        "director": CrawlerResultFields.DIRECTORS,
-        "poster": CrawlerResultFields.POSTER,
-        "thumb": CrawlerResultFields.THUMB,
-        "extrafanart": CrawlerResultFields.EXTRAFANART,
-        "score": CrawlerResultFields.SCORE,
-        "release": CrawlerResultFields.RELEASE,
-        "runtime": CrawlerResultFields.RUNTIME,
-        "trailer": CrawlerResultFields.TRAILER,
-        "wanted": CrawlerResultFields.WANTED,
-    }
-
     # Save all schema-backed fields first so specialized normalization below
     # always reads the latest validated UI values.
     self.settings_controller.binder.save(manager.config)
@@ -98,50 +77,14 @@ def save_config(self: "MyMAinWindow"):
     _fixed_idx = self.Ui.comboBox_fixed_scraping_type.currentIndex()
     manager.config.fixed_scraping_type = FixedScrapingType(_type_values[_fixed_idx])
 
-    # 标题字段配置
-    title_language = get_radio_buttons(
-        (self.Ui.radioButton_title_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_title_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["title"], title_language)
-    manager.config.set_field_translate(field_mapping["title"], get_checkbox(self.Ui.checkBox_title_translate))
-
-    # 简介字段配置
-    outline_language = get_radio_buttons(
-        (self.Ui.radioButton_outline_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_outline_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["outline"], outline_language)
-    manager.config.set_field_translate(field_mapping["outline"], get_checkbox(self.Ui.checkBox_outline_translate))
+    # 简介复合显示格式仍由专用逻辑维护。
     manager.config.outline_format = get_checkboxes(
         (self.Ui.checkBox_show_translate_from, OutlineShow.SHOW_FROM),
         (self.Ui.radioButton_trans_show_zh_jp, OutlineShow.SHOW_ZH_JP),
         (self.Ui.radioButton_trans_show_jp_zh, OutlineShow.SHOW_JP_ZH),
     )
 
-    # 演员字段配置
-    actor_language = get_radio_buttons(
-        (self.Ui.radioButton_actor_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_actor_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["actor"], actor_language)
-    manager.config.set_field_translate(field_mapping["actor"], get_checkbox(self.Ui.checkBox_actor_translate))
-    # all_actors
-    manager.config.set_field_language(CrawlerResultFields.ALL_ACTORS, actor_language)
-    manager.config.set_field_translate(CrawlerResultFields.ALL_ACTORS, get_checkbox(self.Ui.checkBox_actor_translate))
-
-    # 标签字段配置
-    tag_language = get_radio_buttons(
-        (self.Ui.radioButton_tag_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_tag_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["tag"], tag_language)
-    manager.config.set_field_translate(field_mapping["tag"], get_checkbox(self.Ui.checkBox_tag_translate))
-
+    # 标签派生内容是复合集合，保留专用逻辑。
     manager.config.nfo_tag_include = get_checkboxes(
         (self.Ui.checkBox_tag_actor, TagInclude.ACTOR),
         (self.Ui.checkBox_tag_letters, TagInclude.LETTERS),
@@ -152,42 +95,6 @@ def save_config(self: "MyMAinWindow"):
         (self.Ui.checkBox_tag_mosaic, TagInclude.MOSAIC),
         (self.Ui.checkBox_tag_definition, TagInclude.DEFINITION),
     )
-
-    # 系列字段配置
-    series_language = get_radio_buttons(
-        (self.Ui.radioButton_series_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_series_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["series"], series_language)
-    manager.config.set_field_translate(field_mapping["series"], get_checkbox(self.Ui.checkBox_series_translate))
-
-    # 工作室字段配置
-    studio_language = get_radio_buttons(
-        (self.Ui.radioButton_studio_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_studio_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["studio"], studio_language)
-    manager.config.set_field_translate(field_mapping["studio"], get_checkbox(self.Ui.checkBox_studio_translate))
-
-    # 发行商字段配置
-    publisher_language = get_radio_buttons(
-        (self.Ui.radioButton_publisher_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_publisher_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["publisher"], publisher_language)
-    manager.config.set_field_translate(field_mapping["publisher"], get_checkbox(self.Ui.checkBox_publisher_translate))
-
-    # 导演字段配置
-    director_language = get_radio_buttons(
-        (self.Ui.radioButton_director_zh_cn, Language.ZH_CN),
-        (self.Ui.radioButton_director_zh_tw, Language.ZH_TW),
-        default=Language.JP,
-    )
-    manager.config.set_field_language(field_mapping["director"], director_language)
-    manager.config.set_field_translate(field_mapping["director"], get_checkbox(self.Ui.checkBox_director_translate))
 
     manager.config.fill_missing_type_field_configs()
     refresh_site_priority_ui(self)

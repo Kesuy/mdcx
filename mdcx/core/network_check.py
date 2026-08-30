@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus, urljoin
 
 from mdcx.config.enums import Website
+from mdcx.crawlers.fc2ppvdb import FC2CMADB_AUTH_PROBE_NUMBER, cookie_str_to_dict
 
 if TYPE_CHECKING:
     from mdcx.web_async import AsyncWebClient
@@ -302,7 +303,12 @@ async def _build_site_specs() -> list[NetworkCheckSpec]:
 
     manager = _manager()
     specs: list[NetworkCheckSpec] = []
-    for site in get_registered_crawler_sites(include_hidden=False):
+    registered_sites = list(get_registered_crawler_sites(include_hidden=False))
+    # FC2CMADB is hidden from the generic website selector because its legacy
+    # enum name is internal, but it is still a first-class configured crawler.
+    if get_crawler(Website.FC2PPVDB) is not None and Website.FC2PPVDB not in registered_sites:
+        registered_sites.append(Website.FC2PPVDB)
+    for site in registered_sites:
         if site == Website.THEPORNDB:
             continue
         crawler_cls = get_crawler(site)
@@ -325,6 +331,22 @@ async def _build_site_specs() -> list[NetworkCheckSpec]:
                     url="",
                     site=site,
                     note="没有固定入口，按实际番号动态检测",
+                )
+            )
+            continue
+
+        if site == Website.FC2PPVDB:
+            cookie_text = str(getattr(manager.config, "fc2ppvdb", "") or "").strip()
+            specs.append(
+                NetworkCheckSpec(
+                    name="fc2cmadb",
+                    group="刮削站点",
+                    url=_join_url(base_url, f"/articles/{FC2CMADB_AUTH_PROBE_NUMBER}"),
+                    site=site,
+                    cookies=cookie_str_to_dict(cookie_text),
+                    warning_if_missing="未填写 FC2CMADB Cookie，无法验证登录访问" if not cookie_text else "",
+                    enable_cf_bypass=True,
+                    validator="fc2cmadb",
                 )
             )
             continue
@@ -537,7 +559,7 @@ async def run_network_check_item(
                     bypass_mode = response.headers.get("x-mdcx-bypass-mode", "")
                 except Exception:
                     bypass_mode = ""
-                status, message = _classify_http_result(spec, int(response.status_code), text)
+                status, message = _classify_validated_http_result(spec, int(response.status_code), text)
                 if status == NetworkCheckStatus.OK:
                     mode_text = f"（{bypass_mode}）" if bypass_mode else ""
                     message = f"连接正常，已通过 CF Bypass{mode_text}"
@@ -550,12 +572,8 @@ async def run_network_check_item(
                     final_url=str(getattr(response, "url", "") or ""),
                 )
 
-        status, message = _classify_http_result(spec, int(response.status_code), text)
-        if spec.validator == "theporndb_token":
-            status, message = _classify_theporndb_token(int(response.status_code), text)
-        elif spec.validator == "javdbapi":
-            status, message = _classify_javdbapi(int(response.status_code), text)
-        elif spec.name == "CF Bypass" and status == NetworkCheckStatus.OK:
+        status, message = _classify_validated_http_result(spec, int(response.status_code), text)
+        if spec.name == "CF Bypass" and status == NetworkCheckStatus.OK:
             message = "服务可用"
 
         return NetworkCheckResult(
@@ -599,6 +617,33 @@ def _classify_javdbapi(status_code: int, text: str) -> tuple[NetworkCheckStatus,
     return _classify_http_result(
         NetworkCheckSpec(name="javdbapi", group="账号/API", url="", site=Website.JAVDBAPI), status_code, text
     )
+
+
+def _classify_fc2cmadb(status_code: int, text: str) -> tuple[NetworkCheckStatus, str]:
+    if status_code in {401, 404}:
+        return NetworkCheckStatus.FAILED, "FC2CMADB Cookie 无效或已过期"
+    if status_code == 200 and '"component":"Articles/Show"' in text.replace(" ", "") and '"article"' in text:
+        return NetworkCheckStatus.OK, "连接正常，Cookie 有效"
+    lowered = text.casefold()
+    if status_code == 200 and any(marker in lowered for marker in ("ログイン", "login", "auth/login")):
+        return NetworkCheckStatus.FAILED, "站点可访问，但 FC2CMADB Cookie 未生效"
+    if status_code == 200:
+        return NetworkCheckStatus.WARNING, "站点可访问，但登录影片数据异常"
+    return _classify_http_result(
+        NetworkCheckSpec(name="fc2cmadb", group="刮削站点", url="", site=Website.FC2PPVDB), status_code, text
+    )
+
+
+def _classify_validated_http_result(
+    spec: NetworkCheckSpec, status_code: int, text: str
+) -> tuple[NetworkCheckStatus, str]:
+    if spec.validator == "theporndb_token":
+        return _classify_theporndb_token(status_code, text)
+    if spec.validator == "javdbapi":
+        return _classify_javdbapi(status_code, text)
+    if spec.validator == "fc2cmadb":
+        return _classify_fc2cmadb(status_code, text)
+    return _classify_http_result(spec, status_code, text)
 
 
 async def run_network_check(

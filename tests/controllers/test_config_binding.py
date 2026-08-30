@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, 
 from mdcx.controllers.main_window.config_binding import (
     ChoiceBinding,
     ConfigBinder,
+    FieldOptionBinding,
     MultiChoiceBinding,
     SettingBinding,
 )
@@ -164,6 +165,58 @@ def test_multi_choice_binding_loads_empty_selection_and_can_drop_unknown_values(
     ui.second.setChecked(True)
     binder.save(config)
     assert config.actions == ["second"]
+
+
+def test_field_option_binding_round_trips_language_translation_and_mirrors():
+    ui = SimpleNamespace(
+        zh_cn=QRadioButton(),
+        jp=QRadioButton(),
+        translate=QCheckBox(),
+    )
+
+    class FieldConfigHarness:
+        def __init__(self):
+            self.field_configs = {
+                "actors": SimpleNamespace(language="jp", translate=True),
+                "all_actors": SimpleNamespace(language="jp", translate=True),
+            }
+
+        def get_field_config(self, field):
+            return self.field_configs.get(field, SimpleNamespace(language="undefined", translate=False))
+
+        def set_field_language(self, field, language):
+            self.field_configs[field].language = language
+
+        def set_field_translate(self, field, translate):
+            self.field_configs[field].translate = translate
+
+    config = FieldConfigHarness()
+    binder = ConfigBinder(
+        ui,
+        [],
+        field_options=[
+            FieldOptionBinding(
+                "actors",
+                (("zh_cn", "zh_cn"), ("jp", "jp")),
+                "jp",
+                "translate",
+                mirror_fields=("all_actors",),
+            )
+        ],
+    )
+
+    binder.load(config)
+    assert ui.jp.isChecked()
+    assert ui.translate.isChecked()
+
+    ui.jp.setChecked(False)
+    ui.zh_cn.setChecked(True)
+    ui.translate.setChecked(False)
+    binder.save(config)
+
+    for field in ("actors", "all_actors"):
+        assert config.field_configs[field].language == "zh_cn"
+        assert config.field_configs[field].translate is False
 
 
 def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():

@@ -53,6 +53,35 @@ def test_result_tree_view_replaces_designer_widget() -> None:
     assert view.itemAt(QPoint(-1, -1)) is None
 
 
+def test_adding_and_reordering_results_keeps_selection_and_roots_expanded() -> None:
+    _app()
+    view = ResultTreeView()
+    success = create_result_item(view)
+    assert isinstance(success, ResultTreeItem)
+    success.setText(0, "成功")
+    first = create_result_item(success)
+    second = create_result_item(success)
+    assert isinstance(first, ResultTreeItem)
+    assert isinstance(second, ResultTreeItem)
+    first.setText(0, "first")
+    second.setText(0, "second")
+    first.setSelected(True)
+    view.setCurrentItem(first)
+
+    third = create_result_item(success)
+    assert isinstance(third, ResultTreeItem)
+    third.setText(0, "third")
+
+    assert view.isExpanded(view.indexFromItem(success))
+    assert view.selectedItems() == [first]
+
+    success.reorderChildren([third, second, first])
+
+    assert view.isExpanded(view.indexFromItem(success))
+    assert view.selectedItems() == [first]
+    assert success.child(0) is third
+
+
 def test_result_item_factory_keeps_lightweight_qtreewidget_harnesses_compatible() -> None:
     _app()
     tree = QTreeWidget()

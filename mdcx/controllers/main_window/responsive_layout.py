@@ -144,9 +144,11 @@ def _sync_shell_sidebar(window: "MyMAinWindow") -> None:
     splitter = window._shell_splitter
     sidebar_width = ui.widget_setting.width()
     content_width = max(1, splitter.width() - sidebar_width)
+    bottom_margin = 8
+    footer_bottom = max(0, splitter.height() - bottom_margin)
     _set_geometry(ui.left_backgroud_widget, 0, 0, sidebar_width, splitter.height())
-    _set_geometry(ui.label_show_version, 0, max(0, splitter.height() - 211), sidebar_width, 201)
-    _set_geometry(ui.label_local_number, 0, max(0, splitter.height() - 21), 21, 21)
+    _set_geometry(ui.label_show_version, 0, max(0, footer_bottom - 201), sidebar_width, 201)
+    _set_geometry(ui.label_local_number, 0, max(0, footer_bottom - 21), 21, 21)
     _set_geometry(ui.progressBar_scrape, sidebar_width - 1, -1, content_width + 3, 7)
 
 
@@ -458,20 +460,23 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
                 holder_right_margin = group.width() - holder.geometry().right() - 1
                 holder_metrics.append((group, holder, holder_right_margin))
 
-        # Most settings tabs consist solely of top-level group boxes. Move
-        # those groups into a real vertical layout so their y/width geometry no
-        # longer has to be rewritten on every resize. Tabs with special
-        # free-form editors remain on the compatibility path for now.
-        if groups and len(groups) == len(direct_widgets):
-            groups.sort(key=lambda group: group.y())
+        # Settings tabs consist of top-level groups and, in a few places,
+        # layout-backed separators. Move every such section into a real
+        # vertical layout so y/width geometry does not need resize-time fixes.
+        layout_sections = [
+            widget for widget in direct_widgets if isinstance(widget, QGroupBox) or widget.layout() is not None
+        ]
+        if groups and len(layout_sections) == len(direct_widgets):
+            layout_sections.sort(key=lambda widget: widget.y())
             content_layout = QVBoxLayout(content)
             content_layout.setContentsMargins(29, 14, 29, 14)
             content_layout.setSpacing(16)
             content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
-            for group in groups:
-                group.setMinimumHeight(group.height())
-                group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                content_layout.addWidget(group)
+            for section in layout_sections:
+                section.setMinimumHeight(section.height())
+                section.setMaximumWidth(16777215)
+                section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                content_layout.addWidget(section)
             content_layout.addStretch(1)
             scroll_area.setWidgetResizable(True)
             scroll_metrics.append(("layout", holder_metrics))
@@ -677,7 +682,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     net_layout.addWidget(ui.textBrowser_net_main, 1)
 
     tool_layout = QVBoxLayout(ui.page_tool)
-    tool_layout.setContentsMargins(10, 0, 8, 4)
+    tool_layout.setContentsMargins(10, 0, 8, 8)
     tool_layout.addWidget(ui.scrollArea_10)
     _setup_tool_scroll_area(window)
 

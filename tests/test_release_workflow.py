@@ -13,10 +13,13 @@ def test_release_assets_use_verified_tag_identity():
     assert 'head_commit="$(git rev-parse HEAD)"' in workflow
     assert 'if [ "$head_commit" != "$tag_commit" ]; then' in workflow
     assert 'echo "commit=$tag_commit" >> "$GITHUB_OUTPUT"' in workflow
-    assert workflow.count("${{ steps.verify-release-tag.outputs.commit }}") == 2
+    assert workflow.count("${{ steps.verify-release-tag.outputs.commit }}") == 1
+    assert "RELEASE_COMMIT: ${{ steps.verify-release-tag.outputs.commit }}" in workflow
+    assert 'asset_name="MDCx-${RELEASE_TAG}-' in workflow
+    assert 'gh release upload "$RELEASE_TAG"' in workflow
+    assert "svenstaro/upload-release-action" not in workflow
     assert "github.sha" not in workflow
     assert "asset_name: MDCx-$tag-" not in workflow
-    assert "tag: ${{ env.RELEASE_TAG }}" in workflow
 
 
 def test_obsolete_manual_release_workflow_is_removed():

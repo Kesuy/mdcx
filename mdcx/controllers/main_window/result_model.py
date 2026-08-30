@@ -13,6 +13,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtWidgets import QAbstractItemView, QTreeView, QTreeWidget, QTreeWidgetItem
 
 _INVALID_INDEX = QModelIndex()
+RESULT_DATA_ROLE = Qt.ItemDataRole.UserRole.value + 1
 
 
 def _role_value(role: int | Qt.ItemDataRole) -> int:
@@ -40,10 +41,6 @@ class ResultTreeItem:
         self._view = view
         for child in self._children:
             child._attach(model, view)
-
-    def _refresh(self) -> None:
-        if self._model is not None:
-            self._model.refresh()
 
     def text(self, column: int) -> str:
         return self._texts.get(column, "")
@@ -79,34 +76,42 @@ class ResultTreeItem:
     def addChild(self, child: ResultTreeItem) -> None:
         if child._parent is self and child in self._children:
             return
+        if self._model is not None:
+            self._model.insert_child(self, child)
+            return
         if child._parent is not None:
             child._parent.removeChild(child)
         child._parent = self
         self._children.append(child)
         child._attach(self._model, self._view)
-        self._refresh()
 
     def addChildren(self, children: Iterable[ResultTreeItem]) -> None:
         for child in children:
-            if child._parent is not None and child._parent is not self:
-                child._parent.removeChild(child)
+            self.addChild(child)
+
+    def reorderChildren(self, children: Iterable[ResultTreeItem]) -> None:
+        ordered = list(children)
+        if self._model is not None:
+            self._model.reorder_children(self, ordered)
+            return
+        self._children = ordered
+        for child in ordered:
             child._parent = self
-            child._attach(self._model, self._view)
-            self._children.append(child)
-        self._refresh()
 
     def takeChild(self, index: int) -> ResultTreeItem:
+        if self._model is not None:
+            return self._model.take_child(self, index)
         child = self._children.pop(index)
         child._parent = None
-        self._refresh()
         return child
 
     def takeChildren(self) -> list[ResultTreeItem]:
+        if self._model is not None:
+            return self._model.take_children(self)
         children = self._children
         self._children = []
         for child in children:
             child._parent = None
-        self._refresh()
         return children
 
     def removeChild(self, child: ResultTreeItem) -> None:
@@ -199,6 +204,61 @@ class ResultTreeModel(QAbstractItemModel):
         if index.isValid():
             self.dataChanged.emit(index, index)
 
+    def insert_child(self, parent: ResultTreeItem, child: ResultTreeItem) -> None:
+        if child._parent is parent and child in parent._children:
+            return
+        if child._parent is not None:
+            child._parent.removeChild(child)
+        row = parent.childCount()
+        parent_index = self.index_for_item(parent)
+        self.beginInsertRows(parent_index, row, row)
+        child._parent = parent
+        parent._children.append(child)
+        child._attach(self, self.view)
+        self.endInsertRows()
+        self.view.expand_item(parent)
+
+    def take_child(self, parent: ResultTreeItem, index: int) -> ResultTreeItem:
+        if index < 0 or index >= parent.childCount():
+            raise IndexError(index)
+        parent_index = self.index_for_item(parent)
+        self.beginRemoveRows(parent_index, index, index)
+        child = parent._children.pop(index)
+        child._parent = None
+        child._attach(None, None)
+        self.endRemoveRows()
+        return child
+
+    def take_children(self, parent: ResultTreeItem) -> list[ResultTreeItem]:
+        if not parent._children:
+            return []
+        parent_index = self.index_for_item(parent)
+        self.beginRemoveRows(parent_index, 0, parent.childCount() - 1)
+        children = parent._children
+        parent._children = []
+        for child in children:
+            child._parent = None
+            child._attach(None, None)
+        self.endRemoveRows()
+        return children
+
+    def reorder_children(self, parent: ResultTreeItem, children: list[ResultTreeItem]) -> None:
+        if len(children) != parent.childCount() or {id(child) for child in children} != {
+            id(child) for child in parent._children
+        }:
+            raise ValueError("reorder_children must contain each existing child exactly once")
+        if all(current is requested for current, requested in zip(parent._children, children, strict=True)):
+            return
+        state = self.view.capture_state()
+        self.beginResetModel()
+        parent._children = children
+        for child in children:
+            child._parent = parent
+            child._attach(self, self.view)
+        self.endResetModel()
+        self.view.proxy_model.invalidateFilter()
+        self.view.restore_state(state)
+
     def refresh(self) -> None:
         self.beginResetModel()
         self.endResetModel()
@@ -254,6 +314,37 @@ class ResultTreeView(QTreeView):
 
     def addTopLevelItem(self, item: ResultTreeItem) -> None:
         self.source_model.root.addChild(item)
+        self.expand_item(item)
+
+    def expand_item(self, item: ResultTreeItem) -> None:
+        index = self.indexFromItem(item)
+        if index.isValid():
+            self.setExpanded(index, True)
+
+    def capture_state(self) -> tuple[list[ResultTreeItem], list[ResultTreeItem], ResultTreeItem | None]:
+        selected = self.selectedItems()
+        expanded: list[ResultTreeItem] = []
+
+        def collect(parent: ResultTreeItem) -> None:
+            for child in parent._children:
+                index = self.indexFromItem(child)
+                if index.isValid() and self.isExpanded(index):
+                    expanded.append(child)
+                collect(child)
+
+        collect(self.source_model.root)
+        current_source = self.proxy_model.mapToSource(self.currentIndex())
+        current = self.source_model.item_from_index(current_source) if current_source.isValid() else None
+        return selected, expanded, current
+
+    def restore_state(self, state: tuple[list[ResultTreeItem], list[ResultTreeItem], ResultTreeItem | None]) -> None:
+        selected, expanded, current = state
+        for item in expanded:
+            self.expand_item(item)
+        for item in selected:
+            self.setItemSelected(item, True)
+        if current is not None:
+            self.setCurrentItem(current)
 
     def topLevelItem(self, index: int) -> ResultTreeItem:
         return self.source_model.root.child(index)

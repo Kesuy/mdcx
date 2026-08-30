@@ -5,24 +5,29 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from PyQt6.QtCore import QLocale, QRegularExpression
-from PyQt6.QtGui import QDoubleValidator, QIntValidator, QRegularExpressionValidator
+from PyQt6.QtCore import QLocale, QRegularExpression, Qt
+from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QScrollArea,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from mdcx.config.enums import CleanAction, DownloadableFile, HDPicSource, KeepableFile, NoEscape, ReadMode
+from mdcx.config.enums import CleanAction, DownloadableFile, HDPicSource, KeepableFile, Language, NoEscape, ReadMode
 from mdcx.config.models import str_to_list
+from mdcx.config.resources import resources
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
+from mdcx.gen.field_enums import CrawlerResultFields
 
-from .config_binding import ChoiceBinding, ConfigBinder, MultiChoiceBinding, SettingBinding
+from .config_binding import ChoiceBinding, ConfigBinder, FieldOptionBinding, MultiChoiceBinding, SettingBinding
 
 
 def parse_duration(value: str) -> timedelta:
@@ -77,6 +82,8 @@ class SettingsPageController:
         self._validation_messages: dict[QLineEdit, QLabel] = {}
         self._setup_network_security()
         self._setup_secret_fields()
+        self._setup_website_help_layout()
+        self._setup_nfo_help_layout()
         self._setup_numeric_validation()
         self.binder = ConfigBinder(
             self.ui,
@@ -370,6 +377,89 @@ class SettingsPageController:
                     ),
                 ),
             ],
+            field_options=[
+                FieldOptionBinding(
+                    CrawlerResultFields.TITLE,
+                    (
+                        ("radioButton_title_zh_cn", Language.ZH_CN),
+                        ("radioButton_title_zh_tw", Language.ZH_TW),
+                        ("radioButton_title_jp", Language.JP),
+                    ),
+                    Language.JP,
+                    "checkBox_title_translate",
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.OUTLINE,
+                    (
+                        ("radioButton_outline_zh_cn", Language.ZH_CN),
+                        ("radioButton_outline_zh_tw", Language.ZH_TW),
+                        ("radioButton_outline_jp", Language.JP),
+                    ),
+                    Language.ZH_CN,
+                    "checkBox_outline_translate",
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.ACTORS,
+                    (
+                        ("radioButton_actor_zh_cn", Language.ZH_CN),
+                        ("radioButton_actor_zh_tw", Language.ZH_TW),
+                        ("radioButton_actor_jp", Language.JP),
+                    ),
+                    Language.JP,
+                    "checkBox_actor_translate",
+                    mirror_fields=(CrawlerResultFields.ALL_ACTORS,),
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.TAGS,
+                    (
+                        ("radioButton_tag_zh_cn", Language.ZH_CN),
+                        ("radioButton_tag_zh_tw", Language.ZH_TW),
+                        ("radioButton_tag_jp", Language.JP),
+                    ),
+                    Language.ZH_CN,
+                    "checkBox_tag_translate",
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.SERIES,
+                    (
+                        ("radioButton_series_zh_cn", Language.ZH_CN),
+                        ("radioButton_series_zh_tw", Language.ZH_TW),
+                        ("radioButton_series_jp", Language.JP),
+                    ),
+                    Language.ZH_CN,
+                    "checkBox_series_translate",
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.STUDIO,
+                    (
+                        ("radioButton_studio_zh_cn", Language.ZH_CN),
+                        ("radioButton_studio_zh_tw", Language.ZH_TW),
+                        ("radioButton_studio_jp", Language.JP),
+                    ),
+                    Language.ZH_CN,
+                    "checkBox_studio_translate",
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.PUBLISHER,
+                    (
+                        ("radioButton_publisher_zh_cn", Language.ZH_CN),
+                        ("radioButton_publisher_zh_tw", Language.ZH_TW),
+                        ("radioButton_publisher_jp", Language.JP),
+                    ),
+                    Language.ZH_CN,
+                    "checkBox_publisher_translate",
+                ),
+                FieldOptionBinding(
+                    CrawlerResultFields.DIRECTORS,
+                    (
+                        ("radioButton_director_zh_cn", Language.ZH_CN),
+                        ("radioButton_director_zh_tw", Language.ZH_TW),
+                        ("radioButton_director_jp", Language.JP),
+                    ),
+                    Language.ZH_CN,
+                    "checkBox_director_translate",
+                ),
+            ],
         )
 
     def _setup_network_security(self) -> None:
@@ -380,13 +470,33 @@ class SettingsPageController:
         self.ui.lineEdit_ca_bundle = QLineEdit(parent)
         self.ui.lineEdit_ca_bundle.setPlaceholderText("可选：PEM 格式 CA 文件路径")
         self.ui.lineEdit_ca_bundle.setMinimumWidth(140)
+        self.ui.lineEdit_ca_bundle.setReadOnly(True)
+        self.ui.lineEdit_ca_bundle.setClearButtonEnabled(True)
+        self.ui.toolButton_select_ca_bundle = QToolButton(parent)
+        self.ui.toolButton_select_ca_bundle.setObjectName("toolButton_select_ca_bundle")
+        self.ui.toolButton_select_ca_bundle.setIcon(QIcon(resources.open_folder_icon))
+        self.ui.toolButton_select_ca_bundle.setToolTip("选择 CA 证书文件")
+        self.ui.toolButton_select_ca_bundle.setAccessibleName("选择 CA 证书文件")
+        self.ui.toolButton_select_ca_bundle.setFixedSize(30, 30)
+        self.ui.toolButton_select_ca_bundle.clicked.connect(self._select_ca_bundle)
         self.ui.horizontalLayout_17.addWidget(self.ui.checkBox_verify_tls)
         self.ui.horizontalLayout_17.addWidget(self.ui.label_ca_bundle)
         self.ui.horizontalLayout_17.addWidget(self.ui.lineEdit_ca_bundle, 1)
+        self.ui.horizontalLayout_17.addWidget(self.ui.toolButton_select_ca_bundle)
+
+        # The generated geometry is shorter than its own grid. Let the group
+        # derive its height from the controls so explanatory rows cannot clip.
+        if self.ui.groupBox_28.layout() is None:
+            network_layout = QVBoxLayout(self.ui.groupBox_28)
+            network_layout.setContentsMargins(20, 26, 20, 16)
+            self.ui.gridLayoutWidget_9.setParent(self.ui.groupBox_28)
+            self.ui.gridLayoutWidget_9.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            network_layout.addWidget(self.ui.gridLayoutWidget_9)
         self._advanced_widgets.extend(
             [
                 self.ui.label_ca_bundle,
                 self.ui.lineEdit_ca_bundle,
+                self.ui.toolButton_select_ca_bundle,
                 self.ui.label_cf_bypass,
                 self.ui.lineEdit_cf_bypass_url,
                 self.ui.label_cf_bypass_proxy,
@@ -402,6 +512,7 @@ class SettingsPageController:
         )
 
     def _setup_secret_fields(self) -> None:
+        self._secret_actions = {}
         for name in (
             "lineEdit_baidu_key",
             "lineEdit_deepl_key",
@@ -411,8 +522,69 @@ class SettingsPageController:
         ):
             widget = getattr(self.ui, name, None)
             if isinstance(widget, QLineEdit):
-                widget.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+                widget.setEchoMode(QLineEdit.EchoMode.Password)
                 widget.setToolTip("凭据优先保存到系统密钥库，配置导出不会包含明文")
+                action = widget.addAction(
+                    QIcon(resources.qtr("Img/eye_closed.svg")),
+                    QLineEdit.ActionPosition.TrailingPosition,
+                )
+                action.setObjectName(f"{name}_visibility_action")
+                action.setToolTip("显示密钥")
+                action.setCheckable(True)
+                action.toggled.connect(
+                    lambda visible, field=widget, toggle=action: self._toggle_secret(field, toggle, visible)
+                )
+                self._secret_actions[widget] = action
+
+    def _toggle_secret(self, widget: QLineEdit, action, visible: bool) -> None:
+        widget.setEchoMode(QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password)
+        action.setIcon(QIcon(resources.qtr("Img/eye_open.svg" if visible else "Img/eye_closed.svg")))
+        action.setToolTip("隐藏密钥" if visible else "显示密钥")
+
+    def _setup_website_help_layout(self) -> None:
+        grid = getattr(self.ui, "gridLayout_28", None)
+        button = getattr(self.ui, "pushButton_scrape_note", None)
+        label = getattr(self.ui, "label_317", None)
+        if grid is None or button is None or label is None:
+            return
+        label_index = grid.indexOf(label)
+        if label_index >= 0:
+            grid.takeAt(label_index)
+        self.ui.widget_scrape_help_row = QWidget(self.ui.layoutWidget1)
+        row_widget = self.ui.widget_scrape_help_row
+        row_widget.setObjectName("widget_scrape_help_row")
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        label.setParent(row_widget)
+        button.setParent(row_widget)
+        row.addWidget(label, 1)
+        row.addWidget(button, 0, Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(row_widget, 5, 1, 1, 1)
+
+    def _setup_nfo_help_layout(self) -> None:
+        """Keep the NFO field-help button attached to the first option row."""
+        row = getattr(self.ui, "horizontalLayout_135", None)
+        button = getattr(self.ui, "pushButton_field_tips_nfo", None)
+        holder = getattr(self.ui, "layoutWidget_10", None)
+        if row is None or button is None or holder is None:
+            return
+        button.setParent(holder)
+        row.addStretch(1)
+        row.addWidget(button, 0, Qt.AlignmentFlag.AlignRight)
+
+    def _select_ca_bundle(self) -> None:
+        current = Path(self.ui.lineEdit_ca_bundle.text().strip()).expanduser()
+        start = current.parent if current.is_file() else Path.home()
+        selected, _ = QFileDialog.getOpenFileName(
+            self.window,
+            "选择 CA 证书文件",
+            str(start),
+            "CA 证书 (*.pem *.crt *.cer);;所有文件 (*)",
+        )
+        if selected:
+            self.ui.lineEdit_ca_bundle.setText(str(Path(selected)))
+            self._set_validation_error(self.ui.lineEdit_ca_bundle)
 
     def _setup_numeric_validation(self) -> None:
         self._numeric_widgets: list[QLineEdit] = []
@@ -531,6 +703,32 @@ class SettingsPageController:
         else:
             self._set_validation_error(self.ui.lineEdit_ca_bundle)
         return errors
+
+    def reveal_validation_error(self, object_name: str) -> str:
+        widget = getattr(self.ui, object_name, None)
+        if not isinstance(widget, QLineEdit):
+            return "设置值无效"
+        if widget in self._advanced_widgets and hasattr(self.ui, "toolButton_advanced_settings"):
+            self.ui.toolButton_advanced_settings.setChecked(True)
+            self._toggle_advanced(True)
+
+        for tab_index in range(self.ui.tabWidget.count()):
+            tab = self.ui.tabWidget.widget(tab_index)
+            if tab is widget or tab.isAncestorOf(widget):
+                self.ui.tabWidget.setCurrentIndex(tab_index)
+                break
+
+        target = widget.parentWidget() or widget
+        for scroll_area in self.ui.page_setting.findChildren(QScrollArea):
+            content = scroll_area.widget()
+            if content is not None and (content is target or content.isAncestorOf(target)):
+                scroll_area.ensureWidgetVisible(target, 24, 48)
+                break
+        widget.setFocus(Qt.FocusReason.OtherFocusReason)
+        if not widget.isReadOnly():
+            widget.selectAll()
+        message = self._validation_messages.get(widget)
+        return message.text() if message is not None and message.text() else "设置值无效"
 
     def install_search_bar(self, layout) -> None:
         if hasattr(self.ui, "lineEdit_settings_search"):

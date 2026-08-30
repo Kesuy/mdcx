@@ -45,6 +45,15 @@ class MultiChoiceBinding:
     preserve_unknown: bool = True
 
 
+@dataclass(frozen=True)
+class FieldOptionBinding:
+    field: Any
+    language_choices: tuple[tuple[str, Any], ...]
+    default_language: Any
+    translate_widget: str
+    mirror_fields: tuple[Any, ...] = ()
+
+
 class ConfigBinder:
     """Declarative two-way binding between generated Qt widgets and Config."""
 
@@ -54,11 +63,13 @@ class ConfigBinder:
         bindings: list[SettingBinding],
         choices: list[ChoiceBinding] | None = None,
         multi_choices: list[MultiChoiceBinding] | None = None,
+        field_options: list[FieldOptionBinding] | None = None,
     ):
         self.ui = ui
         self.bindings = bindings
         self.choices = choices or []
         self.multi_choices = multi_choices or []
+        self.field_options = field_options or []
 
     @staticmethod
     def _read_widget(widget: object) -> Any:
@@ -103,6 +114,14 @@ class ConfigBinder:
             selected_values = getattr(owner, name)
             for widget, choice in binding.choices:
                 getattr(self.ui, widget).setChecked(choice in selected_values)
+        for binding in self.field_options:
+            field_config = config.get_field_config(binding.field)
+            selected = next(
+                (widget for widget, language in binding.language_choices if language == field_config.language),
+                next(widget for widget, language in binding.language_choices if language == binding.default_language),
+            )
+            getattr(self.ui, selected).setChecked(True)
+            getattr(self.ui, binding.translate_widget).setChecked(field_config.translate)
 
     def save(self, config: object) -> None:
         for binding in self.bindings:
@@ -123,3 +142,12 @@ class ConfigBinder:
             if binding.preserve_unknown:
                 values.extend(value for value in getattr(owner, name) if value not in known_values)
             setattr(owner, name, values)
+        for binding in self.field_options:
+            language = next(
+                (choice for widget, choice in binding.language_choices if getattr(self.ui, widget).isChecked()),
+                binding.default_language,
+            )
+            translate = getattr(self.ui, binding.translate_widget).isChecked()
+            for field in (binding.field, *binding.mirror_fields):
+                config.set_field_language(field, language)
+                config.set_field_translate(field, translate)

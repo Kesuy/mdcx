@@ -24,13 +24,13 @@ jobs:
       MDCX_OFFLINE: "1"
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
           fetch-tags: true
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Install Qt runtime libraries
@@ -79,7 +79,7 @@ jobs:
         include: ${{fromJson(needs.init-matrix.outputs.matrix)}}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -103,12 +103,12 @@ jobs:
           echo "commit=$tag_commit" >> "$GITHUB_OUTPUT"
 
       - name: "Set up Python"
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           activate-environment: true
 
@@ -144,14 +144,6 @@ jobs:
             exit 1
           fi
 
-          delimiter="__MDCX_CHANGELOG_EOF__"
-          {
-            echo "CHANGELOG<<$delimiter"
-            cat release-changelog.md
-            echo
-            echo "$delimiter"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Resolve release type
         id: release-type
         shell: bash
@@ -164,27 +156,42 @@ jobs:
           fi
           echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
 
-      - name: Create Release - macOS
-        uses: svenstaro/upload-release-action@v2
-        if: ${{ matrix.build == 'macos' }}
-        with:
-          overwrite: true
-          asset_name: MDCx-${{ env.RELEASE_TAG }}-${{ matrix.build }}-${{ matrix.arch }}${{ matrix.tail }}-${{ steps.verify-release-tag.outputs.commit }}.dmg
-          file: dist/MDCx.dmg
-          prerelease: ${{ steps.release-type.outputs.prerelease }}
-          body: ${{ steps.get-changelog.outputs.CHANGELOG }}
-          tag: ${{ env.RELEASE_TAG }}
+      - name: Ensure release exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            prerelease_flag=()
+            if [ "${{ steps.release-type.outputs.prerelease }}" = "true" ]; then
+              prerelease_flag+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" \
+              --repo "${{ github.repository }}" \
+              --title "v$RELEASE_TAG" \
+              --notes-file release-changelog.md \
+              "${prerelease_flag[@]}" \
+              || gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null
+          fi
 
-      - name: Create Release - Windows
-        uses: svenstaro/upload-release-action@v2
-        if: ${{ matrix.build == 'windows' }}
-        with:
-          overwrite: true
-          asset_name: MDCx-${{ env.RELEASE_TAG }}-${{ matrix.build }}-${{ matrix.arch }}${{ matrix.tail }}-${{ steps.verify-release-tag.outputs.commit }}.exe
-          file: dist/MDCx.exe
-          prerelease: ${{ steps.release-type.outputs.prerelease }}
-          body: ${{ steps.get-changelog.outputs.CHANGELOG }}
-          tag: ${{ env.RELEASE_TAG }}
+      - name: Upload release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.verify-release-tag.outputs.commit }}
+        run: |
+          if [ "${{ matrix.build }}" = "macos" ]; then
+            source_file="dist/MDCx.dmg"
+            extension="dmg"
+          else
+            source_file="dist/MDCx.exe"
+            extension="exe"
+          fi
+          asset_name="MDCx-${RELEASE_TAG}-${{ matrix.build }}-${{ matrix.arch }}${{ matrix.tail }}-${RELEASE_COMMIT}.${extension}"
+          cp "$source_file" "$RUNNER_TEMP/$asset_name"
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/$asset_name" \
+            --repo "${{ github.repository }}" \
+            --clobber
 
   normalize-release-title:
     name: Normalize release title

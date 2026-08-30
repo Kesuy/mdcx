@@ -341,6 +341,111 @@ def build_code_editor_style(dark: bool) -> str:
     )
 
 
+def build_sidebar_style(dark: bool, radius: int) -> str:
+    t = _tokens(dark)
+    return f"""
+        QWidget#widget_setting {{
+            background: {t["navigation"]};
+            border-right: 1px solid {t["border"]};
+            border-top-left-radius: {radius}px;
+            border-bottom-left-radius: {radius}px;
+        }}
+        QPushButton#pushButton_main, QPushButton#pushButton_log,
+        QPushButton#pushButton_tool, QPushButton#pushButton_setting,
+        QPushButton#pushButton_net, QPushButton#pushButton_about {{
+            font-size: 14px;
+            color: {t["text"]};
+            border: 0;
+            border-radius: {t["radius_lg"]};
+            text-align: left;
+            qproperty-iconSize: 20px 20px;
+            padding-left: 20px;
+        }}
+        QLabel#label_show_version {{
+            font-size: 13px;
+            color: {t["text_muted"]};
+            border: 0;
+        }}
+    """
+
+
+def build_main_page_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return f"""
+        QLabel#label_number1, QLabel#label_actor1, QLabel#label_title1,
+        QLabel#label_poster1, QLabel#label_number, QLabel#label_actor,
+        QLabel#label_title {{
+            color: {t["text"]};
+            font-size: 16px;
+            font-weight: 600;
+            background: transparent;
+            border: 0;
+        }}
+        QLabel#label_18, QLabel#label_33, QLabel#label_13, QLabel#label_22,
+        QLabel#label_23, QLabel#label_31, QLabel#label_30, QLabel#label_24 {{
+            color: {t["text"]};
+            font-size: 14px;
+            font-weight: 500;
+        }}
+        QLabel#label_outline, QLabel#label_tag, QLabel#label_release,
+        QLabel#label_runtime, QLabel#label_director, QLabel#label_series,
+        QLabel#label_studio, QLabel#label_publish {{
+            color: {t["text"]};
+            font-size: 14px;
+            font-weight: 400;
+        }}
+        QLabel#label_file_path {{
+            color: {t["text"]};
+            font-size: 14px;
+            font-weight: 500;
+            background: transparent;
+            border: 0;
+        }}
+        QLabel#label_poster_size {{ color: {t["text_muted"]}; }}
+        QLabel#label_poster, QLabel#label_thumb {{ border: 1px solid {t["border"]}; }}
+        QGroupBox {{ background: transparent; }}
+    """
+
+
+def build_tool_page_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return f"""
+        * {{ color: {t["text"]}; font-size: 13px; }}
+        QScrollArea, QWidget#scrollAreaWidgetContents_gongju {{
+            background: transparent;
+            border: 0;
+        }}
+        QLabel {{ border: 0; }}
+        QLineEdit {{
+            color: {t["text"]};
+            background: {t["input_bg"]};
+            border: 1px solid {t["border"]};
+            border-radius: {t["radius_md"]};
+        }}
+        QComboBox {{ color: {t["text"]}; combobox-popup: 0; }}
+        QGroupBox {{
+            color: {t["text"]};
+            background: {t["surface_muted"]};
+            border-radius: {t["radius_lg"]};
+        }}
+    """
+
+
+def build_about_page_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return f"""
+        * {{ color: {t["text"]}; font-size: 13px; }}
+        QTextBrowser {{
+            color: {t["text"]};
+            background: transparent;
+            border: 0;
+            padding: 2px;
+            font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC',
+                         'Noto Sans CJK SC', 'Segoe UI';
+        }}
+    """
+
+
 def _apply_dynamic_semantic_styles(self: "MyMAinWindow", dark: bool) -> None:
     preview = getattr(self.Ui, "label_name_template_preview_result", None)
     if preview is not None:
@@ -393,108 +498,10 @@ def set_style(self: "MyMAinWindow"):
     _apply_log_document_style(self, False)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
 
-    # 控件美化 左侧栏样式
-    self.Ui.widget_setting.setStyleSheet(f"""
-        QWidget#widget_setting{{
-            background: #F5F5F6;
-            border-top-left-radius: {self.window_radius}px;
-            border-bottom-left-radius: {self.window_radius}px;
-        }}
-        QPushButton#pushButton_main,#pushButton_log,#pushButton_tool,#pushButton_setting,#pushButton_net,#pushButton_about{{
-            font-size: 14px;
-            color: black;
-            border-width: 9px;
-            border-color: gray;
-            border-radius: 10px;
-            text-align : left;
-            qproperty-iconSize: 20px 20px;
-            padding-left: 20px;
-        }}
-        QLabel#label_show_version{{
-            font-size: 13px;
-            color: rgba(20, 20, 20, 250);
-            border: 0px solid rgba(255, 255, 255, 80);
-        }}
-        """)
-    # 主界面
-    self.Ui.page_main.setStyleSheet("""
-        QLabel#label_number1,#label_actor1,#label_title1,#label_poster1,#label_number,#label_actor,#label_title,#label_poster1{
-            font-size: 16px;
-            font-weight: bold;
-            background-color: rgba(246, 246, 246, 0);
-            border: 0px solid rgba(0, 0, 0, 80);
-        }
-        QLabel#label_18,#label_33,#label_13,#label_22,#label_23,#label_31,#label_30,#label_24{
-            font-size: 14px;
-            font-weight: 500;
-        }
-        QLabel#label_outline,#label_tag,#label_release,#label_runtime,#label_director,#label_series,#label_studio,#label_publish{
-            font-size: 14px;
-            font-weight: 400;
-        }
-        QLabel#label_file_path{
-            font-size: 14px;
-            color: black;
-            background-color: rgba(246, 246, 246, 0);
-            font-weight: 500;
-            border: 0px solid rgba(0, 0, 0, 80);
-        }
-        QLabel#label_poster_size{
-            color: rgba(0, 0, 0, 200);
-        }
-        QLabel#label_poster,#label_thumb{
-            border: 1px solid rgba(60, 60, 60, 100);
-        }
-        QGroupBox{
-            background-color: rgba(246, 246, 246, 0);
-        }
-        """)
-    # 工具页
-    self.Ui.page_tool.setStyleSheet("""
-        * {
-            font-size: 13px;
-        }
-        QScrollArea{
-            background-color: rgba(246, 246, 246, 0);
-            border-color: rgba(246, 246, 246, 0);
-        }
-        QWidget#scrollAreaWidgetContents_gongju{
-            background-color: rgba(246, 246, 246, 0);
-            border-color: rgba(246, 246, 246, 255);
-        }
-
-        QLabel{
-            font-size:13px;
-            border: 0px solid rgba(0, 0, 0, 80);
-        }
-        QLineEdit{
-            font-size:13px;
-            border:0px solid rgba(130, 30, 30, 20);
-            border-radius: 15px;
-        }
-        QComboBox{
-            combobox-popup: 0;
-            font-size: 13px;
-            color: black;
-        }
-        QGroupBox{
-            background-color: rgba(245,245,246,220);
-            border-radius: 10px;
-        }
-        """)
-    # 使用帮助页
-    self.Ui.page_about.setStyleSheet("""
-        * {
-            font-size: 13px;
-        }
-        QTextBrowser{
-            font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Segoe UI';
-            font-size: 13px;
-            border: 0px solid #BEBEBE;
-            background-color: rgba(246,246,246,0);
-            padding: 2px;
-        }
-        """)
+    self.Ui.widget_setting.setStyleSheet(build_sidebar_style(False, self.window_radius))
+    self.Ui.page_main.setStyleSheet(build_main_page_style(False))
+    self.Ui.page_tool.setStyleSheet(build_tool_page_style(False))
+    self.Ui.page_about.setStyleSheet(build_about_page_style(False))
     # 设置页
     self.Ui.page_setting.setStyleSheet(
         _qss_resources(
@@ -885,99 +892,10 @@ def set_dark_style(self: "MyMAinWindow"):
     _apply_log_document_style(self, True)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(True))
 
-    # 控件美化 左侧栏样式 暗黑模式
-    self.Ui.widget_setting.setStyleSheet(f"""
-        QWidget#widget_setting{{
-            background: #1F272F;
-            border-top-left-radius: {self.window_radius}px;
-            border-bottom-left-radius: {self.window_radius}px;
-        }}
-        QPushButton#pushButton_main,#pushButton_log,#pushButton_tool,#pushButton_setting,#pushButton_net,#pushButton_about{{
-            font-size: 14px;
-            color: white;
-            border-width: 9px;
-            border-color: gray;
-            border-radius: 10px;
-            text-align : left;
-            qproperty-iconSize: 20px 20px;
-            padding-left: 20px;
-        }}
-        QLabel#label_show_version{{
-            font-size: 13px;
-            color: rgba(210, 210, 210, 250);
-            border: 0px solid rgba(255, 255, 255, 80);
-        }}
-        """)
-    # 主界面
-    self.Ui.page_main.setStyleSheet("""
-        QLabel#label_number1,#label_actor1,#label_title1,#label_poster1,#label_number,#label_actor,#label_title,#label_poster1{
-            font-size: 16px;
-            font-weight: bold;
-            background-color: rgba(246, 246, 246, 0);
-            border: 0px solid rgba(0, 0, 0, 80);
-        }
-        QLabel#label_18,#label_33,#label_13,#label_22,#label_23,#label_31,#label_30,#label_24{
-            font-size: 14px;
-            font-weight: 500;
-        }
-        QLabel#label_outline,#label_tag,#label_release,#label_runtime,#label_director,#label_series,#label_studio,#label_publish{
-            font-size: 14px;
-            font-weight: 400;
-        }
-        QLabel#label_file_path{
-            font-size: 14px;
-            color: white;
-            background-color: rgba(246, 246, 246, 0);
-            font-weight: 500;
-            border: 0px solid rgba(0, 0, 0, 80);
-        }
-        QLabel#label_poster_size{
-            color: rgba(255, 255, 255, 200);
-        }
-        QLabel#label_poster,#label_thumb{
-            border: 1px solid rgba(255, 255, 255, 200);
-        }
-        QGroupBox{
-            background-color: rgba(246, 246, 246, 0);
-        }
-        """)
-    # 工具页
-    self.Ui.page_tool.setStyleSheet("""
-        * {
-            font-size: 13px;
-        }
-        QScrollArea{
-            background-color: rgba(246, 246, 246, 0);
-            border-color: rgba(246, 246, 246, 0);
-        }
-        QWidget#scrollAreaWidgetContents_gongju{
-            background-color: rgba(246, 246, 246, 0);
-            border-color: rgba(246, 246, 246, 255);
-        }
-
-        QLabel{
-            font-size:13px;
-            border: 0px solid rgba(0, 0, 0, 80);
-        }
-
-        QGroupBox{
-            background-color: rgba(180, 180, 180, 20);
-            border-radius: 10px;
-        }
-        """)
-    # 使用帮助页
-    self.Ui.page_about.setStyleSheet("""
-        * {
-            font-size: 13px;
-        }
-        QTextBrowser{
-            font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Segoe UI';
-            font-size: 13px;
-            border: 0px solid #BEBEBE;
-            background-color: rgba(246,246,246,0);
-            padding: 2px;
-        }
-        """)
+    self.Ui.widget_setting.setStyleSheet(build_sidebar_style(True, self.window_radius))
+    self.Ui.page_main.setStyleSheet(build_main_page_style(True))
+    self.Ui.page_tool.setStyleSheet(build_tool_page_style(True))
+    self.Ui.page_about.setStyleSheet(build_about_page_style(True))
     # 设置页
     self.Ui.page_setting.setStyleSheet(
         _qss_resources(

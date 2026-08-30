@@ -36,6 +36,19 @@ SPECIFIC_CRAWLER_TITLE_LANGUAGE_SITES = {
     Website.LULUBAR,
 }
 
+# FC2CMADB deliberately does not expose these fields. Once its authenticated
+# detail record succeeds, trying every remaining FC2 site for these empty
+# optional values adds seconds of latency without improving the core metadata.
+FC2CMADB_TERMINAL_EMPTY_FIELDS = {
+    CrawlerResultFields.OUTLINE,
+    CrawlerResultFields.ORIGINALPLOT,
+    CrawlerResultFields.ALL_ACTORS,
+    CrawlerResultFields.EXTRAFANART,
+    CrawlerResultFields.SCORE,
+    CrawlerResultFields.DIRECTORS,
+    CrawlerResultFields.WANTED,
+}
+
 
 def sprint_source(website: Website, language: Language) -> str:
     if language == Language.UNDEFINED:
@@ -375,6 +388,13 @@ class FileScraper:
                 # 检查字段数据
                 field_value = getattr(site_data, field.value, None)
                 if not field_value:
+                    if (
+                        classification.scraping_type == FixedScrapingType.FC2
+                        and site == Website.FC2PPVDB
+                        and field in FC2CMADB_TERMINAL_EMPTY_FIELDS
+                    ):
+                        reduced.field_log += f"\n    🟡 {site:<15} (该来源不提供此可选字段，跳过其它 FC2 站点)"
+                        break
                     reduced.field_log += f"\n    🔴 {site:<15} (未找到)"
                     continue
                 if field == CrawlerResultFields.RUNTIME and self._is_invalid_runtime(field_value):

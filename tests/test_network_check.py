@@ -66,6 +66,7 @@ class FakeConfig:
     timeout = 5
     javdb = ""
     javbus = ""
+    fc2ppvdb = ""
     theporndb_api_token = ""
 
     def get_site_url(self, site, default=""):
@@ -191,6 +192,95 @@ async def test_javdbapi_spec_uses_real_query_url(monkeypatch: pytest.MonkeyPatch
     javdbapi = next(spec for spec in specs if spec.site == Website.JAVDBAPI)
     assert javdbapi.url == "https://api.thejavdb.net/v1/movies?q=ssni-200"
     assert javdbapi.validator == "javdbapi"
+
+
+@pytest.mark.anyio
+async def test_network_specs_always_list_fc2cmadb_even_though_it_is_hidden_from_generic_ui(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Fc2Crawler:
+        @classmethod
+        def base_url_(cls):
+            return "https://fc2cmadb.com"
+
+    fake_crawlers = SimpleNamespace(
+        get_registered_crawler_sites=lambda include_hidden=False: [],
+        get_crawler=lambda site: Fc2Crawler if site == Website.FC2PPVDB else None,
+    )
+    monkeypatch.setitem(sys.modules, "mdcx.crawlers", fake_crawlers)
+
+    specs = await build_network_check_specs()
+
+    fc2cmadb = next(spec for spec in specs if spec.site == Website.FC2PPVDB)
+    assert fc2cmadb.name == "fc2cmadb"
+    assert fc2cmadb.url.startswith("https://fc2cmadb.com/articles/")
+    assert "Cookie" in fc2cmadb.warning_if_missing
+
+
+@pytest.mark.anyio
+async def test_fc2cmadb_network_check_validates_configured_cookie(monkeypatch: pytest.MonkeyPatch):
+    class CookieConfig(FakeConfig):
+        fc2ppvdb = "fc2cmadb-session=session-token; ageVerified=true"
+
+    class CookieManager:
+        config = CookieConfig()
+        computed = None
+
+    monkeypatch.setattr("mdcx.core.network_check._manager", lambda: CookieManager())
+    spec = NetworkCheckSpec(
+        name="fc2cmadb",
+        group="刮削站点",
+        url="https://fc2cmadb.com/articles/1817847",
+        site=Website.FC2PPVDB,
+        cookies={"fc2cmadb-session": "session-token"},
+        validator="fc2cmadb",
+    )
+    client = FakeClient()
+    page = '{"component":"Articles/Show","props":{"article":{"id":1817847}}}'
+
+    async def request(method, url, **kwargs):
+        client.calls.append({"method": method, "url": url, **kwargs})
+        return FakeResponse(text=page, url=url), ""
+
+    client.request = request
+    result = await run_network_check_item(spec, client=client)
+
+    assert result.status == NetworkCheckStatus.OK
+    assert result.message == "连接正常，Cookie 有效"
+    assert client.calls[0]["cookies"]["fc2cmadb-session"] == "session-token"
+
+
+@pytest.mark.anyio
+async def test_fc2cmadb_network_check_validates_page_after_cf_bypass(monkeypatch: pytest.MonkeyPatch):
+    class BypassConfig(FakeConfig):
+        fc2ppvdb = "fc2cmadb-session=session-token"
+        cf_bypass_url = "http://127.0.0.1:8000"
+
+    class BypassManager:
+        config = BypassConfig()
+        computed = None
+
+    monkeypatch.setattr("mdcx.core.network_check._manager", lambda: BypassManager())
+    client = FakeBypassClient()
+
+    async def bypass_login_page(**kwargs):
+        client.bypass_calls.append(kwargs)
+        return FakeResponse(text="<html>Login</html>", url=kwargs["target_url"]), ""
+
+    client._try_bypass_cloudflare = bypass_login_page
+    spec = NetworkCheckSpec(
+        name="fc2cmadb",
+        group="刮削站点",
+        url="https://fc2cmadb.com/articles/1817847",
+        site=Website.FC2PPVDB,
+        validator="fc2cmadb",
+        enable_cf_bypass=True,
+    )
+
+    result = await run_network_check_item(spec, client=client)
+
+    assert result.status == NetworkCheckStatus.FAILED
+    assert result.message == "站点可访问，但 FC2CMADB Cookie 未生效"
 
 
 def test_format_result_line_does_not_duplicate_error():

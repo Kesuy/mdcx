@@ -72,7 +72,7 @@ from .load_config import load_config
 from .network_controller import NetworkController
 from .nfo_controller import NfoController
 from .responsive_layout import apply_responsive_layout, show_responsive_overlay
-from .result_model import ResultItem, create_result_item
+from .result_model import RESULT_DATA_ROLE, ResultItem, ResultTreeItem, create_result_item
 from .save_config import save_config
 from .scrape_controller import ScrapeController
 from .settings_page import SettingsPageController
@@ -397,12 +397,12 @@ class MyMAinWindow(QMainWindow):
         self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2ppvdb_cookie, 9, 0, 1, 1)
 
         self.Ui.plainTextEdit_cookie_fc2ppvdb = QPlainTextEdit(self.Ui.gridLayoutWidget_10)
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.Ui.plainTextEdit_cookie_fc2ppvdb.sizePolicy().hasHeightForWidth())
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setSizePolicy(sizePolicy)
-        self.Ui.plainTextEdit_cookie_fc2ppvdb.setMinimumSize(400, 80)
+        self.Ui.plainTextEdit_cookie_fc2ppvdb.setMinimumWidth(400)
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setStyleSheet(build_code_editor_style(dark_mode))
         self.Ui.plainTextEdit_cookie_fc2ppvdb.setPlaceholderText(
             "登录 fc2cmadb 后，从浏览器开发者工具的 Request Headers 复制完整 Cookie（不要填写账号密码）"
@@ -438,6 +438,15 @@ class MyMAinWindow(QMainWindow):
         self.Ui.label_fc2ppvdb_cookie_result.setObjectName("label_fc2ppvdb_cookie_result")
         self.Ui.horizontalLayout_fc2ppvdb_cookie.addWidget(self.Ui.label_fc2ppvdb_cookie_result)
         self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2ppvdb_cookie, 10, 1, 1, 1)
+
+        for editor in (
+            self.Ui.plainTextEdit_cookie_javdb,
+            self.Ui.plainTextEdit_cookie_javbus,
+            self.Ui.plainTextEdit_cookie_fc2ppvdb,
+        ):
+            editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            editor.setMinimumHeight(56)
+            editor.setMaximumHeight(56)
 
         # The original .ui left these controls as overlapping absolute-position
         # siblings. Own the whole Cookie section with one real layout instead.
@@ -994,6 +1003,9 @@ class MyMAinWindow(QMainWindow):
     def pushButton_tool_clicked(self):
         self.Ui.stackedWidget.setCurrentIndex(3)
         self._apply_sidebar_selection(self.Ui.pushButton_tool)
+        scroll_bar = self.Ui.scrollArea_10.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.minimum())
+        QTimer.singleShot(0, lambda: scroll_bar.setValue(scroll_bar.minimum()))
 
     # 点左侧的设置按钮
     def pushButton_setting_clicked(self):
@@ -1043,10 +1055,12 @@ class MyMAinWindow(QMainWindow):
         self.Ui.progressBar_scrape.setProperty("value", value)
 
     # region 刮削结果显示
-    def _addTreeChild(self, result, filename):
+    def _addTreeChild(self, result, filename, show_data: ShowData | None = None):
         parent = self.item_succ if result == "succ" else self.item_fail
         node = create_result_item(parent)
         node.setText(0, filename)
+        if show_data is not None:
+            node.setData(0, RESULT_DATA_ROLE, show_data)
         if result == "succ":
             insertion_index = getattr(self, "_result_insertion_index", 0)
             node.setData(0, Qt.ItemDataRole.UserRole, insertion_index)
@@ -1082,7 +1096,7 @@ class MyMAinWindow(QMainWindow):
 
     def show_list_name(self, status: Literal["succ", "fail"], show_data: ShowData, real_number=""):
         # 添加树状节点
-        self._addTreeChild(status, show_data.show_name)
+        self._addTreeChild(status, show_data.show_name, show_data)
 
         if not show_data.data.title:
             show_data.data.title = LogBuffer.error().get()
@@ -1098,19 +1112,20 @@ class MyMAinWindow(QMainWindow):
             return
         items = [self.item_succ.child(index) for index in range(self.item_succ.childCount())]
         entries: list[ResultSortEntry] = []
-        item_by_name: dict[str, ResultItem] = {}
+        item_by_insertion: dict[int, ResultItem] = {}
         for item in items:
             show_name = item.text(0)
-            show_data = self.json_array.get(show_name)
+            show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
+            insertion_index = int(item.data(0, Qt.ItemDataRole.UserRole) or 0)
             entries.append(
                 ResultSortEntry(
                     show_name=show_name,
                     number=show_data.data.number if show_data else "",
                     actor=show_data.data.actor if show_data else "",
-                    insertion_index=int(item.data(0, Qt.ItemDataRole.UserRole) or 0),
+                    insertion_index=insertion_index,
                 )
             )
-            item_by_name[show_name] = item
+            item_by_insertion[insertion_index] = item
 
         mode = cast("ResultSortMode", self.result_sort_combo.currentText())
         sorted_entries = sort_result_entries(
@@ -1118,8 +1133,12 @@ class MyMAinWindow(QMainWindow):
             mode,
             descending=getattr(self, "_result_sort_descending", False),
         )
-        self.item_succ.takeChildren()
-        self.item_succ.addChildren([item_by_name[entry.show_name] for entry in sorted_entries])
+        ordered_items = [item_by_insertion[entry.insertion_index] for entry in sorted_entries]
+        if isinstance(self.item_succ, ResultTreeItem):
+            self.item_succ.reorderChildren(ordered_items)
+        else:
+            self.item_succ.takeChildren()
+            self.item_succ.addChildren(ordered_items)
 
     def _toggle_result_sort_order(self) -> None:
         self._result_sort_descending = not getattr(self, "_result_sort_descending", False)
@@ -1136,7 +1155,7 @@ class MyMAinWindow(QMainWindow):
             status_visible = status in {"全部", root_status}
             for index in range(root.childCount()):
                 item = root.child(index)
-                show_data = self.json_array.get(item.text(0))
+                show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(item.text(0))
                 haystack = item.text(0)
                 if show_data is not None:
                     haystack += f" {show_data.data.number} {show_data.data.title} {show_data.data.actor}"
@@ -1343,7 +1362,7 @@ class MyMAinWindow(QMainWindow):
         for item in self.Ui.treeWidget_number.selectedItems():
             if not item or item.text(0) in {"成功", "失败"}:
                 continue
-            if item.text(0) not in self.json_array:
+            if item.data(0, RESULT_DATA_ROLE) is None and item.text(0) not in self.json_array:
                 continue
             selected_items.append(item)
         return selected_items
@@ -1352,7 +1371,7 @@ class MyMAinWindow(QMainWindow):
         result = []
         for item in self._get_selected_result_items():
             show_name = item.text(0)
-            show_data = self.json_array.get(show_name)
+            show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
             if show_data is None or not show_data.file_info.file_path:
                 continue
             result.append((item, show_name, show_data, show_data.file_info.file_path))
@@ -1544,8 +1563,8 @@ class MyMAinWindow(QMainWindow):
 
         item = selected_items[0]
         try:
-            index_json = str(item.text(0))
-            self.set_main_info(self.json_array[index_json])
+            show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array[str(item.text(0))]
+            self.set_main_info(show_data)
             if not self.Ui.widget_nfo.isHidden():
                 self._show_nfo_info()
         except Exception:
@@ -2600,7 +2619,8 @@ class MyMAinWindow(QMainWindow):
     def pushButton_save_config_clicked(self):
         invalid = self.settings_controller.validate()
         if invalid:
-            QMessageBox.warning(self, "设置输入无效", "请修正标红的数字或 CA 证书路径后再保存。")
+            message = self.settings_controller.reveal_validation_error(invalid[0])
+            QMessageBox.warning(self, "设置输入无效", f"{message}\n\n已自动定位并标红第一个无效设置。")
             return
         self.save_config()
         self.load_config()  # 确保界面显示和实际配置一致

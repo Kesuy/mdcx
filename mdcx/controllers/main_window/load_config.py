@@ -24,7 +24,6 @@ from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.config.resources import resources
 from mdcx.consts import GITHUB_ISSUES_URL, IS_WINDOWS, MAIN_PATH
-from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
 
@@ -48,17 +47,6 @@ def load_config(self: "MyMAinWindow"):
     """
     读取配置文件并绑定到 UI 组件
     """
-    field_mapping = {
-        "title": CrawlerResultFields.TITLE,
-        "outline": CrawlerResultFields.OUTLINE,
-        "actor": CrawlerResultFields.ACTORS,
-        "tag": CrawlerResultFields.TAGS,
-        "series": CrawlerResultFields.SERIES,
-        "studio": CrawlerResultFields.STUDIO,
-        "publisher": CrawlerResultFields.PUBLISHER,
-        "director": CrawlerResultFields.DIRECTORS,
-    }
-
     errors = manager.load()
     v1_msgs = [e for e in errors if e.startswith("[V1]")]
     if v1_msgs:
@@ -152,32 +140,6 @@ def load_config(self: "MyMAinWindow"):
         else:
             Flags.scrape_like_text = "字段优先"
 
-        # 标题字段配置
-        title_field_config = manager.config.get_field_config(CrawlerResultFields.TITLE)
-        # 标题语言
-        set_radio_buttons(
-            title_field_config.language.value if title_field_config.language.value != "undefined" else "jp",
-            (self.Ui.radioButton_title_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_title_zh_tw, "zh_tw"),
-            default=self.Ui.radioButton_title_jp,
-        )
-
-        # 标题增强翻译-使用翻译引擎
-        self.Ui.checkBox_title_translate.setChecked(title_field_config.translate)
-
-        # 简介字段配置
-        outline_field_config = manager.config.get_field_config(field_mapping["outline"])
-
-        # 简介语言
-        set_radio_buttons(
-            outline_field_config.language.value if outline_field_config.language.value != "undefined" else "zh_cn",
-            (self.Ui.radioButton_outline_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_outline_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_outline_jp, "jp"),
-            default=self.Ui.radioButton_outline_zh_cn,
-        )
-        # 简介-使用翻译引擎
-        self.Ui.checkBox_outline_translate.setChecked(outline_field_config.translate)
         # 简介-显示翻译来源、双语显示
         set_checkboxes(
             manager.config.outline_format,
@@ -194,34 +156,6 @@ def load_config(self: "MyMAinWindow"):
             (self.Ui.radioButton_trans_show_one, "one"),
             default=self.Ui.radioButton_trans_show_one,
         )
-        # 演员字段配置
-        actor_field_config = manager.config.get_field_config(field_mapping["actor"])
-        # 演员映射语言
-        set_radio_buttons(
-            actor_field_config.language.value if actor_field_config.language.value != "undefined" else "jp",
-            (self.Ui.radioButton_actor_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_actor_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_actor_jp, "jp"),
-            default=self.Ui.radioButton_actor_zh_cn,
-        )
-        # 演员-使用真实名字 (保留旧配置项)
-        # 演员-使用演员映射表
-        self.Ui.checkBox_actor_translate.setChecked(actor_field_config.translate)
-
-        # 标签字段配置
-        tag_field_config = manager.config.get_field_config(field_mapping["tag"])
-        # 标签字段语言
-        set_radio_buttons(
-            tag_field_config.language.value if tag_field_config.language.value != "undefined" else "zh_cn",
-            (self.Ui.radioButton_tag_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_tag_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_tag_jp, "jp"),
-            default=self.Ui.radioButton_tag_zh_cn,
-        )
-
-        # 标签-使用信息映射表
-        self.Ui.checkBox_tag_translate.setChecked(tag_field_config.translate)
-
         # 写入标签字段的信息
         # region tag_include
         set_checkboxes(
@@ -236,62 +170,6 @@ def load_config(self: "MyMAinWindow"):
             (self.Ui.checkBox_tag_definition, TagInclude.DEFINITION),
         )
         # endregion
-
-        # 系列字段配置
-        series_field_config = manager.config.get_field_config(field_mapping["series"])
-
-        # 系列字段语言
-        set_radio_buttons(
-            series_field_config.language.value if series_field_config.language.value != "undefined" else "zh_cn",
-            (self.Ui.radioButton_series_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_series_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_series_jp, "jp"),
-            default=self.Ui.radioButton_series_zh_cn,
-        )
-        # 系列-使用信息映射表
-        self.Ui.checkBox_series_translate.setChecked(series_field_config.translate)
-
-        # 工作室字段配置
-        studio_field_config = manager.config.get_field_config(field_mapping["studio"])
-
-        # 片商字段语言
-        set_radio_buttons(
-            studio_field_config.language.value if studio_field_config.language.value != "undefined" else "zh_cn",
-            (self.Ui.radioButton_studio_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_studio_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_studio_jp, "jp"),
-            default=self.Ui.radioButton_studio_zh_cn,
-        )
-        # 片商-使用信息映射表
-        self.Ui.checkBox_studio_translate.setChecked(studio_field_config.translate)
-
-        # 发行商字段配置
-        publisher_field_config = manager.config.get_field_config(field_mapping["publisher"])
-
-        # 发行字段语言
-        set_radio_buttons(
-            publisher_field_config.language.value if publisher_field_config.language.value != "undefined" else "zh_cn",
-            (self.Ui.radioButton_publisher_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_publisher_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_publisher_jp, "jp"),
-            default=self.Ui.radioButton_publisher_zh_cn,
-        )
-        # 发行-使用信息映射表
-        self.Ui.checkBox_publisher_translate.setChecked(publisher_field_config.translate)
-
-        # 导演字段配置
-        director_field_config = manager.config.get_field_config(field_mapping["director"])
-
-        # 导演字段语言
-        set_radio_buttons(
-            director_field_config.language.value if director_field_config.language.value != "undefined" else "zh_cn",
-            (self.Ui.radioButton_director_zh_cn, "zh_cn"),
-            (self.Ui.radioButton_director_zh_tw, "zh_tw"),
-            (self.Ui.radioButton_director_jp, "jp"),
-            default=self.Ui.radioButton_director_zh_cn,
-        )
-        # 导演-使用信息映射表
-        self.Ui.checkBox_director_translate.setChecked(director_field_config.translate)
 
         manager.config.ensure_type_field_configs()
         refresh_site_priority_ui(self)

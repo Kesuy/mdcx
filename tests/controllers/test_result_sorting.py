@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication, QComboBox, QPushButton, QTreeWidget, QTreeWidgetItem
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
+from mdcx.controllers.main_window.result_model import RESULT_DATA_ROLE, ResultTreeItem, ResultTreeView
 from mdcx.controllers.main_window.result_sorting import ResultSortEntry, sort_result_entries
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 
@@ -73,3 +74,64 @@ def test_main_result_tree_reorders_success_children_by_number():
 
     assert [harness.item_succ.child(index).text(0) for index in range(2)] == ["row-2", "row-10"]
     assert APP is not None
+
+
+def test_result_items_keep_their_own_data_when_display_names_repeat():
+    class Harness:
+        _addTreeChild = MyMAinWindow._addTreeChild
+        _get_selected_result_items = MyMAinWindow._get_selected_result_items
+        _get_selected_entries = MyMAinWindow._get_selected_entries
+
+    harness = Harness()
+    harness.Ui = SimpleNamespace(treeWidget_number=ResultTreeView())
+    harness.item_succ = ResultTreeItem(harness.Ui.treeWidget_number)
+    harness.item_succ.setText(0, "成功")
+    harness.item_fail = ResultTreeItem(harness.Ui.treeWidget_number)
+    harness.item_fail.setText(0, "失败")
+    harness._result_insertion_index = 0
+    harness.json_array = {}
+
+    first_data = CrawlersResult.empty()
+    first_data.title = "first title"
+    first = ShowData(FileInfo.empty(), first_data, OtherInfo.empty(), "相同名称")
+    second_data = CrawlersResult.empty()
+    second_data.title = "second title"
+    second = ShowData(FileInfo.empty(), second_data, OtherInfo.empty(), "相同名称")
+    harness._addTreeChild("succ", first.show_name, first)
+    harness._addTreeChild("succ", second.show_name, second)
+
+    first_item = harness.item_succ.child(0)
+    second_item = harness.item_succ.child(1)
+    assert first_item.data(0, RESULT_DATA_ROLE) is first
+    assert second_item.data(0, RESULT_DATA_ROLE) is second
+    first_item.setSelected(True)
+    assert harness._get_selected_result_items() == [first_item]
+
+
+def test_clicking_each_result_displays_that_items_bound_data():
+    class Harness:
+        _addTreeChild = MyMAinWindow._addTreeChild
+        _get_selected_result_items = MyMAinWindow._get_selected_result_items
+        treeWidget_number_clicked = MyMAinWindow.treeWidget_number_clicked
+
+    harness = Harness()
+    harness.Ui = SimpleNamespace(treeWidget_number=ResultTreeView(), widget_nfo=SimpleNamespace(isHidden=lambda: True))
+    harness.item_succ = ResultTreeItem(harness.Ui.treeWidget_number)
+    harness.item_succ.setText(0, "成功")
+    harness.item_fail = ResultTreeItem(harness.Ui.treeWidget_number)
+    harness.item_fail.setText(0, "失败")
+    harness._result_insertion_index = 0
+    harness.json_array = {}
+    shown = []
+    harness.set_main_info = shown.append
+
+    first = ShowData(FileInfo.empty(), CrawlersResult.empty(), OtherInfo.empty(), "相同名称")
+    second = ShowData(FileInfo.empty(), CrawlersResult.empty(), OtherInfo.empty(), "相同名称")
+    harness._addTreeChild("succ", first.show_name, first)
+    harness._addTreeChild("succ", second.show_name, second)
+
+    for item, expected in ((harness.item_succ.child(0), first), (harness.item_succ.child(1), second)):
+        harness.Ui.treeWidget_number.clearSelection()
+        item.setSelected(True)
+        harness.treeWidget_number_clicked()
+        assert shown[-1] is expected

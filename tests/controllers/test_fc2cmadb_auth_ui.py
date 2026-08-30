@@ -45,3 +45,15 @@ def test_cookie_settings_visually_separate_each_website():
     ] == [0, 4, 8]
     assert window.Ui.gridLayoutWidget_10.geometry().bottom() < window.Ui.label_75.geometry().top()
     assert window.Ui.label_get_cookie_url.geometry().bottom() < window.Ui.groupBox_10.height()
+
+
+def test_cookie_editors_are_compact_and_all_three_fit_the_settings_section():
+    window = _setup_fc2cmadb_ui()
+
+    editors = (
+        window.Ui.plainTextEdit_cookie_javdb,
+        window.Ui.plainTextEdit_cookie_javbus,
+        window.Ui.plainTextEdit_cookie_fc2ppvdb,
+    )
+    assert all(editor.maximumHeight() == 56 for editor in editors)
+    assert window.Ui.gridLayout_10.indexOf(window.Ui.plainTextEdit_cookie_fc2ppvdb) >= 0

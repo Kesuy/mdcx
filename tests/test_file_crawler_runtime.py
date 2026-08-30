@@ -534,6 +534,73 @@ async def test_call_crawlers_collects_poster_candidates_only_from_type_poster_pr
 
 
 @pytest.mark.asyncio
+async def test_fc2_field_priority_stops_after_complete_fc2cmadb_record(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        ManualConfig,
+        "REDUCED_FIELDS",
+        (
+            CrawlerResultFields.TITLE,
+            CrawlerResultFields.OUTLINE,
+            CrawlerResultFields.SCORE,
+            CrawlerResultFields.RUNTIME,
+            CrawlerResultFields.POSTER,
+        ),
+    )
+    records: list[Website] = []
+    fc2cmadb = _build_image_result(
+        Website.FC2PPVDB,
+        poster="https://fc2cmadb.test/poster.jpg",
+        image_download=True,
+    )
+    fc2cmadb.runtime = "61"
+    fallback = _build_image_result(Website.FC2, poster="https://fc2.test/poster.jpg")
+    fallback.outline = "fallback outline"
+    fallback.score = "4.5"
+    provider = _ResultRecordingCrawlerProvider(
+        {
+            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
+            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
+        }
+    )
+    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
+    scraper = FileScraper(config, provider)
+    task_input = CrawlTask.empty()
+    task_input.number = "FC2-1234567"
+
+    result = await scraper.run(task_input, FileMode.Default)
+
+    assert result is not None
+    assert result.title == "fc2ppvdb title"
+    assert result.runtime == "61"
+    assert result.outline == ""
+    assert records == [Website.FC2PPVDB]
+
+
+@pytest.mark.asyncio
+async def test_fc2_field_priority_still_falls_back_for_missing_core_fields(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.TITLE, CrawlerResultFields.RUNTIME))
+    records: list[Website] = []
+    fc2cmadb = _build_result(Website.FC2PPVDB)
+    fallback = _build_result(Website.FC2, runtime="61")
+    provider = _ResultRecordingCrawlerProvider(
+        {
+            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
+            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
+        }
+    )
+    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
+    scraper = FileScraper(config, provider)
+    task_input = CrawlTask.empty()
+    task_input.number = "FC2-1234567"
+
+    result = await scraper.run(task_input, FileMode.Default)
+
+    assert result is not None
+    assert result.runtime == "61"
+    assert records == [Website.FC2PPVDB, Website.FC2]
+
+
+@pytest.mark.asyncio
 async def test_speed_mode_uses_first_successful_type_site_without_field_merge():
     records: list[Website] = []
     provider = _ResultRecordingCrawlerProvider(
