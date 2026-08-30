@@ -32,9 +32,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mdcx.base.file import get_success_list, newtdisk_creat_symlink, save_remain_list, save_success_list
-from mdcx.base.image import add_del_extrafanart_copy
-from mdcx.base.video import add_del_extras, add_del_theme_videos
+from mdcx.base.file import get_success_list, save_remain_list, save_success_list
 from mdcx.base.web import check_theporndb_api_token, check_version
 from mdcx.config.enums import NfoInclude, Switch, Website
 from mdcx.config.extend import deal_url, get_movie_path_setting, parse_media_paths
@@ -54,10 +52,6 @@ from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 from mdcx.signals import signal_qt
 from mdcx.task_manager import QtTaskManager
 from mdcx.tools.actress_db import ActressDB
-from mdcx.tools.emby_actor_image import update_emby_actor_photo
-from mdcx.tools.emby_actor_info import creat_kodi_actors, show_emby_actor_list, update_emby_actor_info
-from mdcx.tools.missing import check_missing_number
-from mdcx.tools.subtitle import add_sub_for_all_video
 from mdcx.utils import (
     add_html,
     add_html_plain_text,
@@ -2127,11 +2121,7 @@ class MyMAinWindow(QMainWindow):
     # region 工具页
     # 工具页面点查看本地番号
     def label_local_number_clicked(self, ev):
-        if self.Ui.pushButton_find_missing_number.isEnabled():
-            self.pushButton_show_log_clicked()  # 点击按钮后跳转到日志页面
-            if self.Ui.lineEdit_actors_name.text() != manager.config.actors_name:  # 保存配置
-                self.pushButton_save_config_clicked()
-            executor.submit(check_missing_number(False))
+        self._get_tool_controller().find_missing_numbers(False)
 
     # 工具页面本地资源库点选择目录
     def pushButton_select_local_library_clicked(self):
@@ -2166,31 +2156,14 @@ class MyMAinWindow(QMainWindow):
         """
         工具点一键创建软链接
         """
-        self.pushButton_show_log_clicked()  # 点击按钮后跳转到日志页面
-
-        if Switch.COPY_NETDISK_NFO in manager.config.switch_on != self.Ui.checkBox_copy_netdisk_nfo.isChecked():
-            self.pushButton_save_config_clicked()
-
-        try:
-            executor.submit(newtdisk_creat_symlink(self.Ui.checkBox_copy_netdisk_nfo.isChecked()))
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().create_netdisk_symlinks()
 
     # 工具-检查番号
     def pushButton_find_missing_number_clicked(self):
         """
         工具点检查缺失番号
         """
-        self.pushButton_show_log_clicked()  # 点击按钮后跳转到日志页面
-
-        # 如果本地资源库或演员与配置内容不同，则自动保存
-        if (
-            self.Ui.lineEdit_actors_name.text() != manager.config.actors_name
-            or self.Ui.lineEdit_local_library_path.text() != manager.config.local_library
-        ):
-            self.pushButton_save_config_clicked()
-        executor.submit(check_missing_number(True))
+        self._get_tool_controller().find_missing_numbers(True)
 
     # 工具-单文件刮削
     def pushButton_select_file_clicked(self):
@@ -2475,106 +2448,52 @@ class MyMAinWindow(QMainWindow):
 
     # 设置-字幕 为所有视频中的无字幕视频添加字幕
     def pushButton_add_sub_for_all_video_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(add_sub_for_all_video())
-        except Exception:
-            signal_qt.show_traceback_log(traceback.format_exc())
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().add_subtitles()
 
     # region 设置-下载
     # 为所有视频中的创建/删除剧照附加内容
     def pushButton_add_all_extras_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(add_del_extras("add"))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_extras("add")
 
     def pushButton_del_all_extras_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(add_del_extras("del"))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_extras("del")
 
     # 为所有视频中的创建/删除剧照副本
     def pushButton_add_all_extrafanart_copy_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        self.pushButton_save_config_clicked()
-        try:
-            executor.submit(add_del_extrafanart_copy("add"))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_extrafanart_copy("add")
 
     def pushButton_del_all_extrafanart_copy_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        self.pushButton_save_config_clicked()
-        try:
-            executor.submit(add_del_extrafanart_copy("del"))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_extrafanart_copy("del")
 
     # 为所有视频中的创建/删除主题视频
     def pushButton_add_all_theme_videos_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(add_del_theme_videos("add"))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_theme_videos("add")
 
     def pushButton_del_all_theme_videos_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(add_del_theme_videos("del"))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_theme_videos("del")
 
     # endregion
 
     # region 设置-演员
     # 设置-演员 补全演员信息
     def pushButton_add_actor_info_clicked(self):
-        self.pushButton_save_config_clicked()
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(update_emby_actor_info())
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_actor_info()
 
     # 设置-演员 补全演员头像按钮
     def pushButton_add_actor_pic_clicked(self):
-        self.pushButton_save_config_clicked()
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(update_emby_actor_photo())
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_actor_photos()
 
     # 设置-演员 补全演员头像按钮 kodi
     def pushButton_add_actor_pic_kodi_clicked(self):
-        self.pushButton_save_config_clicked()
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(creat_kodi_actors(True))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_kodi_actors(True)
 
     # 设置-演员 清除演员头像按钮 kodi
     def pushButton_del_actor_folder_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(creat_kodi_actors(False))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().update_kodi_actors(False)
 
     # 设置-演员 查看演员列表按钮
     def pushButton_show_pic_actor_clicked(self):
-        self.pushButton_show_log_clicked()  # 点按钮后跳转到日志页面
-        try:
-            executor.submit(show_emby_actor_list(self.Ui.comboBox_pic_actor.currentIndex()))
-        except Exception:
-            signal_qt.show_log_text(traceback.format_exc())
+        self._get_tool_controller().show_actor_list()
 
     # endregion
 

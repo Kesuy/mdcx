@@ -7,11 +7,18 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import QMessageBox
 
-from mdcx.base.file import check_and_clean_files, movie_lists
+from mdcx.base.file import check_and_clean_files, movie_lists, newtdisk_creat_symlink
+from mdcx.base.image import add_del_extrafanart_copy
+from mdcx.base.video import add_del_extras, add_del_theme_videos
+from mdcx.config.enums import Switch
 from mdcx.config.extend import get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
+from mdcx.tools.emby_actor_image import update_emby_actor_photo
+from mdcx.tools.emby_actor_info import creat_kodi_actors, show_emby_actor_list, update_emby_actor_info
+from mdcx.tools.missing import check_missing_number
+from mdcx.tools.subtitle import add_sub_for_all_video
 from mdcx.utils import executor
 
 if TYPE_CHECKING:
@@ -107,6 +114,67 @@ class ToolController:
         window.pushButton_show_log_clicked()
         try:
             executor.submit(check_and_clean_files())
+        except Exception:
+            error = traceback.format_exc()
+            signal_qt.show_traceback_log(error)
+            signal_qt.show_log_text(error)
+
+    def _submit_tool_action(self, coroutine_factory, *, save_config: bool = False) -> None:
+        window = self.window
+        if save_config:
+            window.pushButton_save_config_clicked()
+        window.pushButton_show_log_clicked()
+        try:
+            executor.submit(coroutine_factory())
+        except Exception:
+            error = traceback.format_exc()
+            signal_qt.show_traceback_log(error)
+            signal_qt.show_log_text(error)
+
+    def add_subtitles(self) -> None:
+        self._submit_tool_action(add_sub_for_all_video)
+
+    def update_extras(self, action: str) -> None:
+        self._submit_tool_action(lambda: add_del_extras(action))
+
+    def update_extrafanart_copy(self, action: str) -> None:
+        self._submit_tool_action(lambda: add_del_extrafanart_copy(action), save_config=True)
+
+    def update_theme_videos(self, action: str) -> None:
+        self._submit_tool_action(lambda: add_del_theme_videos(action))
+
+    def update_actor_info(self) -> None:
+        self._submit_tool_action(update_emby_actor_info, save_config=True)
+
+    def update_actor_photos(self) -> None:
+        self._submit_tool_action(update_emby_actor_photo, save_config=True)
+
+    def update_kodi_actors(self, create: bool) -> None:
+        self._submit_tool_action(lambda: creat_kodi_actors(create), save_config=create)
+
+    def show_actor_list(self) -> None:
+        actor_type = self.window.Ui.comboBox_pic_actor.currentIndex()
+        self._submit_tool_action(lambda: show_emby_actor_list(actor_type))
+
+    def find_missing_numbers(self, show_dialog: bool) -> None:
+        window = self.window
+        if not window.Ui.pushButton_find_missing_number.isEnabled():
+            return
+        actor_changed = window.Ui.lineEdit_actors_name.text() != manager.config.actors_name
+        library_changed = window.Ui.lineEdit_local_library_path.text() != ",".join(manager.config.local_library)
+        if actor_changed or library_changed:
+            window.pushButton_save_config_clicked()
+        window.pushButton_show_log_clicked()
+        executor.submit(check_missing_number(show_dialog))
+
+    def create_netdisk_symlinks(self) -> None:
+        window = self.window
+        copy_nfo = window.Ui.checkBox_copy_netdisk_nfo.isChecked()
+        if (Switch.COPY_NETDISK_NFO in manager.config.switch_on) != copy_nfo:
+            window.pushButton_save_config_clicked()
+        window.pushButton_show_log_clicked()
+        try:
+            executor.submit(newtdisk_creat_symlink(copy_nfo))
         except Exception:
             error = traceback.format_exc()
             signal_qt.show_traceback_log(error)
