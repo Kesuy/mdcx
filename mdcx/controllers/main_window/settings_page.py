@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from PyQt6.QtCore import QLocale, QRegularExpression
 from PyQt6.QtGui import QDoubleValidator, QIntValidator, QRegularExpressionValidator
@@ -34,6 +35,13 @@ def format_duration(value: timedelta) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{min(hours, 99):02d}:{minutes:02d}:{seconds:02d}"
+
+
+def is_valid_http_url(value: str) -> bool:
+    if not value.strip():
+        return True
+    parsed = urlsplit(value.strip())
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc) and " " not in parsed.netloc
 
 
 class SettingsPageController:
@@ -258,6 +266,7 @@ class SettingsPageController:
     def _setup_numeric_validation(self) -> None:
         self._numeric_widgets: list[QLineEdit] = []
         self._format_widgets: dict[QLineEdit, str] = {}
+        self._url_widgets: dict[QLineEdit, str] = {}
         locale = QLocale.c()
         for name in ("lineEdit_escape_size", "lineEdit_clean_file_size"):
             widget = getattr(self.ui, name)
@@ -280,7 +289,15 @@ class SettingsPageController:
             widget = getattr(self.ui, name)
             widget.setValidator(QRegularExpressionValidator(duration_expression, widget))
             self._format_widgets[widget] = "请按 HH:MM:SS 输入，分钟和秒必须小于 60"
-        for widget in (*self._numeric_widgets, *self._format_widgets, self.ui.lineEdit_ca_bundle):
+        for name in ("lineEdit_llm_url", "lineEdit_deeplx_url", "lineEdit_cf_bypass_url"):
+            widget = getattr(self.ui, name)
+            self._url_widgets[widget] = "请输入完整的 http:// 或 https:// 地址"
+        for widget in (
+            *self._numeric_widgets,
+            *self._format_widgets,
+            *self._url_widgets,
+            self.ui.lineEdit_ca_bundle,
+        ):
             self._install_inline_error(widget)
 
     def _install_inline_error(self, widget: QLineEdit) -> None:
@@ -328,6 +345,12 @@ class SettingsPageController:
                 self._set_validation_error(widget)
         for widget, message in self._format_widgets.items():
             if not widget.hasAcceptableInput():
+                self._set_validation_error(widget, message)
+                errors.append(widget.objectName())
+            else:
+                self._set_validation_error(widget)
+        for widget, message in self._url_widgets.items():
+            if not is_valid_http_url(widget.text()):
                 self._set_validation_error(widget, message)
                 errors.append(widget.objectName())
             else:

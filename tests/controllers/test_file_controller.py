@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from mdcx.controllers.main_window import file_controller
 from mdcx.controllers.main_window.file_controller import (
@@ -78,3 +79,66 @@ def test_delete_folders_keeps_original_failure_for_classification(monkeypatch, t
     assert success_names == ["ok-item", "missing-item"]
     assert list(failed_targets) == [tmp_path / "denied"]
     assert classify_file_failure(failures[0][1]).category is FileFailureCategory.PERMISSION
+
+
+def test_create_links_previews_targets_before_mutation(monkeypatch, tmp_path: Path):
+    source = tmp_path / "movie.mp4"
+    output = tmp_path / "links"
+    created = []
+    window = SimpleNamespace()
+    controller = FileController(window)
+    plans = []
+
+    monkeypatch.setattr(controller, "confirm_plan", lambda plan, **_kwargs: plans.append(plan) or True)
+    monkeypatch.setattr(file_controller, "resolve_link_source_sync", lambda path: (True, path, ""))
+    monkeypatch.setattr(file_controller, "resolve_success_record_source_sync", lambda path: (True, path, ""))
+    monkeypatch.setattr(
+        file_controller,
+        "create_symlink_sync",
+        lambda source_path, target_path: created.append((source_path, target_path)) or (True, ""),
+    )
+    monkeypatch.setattr(file_controller.signal_qt, "show_log_text", lambda *_args: None)
+    monkeypatch.setattr(file_controller.signal_qt, "show_scrape_info", lambda *_args: None)
+
+    controller.create_links(
+        "soft",
+        link_targets=[("movie", source)],
+        output_dir=output,
+        should_record_success=False,
+    )
+
+    assert plans[0].kind is FileOperationKind.CREATE_SYMLINKS
+    assert plans[0].targets == (output / "movie.mp4",)
+    assert created == [(source, output / "movie.mp4")]
+
+
+def test_create_links_retry_only_reprocesses_failed_sources(monkeypatch, tmp_path: Path):
+    source = tmp_path / "movie.mp4"
+    output = tmp_path / "links"
+    feedback = []
+    window = SimpleNamespace(_show_action_failure_feedback=lambda *args, **kwargs: feedback.append((args, kwargs)))
+    controller = FileController(window)
+    attempts = []
+
+    monkeypatch.setattr(file_controller, "resolve_link_source_sync", lambda path: (True, path, ""))
+    monkeypatch.setattr(file_controller, "resolve_success_record_source_sync", lambda path: (True, path, ""))
+
+    def create_link(source_path: Path, target_path: Path):
+        attempts.append((source_path, target_path))
+        return (False, "PermissionError: access is denied") if len(attempts) == 1 else (True, "")
+
+    monkeypatch.setattr(file_controller, "create_symlink_sync", create_link)
+    monkeypatch.setattr(file_controller.signal_qt, "show_log_text", lambda *_args: None)
+    monkeypatch.setattr(file_controller.signal_qt, "show_scrape_info", lambda *_args: None)
+
+    controller.create_links(
+        "soft",
+        link_targets=[("movie", source)],
+        output_dir=output,
+        should_record_success=False,
+        show_plan=False,
+    )
+
+    assert len(feedback) == 1
+    feedback[0][1]["retry_callback"]()
+    assert attempts == [(source, output / "movie.mp4"), (source, output / "movie.mp4")]

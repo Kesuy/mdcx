@@ -74,11 +74,7 @@ from mdcx.utils import (
     split_path,
 )
 from mdcx.utils.file import (
-    create_hardlink_sync,
-    create_symlink_sync,
     open_file_thread,
-    resolve_link_source_sync,
-    resolve_success_record_source_sync,
 )
 from mdcx.versioning import is_newer_version
 from mdcx.views.MDCx import Ui_MDCx
@@ -1476,33 +1472,10 @@ class MyMAinWindow(QMainWindow):
             button.clicked.connect(lambda _checked=False: QTimer.singleShot(0, relocalize))
 
     def _select_link_output_dir(self, link_name: str) -> Path | None:
-        default_dir = str(get_movie_path_setting().softlink_path)
-        selected_dir = QFileDialog.getExistingDirectory(
-            self,
-            f"选择{link_name}目标目录",
-            default_dir,
-            options=self.options | QFileDialog.Option.ShowDirsOnly,
-        )
-        return Path(selected_dir) if selected_dir else None
+        return self._get_file_controller().select_link_output_dir(link_name)
 
     def _confirm_record_link_paths(self, link_name: str) -> bool | None:
-        box = QMessageBox(
-            QMessageBox.Icon.Question,
-            f"创建{link_name}",
-            f"是否将本次成功创建的{link_name}路径写入程序的刮削成功列表？",
-        )
-        box.setInformativeText("已存在的同源链接会自动去重；取消则中止本次创建。")
-        box.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
-        )
-        box.button(QMessageBox.StandardButton.Yes).setText("写入并继续")
-        box.button(QMessageBox.StandardButton.No).setText("仅创建")
-        box.button(QMessageBox.StandardButton.Cancel).setText("取消")
-        box.setDefaultButton(QMessageBox.StandardButton.Yes)
-        reply = box.exec()
-        if reply == QMessageBox.StandardButton.Cancel:
-            return None
-        return reply == QMessageBox.StandardButton.Yes
+        return self._get_file_controller().confirm_record_link_paths(link_name)
 
     def _build_link_target_path(
         self,
@@ -1511,235 +1484,38 @@ class MyMAinWindow(QMainWindow):
         display_path: Path | None = None,
         group_in_named_dir: bool = False,
     ) -> tuple[Path, list[str]]:
-        file_name = display_path.name if display_path is not None else source_path.name
-        if not group_in_named_dir:
-            return output_dir / file_name, []
-
-        raw_dir_name = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
-        raw_dir_name = raw_dir_name or file_name
-        dir_name, dir_notes = self._sanitize_link_dir_name(raw_dir_name)
-        target_dir, collision_note = self._get_available_link_target_dir(output_dir, dir_name, file_name)
-        if collision_note:
-            dir_notes.append(f"链接目录名已自动避让冲突: {dir_name} -> {target_dir.name}")
-        return target_dir / file_name, dir_notes
+        return self._get_file_controller().build_link_target_path(
+            source_path, output_dir, display_path, group_in_named_dir
+        )
 
     def _get_link_dir_name_max(self) -> int:
-        folder_name_max = int(manager.config.folder_name_max)
-        if folder_name_max <= 0 or folder_name_max > 255:
-            return 60
-        return folder_name_max
+        return self._get_file_controller().get_link_dir_name_max()
 
     def _fit_link_dir_name_length(self, dir_name: str, suffix: str = "") -> str:
-        max_length = self._get_link_dir_name_max()
-        if len(dir_name) + len(suffix) <= max_length:
-            return dir_name + suffix
-
-        base_length = max(max_length - len(suffix), 1)
-        trimmed = dir_name[:base_length].rstrip(". ").rstrip()
-        if not trimmed:
-            trimmed = DEFAULT_LINK_DIR_NAME[:base_length].rstrip(". ").rstrip() or DEFAULT_LINK_DIR_NAME[:1]
-        return trimmed + suffix
+        return self._get_file_controller().fit_link_dir_name_length(dir_name, suffix)
 
     def _is_windows_reserved_dir_name(self, dir_name: str) -> bool:
-        return dir_name.rstrip(". ").upper() in WINDOWS_RESERVED_DIR_NAMES
+        return self._get_file_controller().is_windows_reserved_dir_name(dir_name)
 
     def _sanitize_link_dir_name(self, raw_name: str) -> tuple[str, list[str]]:
-        sanitized = LINK_DIR_INVALID_CHARS_RE.sub("_", raw_name)
-        sanitized = re.sub(r"\s+", " ", sanitized)
-        sanitized = re.sub(r"_+", "_", sanitized)
-        sanitized = sanitized.strip().strip(". ").rstrip(". ").strip()
-        notes: list[str] = []
-
-        if not sanitized or not sanitized.strip("._- "):
-            sanitized = DEFAULT_LINK_DIR_NAME
-            notes.append(f"链接目录名清洗后为空，已回退为默认目录名: {raw_name} -> {sanitized}")
-        elif sanitized != raw_name:
-            notes.append(f"链接目录名已清洗: {raw_name} -> {sanitized}")
-
-        if self._is_windows_reserved_dir_name(sanitized):
-            original_name = sanitized
-            sanitized = f"{sanitized}_"
-            notes.append(f"链接目录名命中 Windows 保留名，已自动调整: {original_name} -> {sanitized}")
-
-        fitted_name = self._fit_link_dir_name_length(sanitized)
-        if fitted_name != sanitized:
-            notes.append(f"链接目录名过长，已按最大长度截断: {sanitized} -> {fitted_name}")
-        return fitted_name, notes
+        return self._get_file_controller().sanitize_link_dir_name(raw_name)
 
     def _can_reuse_link_target_dir(self, target_dir: Path, file_name: str) -> bool:
-        if not target_dir.exists():
-            return True
-        if not target_dir.is_dir():
-            return False
-
-        target_file = target_dir / file_name
-        if target_file.exists() or target_file.is_symlink():
-            return True
-
-        try:
-            return not any(target_dir.iterdir())
-        except Exception:
-            return False
+        return self._get_file_controller().can_reuse_link_target_dir(target_dir, file_name)
 
     def _get_available_link_target_dir(self, output_dir: Path, dir_name: str, file_name: str) -> tuple[Path, str]:
-        candidate_dir = output_dir / dir_name
-        if self._can_reuse_link_target_dir(candidate_dir, file_name):
-            return candidate_dir, ""
-
-        suffix_index = 2
-        while True:
-            candidate_name = self._fit_link_dir_name_length(dir_name, f"_{suffix_index}")
-            candidate_dir = output_dir / candidate_name
-            if self._can_reuse_link_target_dir(candidate_dir, file_name):
-                return candidate_dir, candidate_name
-            suffix_index += 1
+        return self._get_file_controller().get_available_link_target_dir(output_dir, dir_name, file_name)
 
     def _prepare_link_target_dir(self, target_path: Path, group_in_named_dir: bool) -> tuple[bool, str, bool]:
-        if not group_in_named_dir:
-            return True, "", False
-
-        target_dir = target_path.parent
-        if target_dir == target_path:
-            return False, "目标目录无效", False
-        if target_dir.exists():
-            if target_dir.is_dir():
-                return True, "", False
-            return False, f"目标目录已存在同名文件: {target_dir}", False
-
-        try:
-            target_dir.mkdir(parents=True, exist_ok=False)
-            return True, "", True
-        except Exception as error:
-            return False, self._normalize_delete_error_reason(str(error)), False
+        return self._get_file_controller().prepare_link_target_dir(target_path, group_in_named_dir)
 
     def _cleanup_empty_link_target_dir(self, target_path: Path, created_dir: bool) -> None:
-        if not created_dir:
-            return
-
-        target_dir = target_path.parent
-        try:
-            if target_dir.exists() and target_dir.is_dir() and not any(target_dir.iterdir()):
-                target_dir.rmdir()
-                signal_qt.show_log_text(f" ↩ 创建失败，已回滚空目录: {target_dir}")
-        except Exception as error:
-            signal_qt.show_log_text(
-                f" ⚠ 回滚空目录失败: {target_dir}\n    原因: {self._normalize_delete_error_reason(str(error))}"
-            )
+        self._get_file_controller().cleanup_empty_link_target_dir(target_path, created_dir)
 
     def _create_links_for_selected_files(
         self, link_type: Literal["soft", "hard"], group_in_named_dir: bool = False
     ) -> None:
-        selected_entries = self._get_selected_entries()
-        if selected_entries:
-            link_targets = [(show_name, file_path) for _, show_name, _, file_path in selected_entries]
-        else:
-            if not self._check_main_file_path():
-                return
-            link_targets = [(self.show_name or "", self.file_main_open_path)]
-
-        if not link_targets:
-            return
-
-        link_name = "软链接" if link_type == "soft" else "硬链接"
-        if group_in_named_dir:
-            link_name = f"{link_name}（按文件名建目录）"
-        should_record_success = self._confirm_record_link_paths(link_name)
-        if should_record_success is None:
-            return
-        output_dir = self._select_link_output_dir(link_name)
-        if output_dir is None:
-            return
-
-        signal_qt.show_log_text(f" 🔗 开始创建{link_name}")
-        signal_qt.show_log_text(f" 📁 目标目录: {output_dir}")
-        signal_qt.show_log_text(f" 📝 成功列表写入: {'是' if should_record_success else '否'}")
-
-        success_count = 0
-        skipped_count = 0
-        success_paths_to_record: set[Path] = set()
-        failure_details: list[tuple[Path, str]] = []
-        for _show_name, file_path in link_targets:
-            success, source_path, error_info = resolve_link_source_sync(file_path)
-            if not success:
-                failure_details.append((file_path, self._normalize_delete_error_reason(error_info)))
-                signal_qt.show_log_text(
-                    f" ❌ {link_name}失败: {file_path}\n    原因: {self._normalize_delete_error_reason(error_info)}"
-                )
-                continue
-
-            target_path, target_notes = self._build_link_target_path(
-                source_path, output_dir, file_path, group_in_named_dir
-            )
-            for note in target_notes:
-                signal_qt.show_log_text(f" ℹ {note}")
-            ok, dir_error, created_dir = self._prepare_link_target_dir(target_path, group_in_named_dir)
-            if not ok:
-                failure_details.append((target_path, dir_error))
-                signal_qt.show_log_text(
-                    f" ❌ {link_name}失败: {target_path}\n    源文件: {source_path}\n    原因: {dir_error}"
-                )
-                continue
-
-            if link_type == "soft":
-                result, info = create_symlink_sync(source_path, target_path)
-            else:
-                result, info = create_hardlink_sync(source_path, target_path)
-
-            record_success, success_record_path, record_info = resolve_success_record_source_sync(file_path)
-            if not record_success:
-                success_record_path = file_path
-                record_info = (
-                    f"解析成功列表源路径失败，已回退记录当前路径: {self._normalize_delete_error_reason(record_info)}"
-                )
-
-            if result:
-                if "已存在同源" in info:
-                    skipped_count += 1
-                    if should_record_success:
-                        success_paths_to_record.add(success_record_path)
-                    if record_info:
-                        signal_qt.show_log_text(f" ℹ 成功列表记录路径: {success_record_path}\n    说明: {record_info}")
-                    signal_qt.show_log_text(f" ⏭ 已跳过{link_name}: {target_path}\n    原因: {info}")
-                else:
-                    success_count += 1
-                    if should_record_success:
-                        success_paths_to_record.add(success_record_path)
-                    if record_info:
-                        signal_qt.show_log_text(f" ℹ 成功列表记录路径: {success_record_path}\n    说明: {record_info}")
-                    signal_qt.show_log_text(f" ✅ 已创建{link_name}: {target_path}\n    源文件: {source_path}")
-            else:
-                self._cleanup_empty_link_target_dir(target_path, created_dir)
-                failure_details.append((target_path, self._normalize_delete_error_reason(info)))
-                signal_qt.show_log_text(
-                    f" ❌ {link_name}失败: {target_path}\n    源文件: {source_path}\n    原因: {self._normalize_delete_error_reason(info)}"
-                )
-
-        if should_record_success and success_paths_to_record:
-            Flags.success_list.update(success_paths_to_record)
-            executor.run(save_success_list())
-            signal_qt.show_log_text(f" 💾 已写入成功列表 {len(success_paths_to_record)} 项")
-
-        fail_count = len(failure_details)
-        signal_qt.show_log_text(
-            f" 🎉 创建{link_name}完成：成功 {success_count} 个，跳过 {skipped_count} 个，失败 {fail_count} 个"
-        )
-        if fail_count:
-            signal_qt.show_scrape_info(
-                f"💡 创建{link_name}完成，成功 {success_count} 个，跳过 {skipped_count} 个，失败 {fail_count} 个！{get_current_time()}"
-            )
-            self._show_action_failure_feedback(f"创建{link_name}", success_count, failure_details, skipped_count)
-        elif skipped_count and not success_count:
-            signal_qt.show_scrape_info(
-                f"💡 所选文件的{link_name}已存在，已跳过 {skipped_count} 个！{get_current_time()}"
-            )
-        elif skipped_count:
-            signal_qt.show_scrape_info(
-                f"💡 创建{link_name}完成，成功 {success_count} 个，跳过 {skipped_count} 个！{get_current_time()}"
-            )
-        elif success_count == 1:
-            signal_qt.show_scrape_info(f"💡 已创建{link_name}！{get_current_time()}")
-        else:
-            signal_qt.show_scrape_info(f"💡 已创建 {success_count} 个{link_name}！{get_current_time()}")
+        self._get_file_controller().create_links(link_type, group_in_named_dir)
 
     def _find_result_item_by_name(self, show_name: str) -> ResultItem | None:
         for root_item in (self.item_succ, self.item_fail):

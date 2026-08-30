@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, QSlider, QTextEdit
 
 from mdcx.controllers.main_window.config_binding import ConfigBinder, SettingBinding
-from mdcx.controllers.main_window.settings_page import format_duration, parse_duration
+from mdcx.controllers.main_window.settings_page import format_duration, is_valid_http_url, parse_duration
 
 APP = QApplication.instance() or QApplication([])
 
@@ -95,3 +95,13 @@ def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():
         parse_duration("12:99:00")
     with pytest.raises(ValueError, match="无效时间"):
         parse_duration("1:02:03")
+
+
+@pytest.mark.parametrize("value", ["", "https://api.example.com/v1", "http://127.0.0.1:8000/v1"])
+def test_http_url_validation_accepts_supported_urls(value: str):
+    assert is_valid_http_url(value)
+
+
+@pytest.mark.parametrize("value", ["api.example.com", "ftp://example.com", "https://bad host/v1"])
+def test_http_url_validation_rejects_ambiguous_or_unsupported_urls(value: str):
+    assert not is_valid_http_url(value)
