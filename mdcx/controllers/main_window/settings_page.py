@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
+from datetime import timedelta
 from pathlib import Path
 
-from PyQt6.QtCore import QLocale
-from PyQt6.QtGui import QDoubleValidator, QIntValidator
+from PyQt6.QtCore import QLocale, QRegularExpression
+from PyQt6.QtGui import QDoubleValidator, QIntValidator, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
     QGroupBox,
@@ -18,6 +20,20 @@ from PyQt6.QtWidgets import (
 from mdcx.config.models import str_to_list
 
 from .config_binding import ConfigBinder, SettingBinding
+
+
+def parse_duration(value: str) -> timedelta:
+    if re.fullmatch(r"\d{2}:[0-5]\d:[0-5]\d", value) is None:
+        raise ValueError(f"无效时间: {value}")
+    hours, minutes, seconds = (int(part) for part in value.split(":"))
+    return timedelta(hours=hours, minutes=minutes, seconds=seconds)
+
+
+def format_duration(value: timedelta) -> str:
+    total_seconds = max(0, int(value.total_seconds()))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{min(hours, 99):02d}:{minutes:02d}:{seconds:02d}"
 
 
 class SettingsPageController:
@@ -169,6 +185,10 @@ class SettingsPageController:
                 SettingBinding("plainTextEdit_cookie_javbus", "javbus"),
                 SettingBinding("lineEdit_api_token_theporndb", "theporndb_api_token"),
                 SettingBinding("lineEdit_rest_count", "rest_count", parser=int, formatter=lambda value: value or 1),
+                SettingBinding("lineEdit_rest_time", "rest_time", parser=parse_duration, formatter=format_duration),
+                SettingBinding(
+                    "lineEdit_timed_interval", "timed_interval", parser=parse_duration, formatter=format_duration
+                ),
                 SettingBinding("checkBox_show_web_log", "show_web_log"),
                 SettingBinding("checkBox_show_from_log", "show_from_log"),
                 SettingBinding("checkBox_show_data_log", "show_data_log"),
@@ -237,6 +257,7 @@ class SettingsPageController:
 
     def _setup_numeric_validation(self) -> None:
         self._numeric_widgets: list[QLineEdit] = []
+        self._format_widgets: dict[QLineEdit, str] = {}
         locale = QLocale.c()
         for name in ("lineEdit_escape_size", "lineEdit_clean_file_size"):
             widget = getattr(self.ui, name)
@@ -254,7 +275,12 @@ class SettingsPageController:
             widget = getattr(self.ui, name)
             widget.setValidator(QIntValidator(0, maximum, widget))
             self._numeric_widgets.append(widget)
-        for widget in (*self._numeric_widgets, self.ui.lineEdit_ca_bundle):
+        duration_expression = QRegularExpression(r"\d{2}:[0-5]\d:[0-5]\d")
+        for name in ("lineEdit_rest_time", "lineEdit_timed_interval"):
+            widget = getattr(self.ui, name)
+            widget.setValidator(QRegularExpressionValidator(duration_expression, widget))
+            self._format_widgets[widget] = "请按 HH:MM:SS 输入，分钟和秒必须小于 60"
+        for widget in (*self._numeric_widgets, *self._format_widgets, self.ui.lineEdit_ca_bundle):
             self._install_inline_error(widget)
 
     def _install_inline_error(self, widget: QLineEdit) -> None:
@@ -297,6 +323,12 @@ class SettingsPageController:
             acceptable = widget.hasAcceptableInput() and bool(widget.text().strip())
             if not acceptable:
                 self._set_validation_error(widget, "请输入有效的非负数字")
+                errors.append(widget.objectName())
+            else:
+                self._set_validation_error(widget)
+        for widget, message in self._format_widgets.items():
+            if not widget.hasAcceptableInput():
+                self._set_validation_error(widget, message)
                 errors.append(widget.objectName())
             else:
                 self._set_validation_error(widget)

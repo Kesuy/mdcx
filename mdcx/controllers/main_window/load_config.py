@@ -788,23 +788,11 @@ def load_config(self: "MyMAinWindow"):
         # 配置文件目录
         self.Ui.lineEdit_config_folder.setText(str(manager.data_folder))
 
-        # 间歇刮削间隔时间 - 转换 timedelta 为字符串格式
         rest_time = manager.config.rest_time
-        rest_hours = rest_time.seconds // 3600
-        rest_minutes = (rest_time.seconds % 3600) // 60
-        rest_seconds = rest_time.seconds % 60
-        rest_time_str = f"{rest_hours:02d}:{rest_minutes:02d}:{rest_seconds:02d}"
-        self.Ui.lineEdit_rest_time.setText(rest_time_str)
         # 换算（秒）
         Flags.rest_time_convert = int(rest_time.total_seconds())
 
-        # 循环任务间隔时间 - 转换 timedelta 为字符串格式
         timed_interval = manager.config.timed_interval
-        timed_hours = timed_interval.seconds // 3600
-        timed_minutes = (timed_interval.seconds % 3600) // 60
-        timed_seconds = timed_interval.seconds % 60
-        timed_interval_str = f"{timed_hours:02d}:{timed_minutes:02d}:{timed_seconds:02d}"
-        self.Ui.lineEdit_timed_interval.setText(timed_interval_str)
         # 换算（毫秒）
         timed_interval_convert = timed_interval.total_seconds() * 1000
         self.timer_scrape.stop()

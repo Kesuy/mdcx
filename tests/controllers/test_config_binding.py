@@ -1,7 +1,10 @@
 # ruff: noqa: E402
 
 import os
+from datetime import timedelta
 from types import SimpleNamespace
+
+import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -9,6 +12,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, QSlider, QTextEdit
 
 from mdcx.controllers.main_window.config_binding import ConfigBinder, SettingBinding
+from mdcx.controllers.main_window.settings_page import format_duration, parse_duration
 
 APP = QApplication.instance() or QApplication([])
 
@@ -81,3 +85,13 @@ def test_config_binder_supports_multiline_text_and_collection_formatters():
     binder.save(config)
     assert config.prompt == "更新后的提示词"
     assert config.extensions == [".avi", ".wmv"]
+
+
+def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():
+    assert parse_duration("12:34:56") == timedelta(hours=12, minutes=34, seconds=56)
+    assert format_duration(timedelta(hours=1, minutes=2, seconds=3)) == "01:02:03"
+
+    with pytest.raises(ValueError, match="无效时间"):
+        parse_duration("12:99:00")
+    with pytest.raises(ValueError, match="无效时间"):
+        parse_duration("1:02:03")

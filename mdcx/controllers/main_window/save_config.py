@@ -2,7 +2,6 @@ import platform
 import re
 import traceback
 from contextlib import suppress
-from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from pydantic import HttpUrl, ValidationError
@@ -545,20 +544,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region other
-    rest_time_text = self.Ui.lineEdit_rest_time.text()  # 格式: HH:MM:SS
-    if re.match(r"^\d{2}:\d{2}:\d{2}$", rest_time_text):
-        h, m, s = map(int, rest_time_text.split(":"))
-        manager.config.rest_time = timedelta(hours=h, minutes=m, seconds=s)
-    else:
-        manager.config.rest_time = timedelta(minutes=1, seconds=2)  # 默认值
-
-    timed_interval_text = self.Ui.lineEdit_timed_interval.text()  # 格式: HH:MM:SS
-    if re.match(r"^\d{2}:\d{2}:\d{2}$", timed_interval_text):
-        h, m, s = map(int, timed_interval_text.split(":"))
-        manager.config.timed_interval = timedelta(hours=h, minutes=m, seconds=s)
-    else:
-        manager.config.timed_interval = timedelta(minutes=30)  # 默认值
-
     # 开关汇总和其他设置
     show_logs_value = not self.Ui.textBrowser_log_main_2.isHidden()
     switch_actions = get_checkboxes(
