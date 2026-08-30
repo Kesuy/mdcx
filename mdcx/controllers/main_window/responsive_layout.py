@@ -27,9 +27,9 @@ if TYPE_CHECKING:
 
 BASE_WINDOW_WIDTH = 1089
 BASE_WINDOW_HEIGHT = 700
-MIN_WINDOW_WIDTH = 880
-MIN_WINDOW_HEIGHT = 650
-NARROW_BREAKPOINT = 940
+MIN_WINDOW_WIDTH = 960
+MIN_WINDOW_HEIGHT = 680
+NARROW_BREAKPOINT = 1020
 STACKED_LEFT = 210
 STACKED_TOP = 6
 STACKED_RIGHT_MARGIN = 59
@@ -44,6 +44,9 @@ IMAGE_MAX_HEIGHT = 280
 POSTER_ASPECT_WIDTH = 156
 THUMB_ASPECT_WIDTH = 328
 IMAGE_ASPECT_HEIGHT = 220
+PAGE_BOTTOM_MARGIN = 8
+NETWORK_FORM_MAX_WIDTH = 860
+TOOL_FORM_MAX_WIDTH = 920
 
 
 @dataclass(frozen=True)
@@ -144,7 +147,7 @@ def _sync_shell_sidebar(window: "MyMAinWindow") -> None:
     splitter = window._shell_splitter
     sidebar_width = ui.widget_setting.width()
     content_width = max(1, splitter.width() - sidebar_width)
-    bottom_margin = 8
+    bottom_margin = PAGE_BOTTOM_MARGIN
     footer_bottom = max(0, splitter.height() - bottom_margin)
     _set_geometry(ui.left_backgroud_widget, 0, 0, sidebar_width, splitter.height())
     _set_geometry(ui.label_show_version, 0, max(0, footer_bottom - 201), sidebar_width, 201)
@@ -261,7 +264,7 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
 
     ui = window.Ui
     page_layout = QVBoxLayout(ui.page_main)
-    page_layout.setContentsMargins(18, 8, 10, 8)
+    page_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     page_layout.setSpacing(6)
 
     window._main_top_bar, top_layout = _make_container(ui.page_main, "main_top_bar", QHBoxLayout)
@@ -474,12 +477,25 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
             content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
             for section in layout_sections:
                 section.setMinimumHeight(section.height())
-                section.setMaximumWidth(16777215)
+                is_network_section = content is ui.scrollAreaWidgetContents_wangluo
+                section.setMaximumWidth(NETWORK_FORM_MAX_WIDTH if is_network_section else 16777215)
                 section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                content_layout.addWidget(section)
+                if is_network_section:
+                    content_layout.addWidget(section, 0, Qt.AlignmentFlag.AlignHCenter)
+                else:
+                    content_layout.addWidget(section)
             content_layout.addStretch(1)
             scroll_area.setWidgetResizable(True)
-            scroll_metrics.append(("layout", holder_metrics))
+            scroll_metrics.append(
+                (
+                    "layout",
+                    scroll_area,
+                    content,
+                    groups,
+                    holder_metrics,
+                    content is ui.scrollAreaWidgetContents_wangluo,
+                )
+            )
         else:
             group_metrics = []
             for group in groups:
@@ -499,7 +515,15 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
 def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
     for metrics in getattr(window, "_settings_scroll_metrics", ()):
         if metrics[0] == "layout":
-            for group, holder, holder_right_margin in metrics[1]:
+            _, scroll_area, content, groups, holder_metrics, is_network_content = metrics
+            if is_network_content:
+                available_width = max(1, min(NETWORK_FORM_MAX_WIDTH, scroll_area.viewport().width() - 58))
+                for group in groups:
+                    group.setMinimumWidth(available_width)
+                    group.setMaximumWidth(NETWORK_FORM_MAX_WIDTH)
+                if content.layout() is not None:
+                    content.layout().activate()
+            for group, holder, holder_right_margin in holder_metrics:
                 holder.resize(
                     max(1, group.width() - holder.x() - holder_right_margin),
                     holder.height(),
@@ -546,8 +570,9 @@ def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
             group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
             continue
+        group.setMaximumWidth(TOOL_FORM_MAX_WIDTH)
         group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        content_layout.addWidget(group)
+        content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
     content_layout.addStretch(1)
     window._tool_scroll_metrics = (scroll_area, content, groups)
 
@@ -557,8 +582,16 @@ def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
     if metrics is None:
         return
 
-    scroll_area, content, _groups = metrics
+    scroll_area, content, groups = metrics
     content.setMinimumWidth(max(1, scroll_area.viewport().width()))
+    available_width = max(1, min(TOOL_FORM_MAX_WIDTH, scroll_area.viewport().width() - 24))
+    for group in groups:
+        if group.layout() is None:
+            continue
+        group.setMinimumWidth(available_width)
+        group.setMaximumWidth(TOOL_FORM_MAX_WIDTH)
+    if content.layout() is not None:
+        content.layout().activate()
 
 
 def _setup_overlay_layouts(window: "MyMAinWindow") -> None:
@@ -647,7 +680,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     ui = window.Ui
 
     log_layout = QVBoxLayout(ui.page_log)
-    log_layout.setContentsMargins(18, 8, 10, 8)
+    log_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     log_layout.setSpacing(6)
     log_toolbar, log_toolbar_layout = _make_container(ui.page_log, "log_toolbar", QHBoxLayout)
     log_toolbar_layout.addStretch(1)
@@ -672,7 +705,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     log_layout.addWidget(log_footer)
 
     net_layout = QVBoxLayout(ui.page_net)
-    net_layout.setContentsMargins(18, 8, 10, 8)
+    net_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     net_layout.setSpacing(6)
     net_toolbar, net_toolbar_layout = _make_container(ui.page_net, "network_toolbar", QHBoxLayout)
     net_toolbar_layout.addStretch(1)
@@ -682,12 +715,12 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     net_layout.addWidget(ui.textBrowser_net_main, 1)
 
     tool_layout = QVBoxLayout(ui.page_tool)
-    tool_layout.setContentsMargins(10, 0, 8, 8)
+    tool_layout.setContentsMargins(10, 8, 8, PAGE_BOTTOM_MARGIN)
     tool_layout.addWidget(ui.scrollArea_10)
     _setup_tool_scroll_area(window)
 
     settings_layout = QVBoxLayout(ui.page_setting)
-    settings_layout.setContentsMargins(18, 8, 10, 8)
+    settings_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     settings_layout.setSpacing(6)
     settings_layout.addWidget(ui.tabWidget, 1)
     if hasattr(window, "settings_controller"):
@@ -712,7 +745,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     window._settings_page_layout_ready = True
 
     about_layout = QVBoxLayout(ui.page_about)
-    about_layout.setContentsMargins(18, 8, 10, 8)
+    about_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     ui.textBrowser_about.setFont(ui.textBrowser_log_main.font())
     about_layout.addWidget(ui.textBrowser_about)
 
@@ -721,6 +754,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
 
 def setup_responsive_ui(window: "MyMAinWindow") -> None:
     window.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    window.resize(max(window.width(), MIN_WINDOW_WIDTH), max(window.height(), MIN_WINDOW_HEIGHT))
     window.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     tree = window.Ui.treeWidget_number

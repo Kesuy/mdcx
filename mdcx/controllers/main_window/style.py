@@ -1,7 +1,14 @@
 from typing import TYPE_CHECKING
 
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
+    QLineEdit,
+    QPlainTextEdit,
+    QTextEdit,
+)
 
 from mdcx.config.resources import resources
 
@@ -446,6 +453,25 @@ def build_about_page_style(dark: bool) -> str:
     """
 
 
+def _normalize_form_control_radius(self: "MyMAinWindow") -> None:
+    """Use one rounded-rectangle radius even for generated inline QSS."""
+    selector_types = (
+        (QLineEdit, "QLineEdit"),
+        (QComboBox, "QComboBox"),
+        (QAbstractSpinBox, "QAbstractSpinBox"),
+        (QPlainTextEdit, "QPlainTextEdit"),
+        (QTextEdit, "QTextEdit"),
+    )
+    for widget_type, selector in selector_types:
+        for widget in self.findChildren(widget_type):
+            base_style = widget.property("mdcxBaseFormControlStyle")
+            if base_style is None:
+                base_style = widget.styleSheet()
+                widget.setProperty("mdcxBaseFormControlStyle", base_style)
+            widget.setStyleSheet(f"{base_style}\n{selector} {{ border-radius: 8px; }}")
+            widget.setProperty("mdcxControlRadius", 8)
+
+
 def _apply_dynamic_semantic_styles(self: "MyMAinWindow", dark: bool) -> None:
     preview = getattr(self.Ui, "label_name_template_preview_result", None)
     if preview is not None:
@@ -497,6 +523,7 @@ def set_style(self: "MyMAinWindow"):
     _apply_dynamic_semantic_styles(self, False)
     _apply_log_document_style(self, False)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
+    _normalize_form_control_radius(self)
 
     self.Ui.widget_setting.setStyleSheet(build_sidebar_style(False, self.window_radius))
     self.Ui.page_main.setStyleSheet(build_main_page_style(False))
@@ -891,6 +918,7 @@ def set_dark_style(self: "MyMAinWindow"):
     _apply_dynamic_semantic_styles(self, True)
     _apply_log_document_style(self, True)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(True))
+    _normalize_form_control_radius(self)
 
     self.Ui.widget_setting.setStyleSheet(build_sidebar_style(True, self.window_radius))
     self.Ui.page_main.setStyleSheet(build_main_page_style(True))

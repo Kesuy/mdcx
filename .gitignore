@@ -58,6 +58,7 @@ coverage.xml
 .pytest_cache/
 .pytest-tmp/
 .pytest-cache/
+.test-cache/
 .uv-cache/
 cover/
 

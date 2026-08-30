@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
@@ -70,6 +72,48 @@ def test_build_and_bump_tools_support_semantic_versions(tmp_path, monkeypatch):
     assert bump.get_current_version() == "3.0"
     bump.update_version("3.1")
     assert consts.read_text(encoding="utf-8") == 'LOCAL_VERSION = "3.1"\n'
+
+
+def test_windows_version_info_contains_complete_synchronized_details():
+    from scripts import build
+
+    content = build.build_windows_version_info("MDCx", "4.0.5", year=2026)
+
+    assert build.windows_version_tuple("4.0.5") == (4, 0, 5, 0)
+    assert "filevers=(4, 0, 5, 0)" in content
+    assert "prodvers=(4, 0, 5, 0)" in content
+    assert "StringStruct('FileDescription', 'MDCx 媒体元数据刮削工具')" in content
+    assert "StringStruct('FileVersion', '4.0.5')" in content
+    assert "StringStruct('ProductVersion', '4.0.5')" in content
+    assert "StringStruct('ProductName', 'MDCx')" in content
+    assert "StringStruct('OriginalFilename', 'MDCx.exe')" in content
+    assert "Copyright © 2026 MDCx contributors" in content
+    assert "VarStruct('Translation', [2052, 1200])" in content
+
+
+def test_windows_version_tuple_keeps_legacy_release_dates_supported():
+    from scripts import build
+
+    assert build.windows_version_tuple("220260801") == (2026, 8, 1, 0)
+    assert build.windows_version_tuple("220260801.2") == (2026, 8, 1, 2)
+
+
+def test_windows_build_spec_always_receives_generated_version_file(tmp_path, monkeypatch):
+    from scripts import build
+
+    monkeypatch.chdir(tmp_path)
+    manager = build.BuildManager("MDCx", "4.0.5", create_dmg=False, debug=True)
+    manager.is_windows = True
+    captured = []
+    monkeypatch.setattr(manager, "_run_command", lambda args, *_args: captured.append(args))
+
+    manager._generate_spec()
+
+    command = captured[0]
+    version_index = command.index("--version-file")
+    version_file = Path(command[version_index + 1])
+    assert version_file == Path("build/windows-version-info.txt")
+    assert "ProductVersion', '4.0.5" in version_file.read_text(encoding="utf-8")
 
 
 def test_build_and_bump_read_and_replace_unquoted_legacy_version(tmp_path, monkeypatch):

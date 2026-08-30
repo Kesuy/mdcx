@@ -90,3 +90,25 @@ def test_nfo_help_button_is_part_of_the_first_field_row():
 
     assert window.Ui.pushButton_field_tips_nfo.parentWidget() is window.Ui.layoutWidget_10
     assert window.Ui.horizontalLayout_135.indexOf(window.Ui.pushButton_field_tips_nfo) >= 0
+
+
+def test_disabled_clean_size_rule_does_not_require_a_value():
+    window, controller = _controller()
+    window.Ui.checkBox_clean_file_size.setChecked(False)
+    window.Ui.lineEdit_clean_file_size.clear()
+
+    errors = controller.validate()
+
+    assert "lineEdit_clean_file_size" not in errors
+    assert not window.Ui.lineEdit_clean_file_size.isEnabled()
+
+
+def test_enabled_clean_size_rule_requires_a_valid_non_negative_number():
+    window, controller = _controller()
+    window.Ui.checkBox_clean_file_size.setChecked(True)
+    window.Ui.lineEdit_clean_file_size.clear()
+
+    errors = controller.validate()
+
+    assert "lineEdit_clean_file_size" in errors
+    assert window.Ui.lineEdit_clean_file_size.property("validationError") is True

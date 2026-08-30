@@ -373,6 +373,15 @@ class ResultTreeView(QTreeView):
         source_index = self.source_model.index_for_item(item)
         return self.proxy_model.mapFromSource(source_index)
 
+    def itemFromIndex(self, index: QModelIndex) -> ResultTreeItem | None:
+        """Resolve the exact clicked proxy index to its source result node."""
+
+        if not index.isValid():
+            return None
+        source_index = self.proxy_model.mapToSource(index)
+        item = self.source_model.item_from_index(source_index)
+        return item if item is not self.source_model.root else None
+
     def setItemSelected(self, item: ResultTreeItem, selected: bool) -> None:
         index = self.indexFromItem(item)
         if not index.isValid():

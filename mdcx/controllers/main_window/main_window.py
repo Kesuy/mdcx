@@ -1003,9 +1003,15 @@ class MyMAinWindow(QMainWindow):
     def pushButton_tool_clicked(self):
         self.Ui.stackedWidget.setCurrentIndex(3)
         self._apply_sidebar_selection(self.Ui.pushButton_tool)
-        scroll_bar = self.Ui.scrollArea_10.verticalScrollBar()
+        self._reset_tool_scroll_position()
+        QTimer.singleShot(0, self._reset_tool_scroll_position)
+        QTimer.singleShot(50, self._reset_tool_scroll_position)
+
+    def _reset_tool_scroll_position(self):
+        scroll_area = self.Ui.scrollArea_10
+        scroll_bar = scroll_area.verticalScrollBar()
         scroll_bar.setValue(scroll_bar.minimum())
-        QTimer.singleShot(0, lambda: scroll_bar.setValue(scroll_bar.minimum()))
+        scroll_area.ensureVisible(0, 0, 0, 0)
 
     # 点左侧的设置按钮
     def pushButton_setting_clicked(self):
@@ -1554,6 +1560,28 @@ class MyMAinWindow(QMainWindow):
             self._clear_main_info_panel()
 
     # 主界面-点击树状条目
+    def _show_result_item(self, item: ResultItem | None) -> bool:
+        if item is None or item.text(0) in {"成功", "失败"}:
+            return False
+        show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(str(item.text(0)))
+        if show_data is None:
+            return False
+        self.set_main_info(show_data)
+        if not self.Ui.widget_nfo.isHidden():
+            self._show_nfo_info()
+        return True
+
+    def treeWidget_number_index_clicked(self, index) -> None:
+        """Show the node represented by the actual mouse-clicked model index."""
+
+        item_from_index = getattr(self.Ui.treeWidget_number, "itemFromIndex", None)
+        item = item_from_index(index) if callable(item_from_index) else None
+        try:
+            self._show_result_item(item)
+        except Exception:
+            item_text = item.text(0) if item is not None else "未知条目"
+            signal_qt.show_traceback_log(item_text + ": No info!")
+
     def treeWidget_number_clicked(self, *_args):
         selected_items = self._get_selected_result_items()
         if len(selected_items) != 1:
@@ -1563,10 +1591,7 @@ class MyMAinWindow(QMainWindow):
 
         item = selected_items[0]
         try:
-            show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array[str(item.text(0))]
-            self.set_main_info(show_data)
-            if not self.Ui.widget_nfo.isHidden():
-                self._show_nfo_info()
+            self._show_result_item(item)
         except Exception:
             signal_qt.show_traceback_log(item.text(0) + ": No info!")
 

@@ -25,6 +25,8 @@ from mdcx.controllers.main_window.responsive_layout import (
     BASE_WINDOW_WIDTH,
     MIN_WINDOW_HEIGHT,
     MIN_WINDOW_WIDTH,
+    NETWORK_FORM_MAX_WIDTH,
+    TOOL_FORM_MAX_WIDTH,
     apply_responsive_layout,
     calculate_layout_metrics,
     setup_responsive_ui,
@@ -49,9 +51,9 @@ def test_layout_metrics_preserve_designer_baseline_and_fix_result_clipping():
 def test_layout_metrics_keep_usable_result_panel_at_minimum_window_size():
     metrics = calculate_layout_metrics(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
-    assert (metrics.stacked_width, metrics.stacked_height) == (611, 642)
+    assert (metrics.stacked_width, metrics.stacked_height) == (691, 672)
     assert metrics.result_width == 160
-    assert metrics.result_height == 483
+    assert metrics.result_height == 513
     assert metrics.result_x + metrics.result_width <= metrics.stacked_width
 
 
@@ -196,7 +198,7 @@ def test_tool_page_groups_use_page_owned_layouts_instead_of_fixed_geometry():
         window.Ui.groupBox_21,
     ):
         assert group.layout() is not None
-        assert group.maximumWidth() == 16777215
+        assert group.maximumWidth() == TOOL_FORM_MAX_WIDTH
         assert group.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding
 
     assert window.Ui.groupBox_7.layout().indexOf(window.Ui.lineEdit_single_file_path) >= 0
@@ -526,6 +528,22 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     assert website_content.layout().indexOf(window.Ui.layoutWidget2) >= 0
     assert window.Ui.layoutWidget2.width() > 701
 
+    window.Ui.tabWidget.setCurrentWidget(window.Ui.tab3)
+    window.Ui.plainTextEdit_cookie_javdb.setPlainText("session=" + "x" * 4000)
+    network_scroll = window.Ui.scrollArea_3
+    network_scroll.verticalScrollBar().setValue(network_scroll.verticalScrollBar().maximum())
+    APP.processEvents()
+    network_scroll.verticalScrollBar().setValue(network_scroll.verticalScrollBar().minimum())
+    APP.processEvents()
+    APP.processEvents()
+
+    network_content = window.Ui.scrollAreaWidgetContents_wangluo
+    expected_network_width = min(NETWORK_FORM_MAX_WIDTH, network_scroll.viewport().width() - 58)
+    for group in (window.Ui.groupBox_10, window.Ui.groupBox_28, window.Ui.groupBox_44, window.Ui.groupBox_14):
+        assert group.maximumWidth() == NETWORK_FORM_MAX_WIDTH
+        assert group.width() == expected_network_width
+        assert abs(group.geometry().center().x() - network_content.rect().center().x()) <= 1
+
     assert all(metrics[0] == "layout" for metrics in window._settings_scroll_metrics)
 
     assert window.Ui.comboBox_change_config.size().width() == 151
@@ -563,7 +581,7 @@ def test_tool_page_expands_layout_managed_forms_and_keeps_scrollbar_at_right():
         window.Ui.groupBox_21,
     )
     for group in groups:
-        assert group.width() == content.width() - 24
+        assert group.width() == TOOL_FORM_MAX_WIDTH
         assert group.layout() is not None
         assert abs(group.geometry().center().x() - content.rect().center().x()) <= 1
         visible_children = [child for child in group.children() if isinstance(child, QWidget) and child.isVisible()]
@@ -572,6 +590,34 @@ def test_tool_page_expands_layout_managed_forms_and_keeps_scrollbar_at_right():
     scrollbar_x = scroll_area.verticalScrollBar().mapTo(window.Ui.page_tool, QPoint()).x()
     assert scrollbar_x >= window.Ui.page_tool.width() - 30
     assert window.Ui.page_tool.layout().contentsMargins().bottom() == 8
+    window.close()
+
+
+def test_tool_page_reopens_at_top_and_form_controls_share_one_radius():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.dark_mode = False
+    window.window_radius = 0
+    window.window_border = 0
+    set_style(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_tool)
+    window.resize(1200, 720)
+    window.show()
+    APP.processEvents()
+
+    scroll_bar = window.Ui.scrollArea_10.verticalScrollBar()
+    scroll_bar.setValue(scroll_bar.maximum())
+    assert scroll_bar.value() > scroll_bar.minimum()
+    MyMAinWindow._reset_tool_scroll_position(window)
+    assert scroll_bar.value() == scroll_bar.minimum()
+
+    for control in (
+        window.Ui.lineEdit_single_file_path,
+        window.result_sort_combo,
+        window.Ui.plainTextEdit_cookie_javdb,
+    ):
+        assert control.property("mdcxControlRadius") == 8
+        assert "border-radius: 8px" in control.styleSheet()
     window.close()
 
 

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -38,6 +39,9 @@ EXCLUDED_MODULES = [
     "typer",
     "imageio_ffmpeg",
 ]
+WINDOWS_FILE_DESCRIPTION = "MDCx 媒体元数据刮削工具"
+WINDOWS_COMPANY_NAME = "MDCx contributors"
+WINDOWS_PROJECT_URL = "https://github.com/Kesuy/mdcx"
 
 
 class BuildError(Exception): ...
@@ -61,6 +65,62 @@ def get_version_from_config() -> str:
         raise BuildError("无法从代码中获取版本号")
     except Exception as e:
         raise BuildError("获取版本号失败") from e
+
+
+def windows_version_tuple(version: str) -> tuple[int, int, int, int]:
+    """Convert the single source version into the four-part PE version."""
+    validate_build_version(version)
+    base, _, legacy_suffix = version.partition(".")
+    if base.startswith("220") and len(base) == 9:
+        parts = [2000 + int(base[3:5]), int(base[5:7]), int(base[7:9]), int(legacy_suffix or 0)]
+    else:
+        parts = [int(part) for part in version.split(".")]
+        parts = (parts + [0, 0, 0, 0])[:4]
+    if any(part < 0 or part > 65535 for part in parts):
+        raise BuildError(f"Windows 文件版本分量必须在 0~65535 之间: {version}")
+    return tuple(parts)
+
+
+def build_windows_version_info(app_name: str, app_version: str, *, year: int | None = None) -> str:
+    """Generate the complete Windows Details-tab metadata from LOCAL_VERSION."""
+    version_tuple = windows_version_tuple(app_version)
+    copyright_year = year or datetime.now().year
+    strings = {
+        "Comments": WINDOWS_PROJECT_URL,
+        "CompanyName": WINDOWS_COMPANY_NAME,
+        "FileDescription": WINDOWS_FILE_DESCRIPTION,
+        "FileVersion": app_version,
+        "InternalName": app_name,
+        "LegalCopyright": f"Copyright © {copyright_year} {WINDOWS_COMPANY_NAME}",
+        "OriginalFilename": f"{app_name}.exe",
+        "ProductName": app_name,
+        "ProductVersion": app_version,
+    }
+    string_structs = "\n".join(f"        StringStruct({key!r}, {value!r})," for key, value in strings.items())
+    return f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '080404b0',
+        [
+{string_structs}
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [2052, 1200])])
+  ]
+)
+"""
 
 
 class BuildManager:
@@ -141,6 +201,7 @@ class BuildManager:
     def _generate_spec(self):
         """生成.spec文件"""
         logger.info("生成 .spec 文件...")
+        windows_version_file = self._write_windows_version_file() if self.is_windows else None
         cmd = [
             sys.executable,
             "-m",
@@ -158,6 +219,7 @@ class BuildManager:
             "resources:resources",
             "--icon",
             "resources/Img/MDCx.icns",
+            *(["--version-file", str(windows_version_file)] if windows_version_file else []),
             "--hidden-import",
             "_cffi_backend",
             "--collect-all",
@@ -165,6 +227,16 @@ class BuildManager:
             *[item for module in EXCLUDED_MODULES for item in ("--exclude-module", module)],
         ]
         self._run_command(cmd, "生成 .spec 文件完成", "spec 文件生成失败")
+
+    def _write_windows_version_file(self) -> Path:
+        version_file = Path("build/windows-version-info.txt")
+        version_file.parent.mkdir(parents=True, exist_ok=True)
+        version_file.write_text(
+            build_windows_version_info(self.app_name, self.app_version),
+            encoding="utf-8",
+        )
+        logger.info(f"生成 Windows 文件属性: {version_file}")
+        return version_file
 
     def _modify_spec(self):
         """Apply deterministic platform-specific fixes to the generated spec."""
@@ -240,7 +312,30 @@ class BuildManager:
             if app_path.is_file():
                 app_size = app_path.stat().st_size
                 logger.info(f"大小: {app_size / 1024 / 1024:.1f} MB")
+        if self.is_windows:
+            self._validate_windows_version_metadata(app_path)
         self._smoke_test_app(app_path)
+
+    def _validate_windows_version_metadata(self, app_path: Path) -> None:
+        """Reject builds whose PE Details metadata is absent or stale."""
+        try:
+            from PyInstaller.utils.win32.versioninfo import read_version_info_from_executable
+
+            info = read_version_info_from_executable(str(app_path))
+            serialized = str(info)
+        except Exception as error:
+            raise BuildError(f"无法读取 Windows 文件属性: {error}") from error
+        expected_values = (
+            WINDOWS_FILE_DESCRIPTION,
+            self.app_name,
+            self.app_version,
+            WINDOWS_COMPANY_NAME,
+            f"{self.app_name}.exe",
+        )
+        missing = [value for value in expected_values if value not in serialized]
+        if info is None or missing:
+            raise BuildError(f"Windows 文件属性缺失或未同步: {', '.join(missing) or '版本资源'}")
+        logger.info("Windows 文件属性与应用版本同步验证通过")
 
     def _smoke_test_app(self, app_path: Path):
         """Launch the frozen startup path and reject unusable artifacts."""

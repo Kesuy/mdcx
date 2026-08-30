@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from mdcx.config.enums import FixedScrapingType, Language, Website
+from mdcx.config.enums import DownloadableFile, FixedScrapingType, Language, Website
 from mdcx.config.models import Config, FieldConfig, FieldPriorityConfig
 from mdcx.core.file_crawler import (
     FileScraper,
@@ -597,6 +597,71 @@ async def test_fc2_field_priority_still_falls_back_for_missing_core_fields(monke
 
     assert result is not None
     assert result.runtime == "61"
+    assert records == [Website.FC2PPVDB, Website.FC2]
+
+
+@pytest.mark.asyncio
+async def test_fc2_field_priority_skips_trailer_fallback_when_trailer_download_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        ManualConfig,
+        "REDUCED_FIELDS",
+        (CrawlerResultFields.TITLE, CrawlerResultFields.TRAILER),
+    )
+    records: list[Website] = []
+    fc2cmadb = _build_result(Website.FC2PPVDB)
+    fallback = _build_result(Website.FC2)
+    fallback.trailer = "https://fc2.test/trailer.mp4"
+    provider = _ResultRecordingCrawlerProvider(
+        {
+            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
+            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
+        }
+    )
+    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
+    config.download_files = [item for item in config.download_files if item != DownloadableFile.TRAILER]
+    scraper = FileScraper(config, provider)
+    task_input = CrawlTask.empty()
+    task_input.number = "FC2-1234567"
+
+    result = await scraper.run(task_input, FileMode.Default)
+
+    assert result is not None
+    assert result.title == "fc2ppvdb title"
+    assert result.trailer == ""
+    assert records == [Website.FC2PPVDB]
+
+
+@pytest.mark.asyncio
+async def test_fc2_field_priority_keeps_trailer_fallback_when_trailer_download_is_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        ManualConfig,
+        "REDUCED_FIELDS",
+        (CrawlerResultFields.TITLE, CrawlerResultFields.TRAILER),
+    )
+    records: list[Website] = []
+    fc2cmadb = _build_result(Website.FC2PPVDB)
+    fallback = _build_result(Website.FC2)
+    fallback.trailer = "https://fc2.test/trailer.mp4"
+    provider = _ResultRecordingCrawlerProvider(
+        {
+            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
+            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
+        }
+    )
+    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
+    assert DownloadableFile.TRAILER in config.download_files
+    scraper = FileScraper(config, provider)
+    task_input = CrawlTask.empty()
+    task_input.number = "FC2-1234567"
+
+    result = await scraper.run(task_input, FileMode.Default)
+
+    assert result is not None
+    assert result.trailer == "https://fc2.test/trailer.mp4"
     assert records == [Website.FC2PPVDB, Website.FC2]
 
 

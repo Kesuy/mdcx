@@ -112,6 +112,8 @@ def test_clicking_each_result_displays_that_items_bound_data():
     class Harness:
         _addTreeChild = MyMAinWindow._addTreeChild
         _get_selected_result_items = MyMAinWindow._get_selected_result_items
+        _show_result_item = MyMAinWindow._show_result_item
+        treeWidget_number_index_clicked = MyMAinWindow.treeWidget_number_index_clicked
         treeWidget_number_clicked = MyMAinWindow.treeWidget_number_clicked
 
     harness = Harness()
@@ -135,3 +137,11 @@ def test_clicking_each_result_displays_that_items_bound_data():
         item.setSelected(True)
         harness.treeWidget_number_clicked()
         assert shown[-1] is expected
+
+    # The clicked index is authoritative even if a stale selection still points
+    # at a different row during proxy-model sorting/reset activity.
+    harness.Ui.treeWidget_number.clearSelection()
+    harness.item_succ.child(0).setSelected(True)
+    second_index = harness.Ui.treeWidget_number.indexFromItem(harness.item_succ.child(1))
+    harness.treeWidget_number_index_clicked(second_index)
+    assert shown[-1] is second

@@ -125,7 +125,11 @@ class SettingsPageController:
                     parser=lambda value: str_to_list(value, "|"),
                     formatter="|".join,
                 ),
-                SettingBinding("lineEdit_clean_file_size", "clean_size", parser=float),
+                SettingBinding(
+                    "lineEdit_clean_file_size",
+                    "clean_size",
+                    parser=lambda value: float(value) if str(value).strip() else 0.0,
+                ),
                 SettingBinding(
                     "lineEdit_clean_excluded_file_ext",
                     "clean_ignore_ext",
@@ -599,6 +603,8 @@ class SettingsPageController:
             validator.setNotation(QDoubleValidator.Notation.StandardNotation)
             widget.setValidator(validator)
             self._numeric_widgets.append(widget)
+        self.ui.checkBox_clean_file_size.toggled.connect(self._sync_clean_file_size_state)
+        self._sync_clean_file_size_state(self.ui.checkBox_clean_file_size.isChecked())
         for name, maximum in (
             ("lineEdit_folder_name_max", 10_000),
             ("lineEdit_file_name_max", 10_000),
@@ -667,9 +673,17 @@ class SettingsPageController:
             label.setText(message)
             label.setVisible(has_error)
 
+    def _sync_clean_file_size_state(self, enabled: bool) -> None:
+        self.ui.lineEdit_clean_file_size.setEnabled(enabled)
+        if not enabled:
+            self._set_validation_error(self.ui.lineEdit_clean_file_size)
+
     def validate(self) -> list[str]:
         errors = []
         for widget in self._numeric_widgets:
+            if widget is self.ui.lineEdit_clean_file_size and not self.ui.checkBox_clean_file_size.isChecked():
+                self._set_validation_error(widget)
+                continue
             acceptable = widget.hasAcceptableInput() and bool(widget.text().strip())
             if not acceptable:
                 self._set_validation_error(widget, "请输入有效的非负数字")

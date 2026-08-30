@@ -14,6 +14,12 @@ uv run --locked python scripts/build.py --version 4.0.0
 
 `scripts/build.py` 不以“PyInstaller 返回 0”作为最终成功条件。打包后它会启动真实冻结产物并传入 `--smoke-test`，检查 Qt DLL、PyQt6 模块和 MDCx 启动导入树；返回非零、无法启动或 45 秒超时都会使构建失败。这个检查必须保留在本地构建和 Release CI 中。
 
+## Windows EXE“详细信息”必须同步
+
+Windows 文件属性不是手工维护文件。`scripts/build.py` 每次打包都会从 `mdcx/consts.py` 的 `LOCAL_VERSION` 生成 PE 版本资源，写入文件说明、产品名称、文件版本、产品版本、版权、内部名称、原始文件名、项目地址和简体中文语言。
+
+构建结束后脚本会重新读取 `dist/MDCx.exe` 的版本资源，核对应用名、版本、文件说明、版权主体和原始文件名。任何字段缺失或版本未同步都会使构建失败。因此以后升级只修改唯一版本源并使用标准构建脚本，禁止直接运行 PyInstaller 或手工维护另一个版本文件。
+
 ## `ImportError: DLL load failed while importing QtCore`
 
 ### 已确认的根因
@@ -46,9 +52,11 @@ MDCx 的约束如下：
 
 ## Windows pytest 临时目录
 
-pytest 由 `tests/conftest.py` 为每个进程创建独立的系统临时目录并在退出时清理，项目内只持久化 `.pytest-cache`。不要固定复用同一个 `--basetemp`：测试进程、杀毒软件或异常退出可能让旧目录保留句柄或异常 ACL，导致后续测试在 fixture 初始化阶段报 `PermissionError`。
+pytest 由 `tests/conftest.py` 为每个进程创建独立的系统临时目录并在退出时清理，项目内只持久化可随时重建的 `.test-cache`。不要固定复用同一个 `--basetemp`，也不要重新指向历史 `.pytest-cache`：测试进程、杀毒软件或异常退出可能让旧目录保留句柄或异常 ACL，导致后续测试在 fixture 初始化阶段报 `PermissionError`。
 
 Qt 测试的 `QT_QPA_PLATFORM=offscreen`、离线模型模式和测试 FFmpeg 路径都由 `tests/conftest.py` 自动配置。日常执行无需管理员权限、Developer Mode、symlink 或系统 FFmpeg。
+
+首次检出或依赖变更后执行 `uv sync --frozen` 创建项目内 `.venv`；后续统一使用该环境运行测试和构建。`uv.toml` 将下载缓存固定到项目内 `.uv-cache`，环境和缓存均可持久复用，避免临时 Python 环境消失后跳过测试。
 
 ## 发布前检查表
 
@@ -57,5 +65,6 @@ Qt 测试的 `QT_QPA_PLATFORM=offscreen`、离线模型模式和测试 FFmpeg �
 - EXE 可在未安装 Python 的 Windows 机器启动。
 - 归档中没有第三方 `icuuc.dll`、`icudt*.dll` 或测试 FFmpeg。
 - 版本号来自 `mdcx/consts.py`，与产物文件名和发布标签一致。
+- EXE 属性页包含文件说明、产品名、文件/产品版本、版权和语言，且构建日志包含“Windows 文件属性与应用版本同步验证通过”。
 - 工作流不得引用声明 `node20` 的 JavaScript action；升级 action 后先确认其 `runs.using` 为 `node24`。
 - 发布资产使用 GitHub CLI 上传；不要重新引入尚未迁移到 Node 24 的旧上传 action。

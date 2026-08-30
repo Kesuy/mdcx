@@ -235,7 +235,9 @@ def Init_Singal(self: "MyMAinWindow"):
     # endregion
 
     # region 控件点击
-    # self.Ui.treeWidget_number.clicked.connect(self.treeWidget_number_clicked)
+    # Mouse clicks carry an exact proxy index. Resolve that node directly so a
+    # model reset/sort cannot make the details lag behind the highlighted row.
+    self.Ui.treeWidget_number.clicked.connect(self.treeWidget_number_index_clicked)
     self.Ui.treeWidget_number.selectionModel().selectionChanged.connect(self.treeWidget_number_clicked)
     self.Ui.treeWidget_number.customContextMenuRequested.connect(self._tree_result_context_menu)
     self.Ui.pushButton_close.clicked.connect(self.pushButton_close_clicked)

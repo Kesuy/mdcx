@@ -4,7 +4,7 @@ from datetime import date
 from itertools import chain
 from typing import TYPE_CHECKING
 
-from ..config.enums import FixedScrapingType
+from ..config.enums import DownloadableFile, FixedScrapingType
 from ..config.models import Language, Website
 from ..gen.field_enums import CrawlerResultFields
 from ..manual import ManualConfig
@@ -388,10 +388,14 @@ class FileScraper:
                 # 检查字段数据
                 field_value = getattr(site_data, field.value, None)
                 if not field_value:
+                    fc2cmadb_optional_empty = field in FC2CMADB_TERMINAL_EMPTY_FIELDS or (
+                        field == CrawlerResultFields.TRAILER
+                        and DownloadableFile.TRAILER not in self.config.download_files
+                    )
                     if (
                         classification.scraping_type == FixedScrapingType.FC2
                         and site == Website.FC2PPVDB
-                        and field in FC2CMADB_TERMINAL_EMPTY_FIELDS
+                        and fc2cmadb_optional_empty
                     ):
                         reduced.field_log += f"\n    🟡 {site:<15} (该来源不提供此可选字段，跳过其它 FC2 站点)"
                         break

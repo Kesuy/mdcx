@@ -33,6 +33,7 @@ def test_result_tree_model_supports_hierarchy_filter_and_selection() -> None:
     view.expandAll()
     entry.setSelected(True)
     assert view.selectedItems() == [entry]
+    assert view.itemFromIndex(view.indexFromItem(entry)) is entry
 
     entry.setHidden(True)
     assert view.proxy_model.rowCount(view.proxy_model.index(0, 0)) == 0
