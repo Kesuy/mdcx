@@ -9,14 +9,11 @@ from PyQt6.QtWidgets import QFileDialog
 
 from mdcx.config.enums import (
     CDChar,
-    DownloadableFile,
     EmbyAction,
     FieldRule,
-    KeepableFile,
     MarkType,
     NfoInclude,
     OutlineShow,
-    ReadMode,
     Switch,
     TagInclude,
     Translator,
@@ -154,16 +151,6 @@ def load_config(self: "MyMAinWindow"):
             Flags.scrape_like_text = "指定网站"
         else:
             Flags.scrape_like_text = "字段优先"
-
-        set_radio_buttons(
-            scrape_like,
-            (self.Ui.radioButton_scrape_speed, "speed"),
-            (self.Ui.radioButton_scrape_single, "single"),
-            (self.Ui.radioButton_scrape_info, "info"),
-            default=self.Ui.radioButton_scrape_info,
-        )
-        self.Ui.checkBox_field_priority_try_all_images.setChecked(manager.config.field_priority_try_all_images)
-        self.update_field_priority_try_all_images_state()
 
         # 标题字段配置
         title_field_config = manager.config.get_field_config(CrawlerResultFields.TITLE)
@@ -394,13 +381,6 @@ def load_config(self: "MyMAinWindow"):
 
         # 有nfo，是否执行更新模式
         # region read_mode
-        set_checkboxes(
-            manager.config.read_mode,
-            (self.Ui.checkBox_read_has_nfo_update, ReadMode.HAS_NFO_UPDATE),
-            (self.Ui.checkBox_read_download_file_again, ReadMode.READ_DOWNLOAD_AGAIN),
-            (self.Ui.checkBox_read_update_nfo, ReadMode.READ_UPDATE_NFO),
-            (self.Ui.checkBox_read_no_nfo_scrape, ReadMode.NO_NFO_SCRAPE),
-        )
         # endregion
 
         # 更新模式
@@ -432,41 +412,6 @@ def load_config(self: "MyMAinWindow"):
         # endregion
 
         # region file_download
-        # 下载文件
-        set_checkboxes(
-            manager.config.download_files,
-            (self.Ui.checkBox_download_poster, DownloadableFile.POSTER),
-            (self.Ui.checkBox_download_thumb, DownloadableFile.THUMB),
-            (self.Ui.checkBox_download_fanart, DownloadableFile.FANART),
-            (self.Ui.checkBox_download_extrafanart, DownloadableFile.EXTRAFANART),
-            (self.Ui.checkBox_download_trailer, DownloadableFile.TRAILER),
-            (self.Ui.checkBox_download_nfo, DownloadableFile.NFO),
-            (self.Ui.checkBox_extras, DownloadableFile.EXTRAFANART_EXTRAS),
-            (self.Ui.checkBox_download_extrafanart_copy, DownloadableFile.EXTRAFANART_COPY),
-            (self.Ui.checkBox_theme_videos, DownloadableFile.THEME_VIDEOS),
-            (self.Ui.checkBox_ignore_pic_fail, DownloadableFile.IGNORE_PIC_FAIL),
-            (self.Ui.checkBox_ignore_youma, DownloadableFile.IGNORE_YOUMA),
-            (self.Ui.checkBox_poster_auto_best, DownloadableFile.POSTER_AUTO_BEST),
-            (self.Ui.checkBox_ignore_wuma, DownloadableFile.IGNORE_WUMA),
-            (self.Ui.checkBox_ignore_oumei, DownloadableFile.IGNORE_OUMEI),
-            (self.Ui.checkBox_ignore_fc2, DownloadableFile.IGNORE_FC2),
-            (self.Ui.checkBox_ignore_guochan, DownloadableFile.IGNORE_GUOCHAN),
-            (self.Ui.checkBox_ignore_size, DownloadableFile.IGNORE_SIZE),
-        )
-        # 保留文件
-        set_checkboxes(
-            manager.config.keep_files,
-            (self.Ui.checkBox_old_poster, KeepableFile.POSTER),
-            (self.Ui.checkBox_old_thumb, KeepableFile.THUMB),
-            (self.Ui.checkBox_old_fanart, KeepableFile.FANART),
-            (self.Ui.checkBox_old_extrafanart, KeepableFile.EXTRAFANART),
-            (self.Ui.checkBox_old_trailer, KeepableFile.TRAILER),
-            (self.Ui.checkBox_old_nfo, KeepableFile.NFO),
-            (self.Ui.checkBox_old_extrafanart_copy, KeepableFile.EXTRAFANART_COPY),
-            (self.Ui.checkBox_old_theme_videos, KeepableFile.THEME_VIDEOS),
-        )
-
-        self.update_amazon_strict_pic_verify_state()
         # endregion
 
         # region Name_Rule
@@ -699,7 +644,11 @@ def load_config(self: "MyMAinWindow"):
         # endregion
 
         # region network
+        # Refresh dependent controls only after all schema-backed values have
+        # reached the UI; otherwise their enabled state can reflect stale data.
         self.settings_controller.binder.load(manager.config)
+        self.update_field_priority_try_all_images_state()
+        self.update_amazon_strict_pic_verify_state()
         self.Ui.lcdNumber_timeout.display(int(manager.config.timeout))
         self.Ui.lcdNumber_retry.display(int(manager.config.retry))
 

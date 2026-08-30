@@ -139,6 +139,33 @@ def test_multi_choice_binding_preserves_unknown_legacy_values():
     assert config.actions == ["second", "legacy-action"]
 
 
+def test_multi_choice_binding_loads_empty_selection_and_can_drop_unknown_values():
+    ui = SimpleNamespace(first=QCheckBox(), second=QCheckBox())
+    ui.first.setChecked(True)
+    ui.second.setChecked(True)
+    config = SimpleNamespace(actions=[])
+    binder = ConfigBinder(
+        ui,
+        [],
+        multi_choices=[
+            MultiChoiceBinding(
+                "actions",
+                (("first", "first"), ("second", "second")),
+                preserve_unknown=False,
+            )
+        ],
+    )
+
+    binder.load(config)
+    assert not ui.first.isChecked()
+    assert not ui.second.isChecked()
+
+    config.actions = ["legacy-action"]
+    ui.second.setChecked(True)
+    binder.save(config)
+    assert config.actions == ["second"]
+
+
 def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():
     assert parse_duration("12:34:56") == timedelta(hours=12, minutes=34, seconds=56)
     assert format_duration(timedelta(hours=1, minutes=2, seconds=3)) == "01:02:03"

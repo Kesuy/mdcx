@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from mdcx.config.enums import CleanAction, HDPicSource, NoEscape
+from mdcx.config.enums import CleanAction, DownloadableFile, HDPicSource, KeepableFile, NoEscape, ReadMode
 from mdcx.config.models import str_to_list
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 
@@ -247,6 +247,7 @@ class SettingsPageController:
                 SettingBinding("lineEdit_cf_bypass_proxy", "cf_bypass_proxy", parser=lambda value: value.strip()),
                 SettingBinding("horizontalSlider_timeout", "timeout", parser=int),
                 SettingBinding("horizontalSlider_retry", "retry", parser=int),
+                SettingBinding("checkBox_field_priority_try_all_images", "field_priority_try_all_images"),
             ],
             choices=[
                 ChoiceBinding(
@@ -284,6 +285,15 @@ class SettingsPageController:
                     (("radioButton_update_on", True), ("radioButton_update_off", False)),
                     True,
                 ),
+                ChoiceBinding(
+                    "scrape_like",
+                    (
+                        ("radioButton_scrape_speed", "speed"),
+                        ("radioButton_scrape_info", "info"),
+                        ("radioButton_scrape_single", "single"),
+                    ),
+                    "info",
+                ),
             ],
             multi_choices=[
                 MultiChoiceBinding(
@@ -314,6 +324,50 @@ class SettingsPageController:
                 MultiChoiceBinding(
                     "download_hd_pics",
                     (("checkBox_amazon_big_pic", HDPicSource.AMAZON),),
+                ),
+                MultiChoiceBinding(
+                    "read_mode",
+                    (
+                        ("checkBox_read_has_nfo_update", ReadMode.HAS_NFO_UPDATE),
+                        ("checkBox_read_no_nfo_scrape", ReadMode.NO_NFO_SCRAPE),
+                        ("checkBox_read_download_file_again", ReadMode.READ_DOWNLOAD_AGAIN),
+                        ("checkBox_read_update_nfo", ReadMode.READ_UPDATE_NFO),
+                    ),
+                ),
+                MultiChoiceBinding(
+                    "download_files",
+                    (
+                        ("checkBox_download_poster", DownloadableFile.POSTER),
+                        ("checkBox_download_thumb", DownloadableFile.THUMB),
+                        ("checkBox_download_fanart", DownloadableFile.FANART),
+                        ("checkBox_download_extrafanart", DownloadableFile.EXTRAFANART),
+                        ("checkBox_download_trailer", DownloadableFile.TRAILER),
+                        ("checkBox_download_nfo", DownloadableFile.NFO),
+                        ("checkBox_extras", DownloadableFile.EXTRAFANART_EXTRAS),
+                        ("checkBox_download_extrafanart_copy", DownloadableFile.EXTRAFANART_COPY),
+                        ("checkBox_theme_videos", DownloadableFile.THEME_VIDEOS),
+                        ("checkBox_ignore_pic_fail", DownloadableFile.IGNORE_PIC_FAIL),
+                        ("checkBox_ignore_youma", DownloadableFile.IGNORE_YOUMA),
+                        ("checkBox_poster_auto_best", DownloadableFile.POSTER_AUTO_BEST),
+                        ("checkBox_ignore_wuma", DownloadableFile.IGNORE_WUMA),
+                        ("checkBox_ignore_oumei", DownloadableFile.IGNORE_OUMEI),
+                        ("checkBox_ignore_fc2", DownloadableFile.IGNORE_FC2),
+                        ("checkBox_ignore_guochan", DownloadableFile.IGNORE_GUOCHAN),
+                        ("checkBox_ignore_size", DownloadableFile.IGNORE_SIZE),
+                    ),
+                ),
+                MultiChoiceBinding(
+                    "keep_files",
+                    (
+                        ("checkBox_old_poster", KeepableFile.POSTER),
+                        ("checkBox_old_thumb", KeepableFile.THUMB),
+                        ("checkBox_old_fanart", KeepableFile.FANART),
+                        ("checkBox_old_extrafanart", KeepableFile.EXTRAFANART),
+                        ("checkBox_old_trailer", KeepableFile.TRAILER),
+                        ("checkBox_old_nfo", KeepableFile.NFO),
+                        ("checkBox_old_extrafanart_copy", KeepableFile.EXTRAFANART_COPY),
+                        ("checkBox_old_theme_videos", KeepableFile.THEME_VIDEOS),
+                    ),
                 ),
             ],
         )

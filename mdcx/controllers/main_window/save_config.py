@@ -9,16 +9,13 @@ from PyQt6.QtCore import Qt
 
 from mdcx.config.enums import (
     CDChar,
-    DownloadableFile,
     EmbyAction,
     FieldRule,
     FixedScrapingType,
-    KeepableFile,
     Language,
     MarkType,
     NfoInclude,
     OutlineShow,
-    ReadMode,
     SuffixSort,
     Switch,
     TagInclude,
@@ -100,11 +97,6 @@ def save_config(self: "MyMAinWindow"):
     _type_values = ["auto", "youma", "wuma", "suren", "fc2", "oumei", "guochan"]
     _fixed_idx = self.Ui.comboBox_fixed_scraping_type.currentIndex()
     manager.config.fixed_scraping_type = FixedScrapingType(_type_values[_fixed_idx])
-
-    manager.config.scrape_like = get_radio_buttons(
-        (self.Ui.radioButton_scrape_speed, "speed"), (self.Ui.radioButton_scrape_info, "info"), default="single"
-    )
-    manager.config.field_priority_try_all_images = get_checkbox(self.Ui.checkBox_field_priority_try_all_images)
 
     # 标题字段配置
     title_language = get_radio_buttons(
@@ -263,12 +255,6 @@ def save_config(self: "MyMAinWindow"):
         default=1,
     )
 
-    manager.config.read_mode = get_checkboxes(
-        (self.Ui.checkBox_read_has_nfo_update, ReadMode.HAS_NFO_UPDATE),
-        (self.Ui.checkBox_read_no_nfo_scrape, ReadMode.NO_NFO_SCRAPE),
-        (self.Ui.checkBox_read_download_file_again, ReadMode.READ_DOWNLOAD_AGAIN),
-        (self.Ui.checkBox_read_update_nfo, ReadMode.READ_UPDATE_NFO),
-    )
     # update 模式设置
     if self.Ui.radioButton_update_c.isChecked():
         manager.config.update_mode = "c"
@@ -289,37 +275,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region download
-    manager.config.download_files = get_checkboxes(
-        (self.Ui.checkBox_download_poster, DownloadableFile.POSTER),
-        (self.Ui.checkBox_download_thumb, DownloadableFile.THUMB),
-        (self.Ui.checkBox_download_fanart, DownloadableFile.FANART),
-        (self.Ui.checkBox_download_extrafanart, DownloadableFile.EXTRAFANART),
-        (self.Ui.checkBox_download_trailer, DownloadableFile.TRAILER),
-        (self.Ui.checkBox_download_nfo, DownloadableFile.NFO),
-        (self.Ui.checkBox_extras, DownloadableFile.EXTRAFANART_EXTRAS),
-        (self.Ui.checkBox_download_extrafanart_copy, DownloadableFile.EXTRAFANART_COPY),
-        (self.Ui.checkBox_theme_videos, DownloadableFile.THEME_VIDEOS),
-        (self.Ui.checkBox_ignore_pic_fail, DownloadableFile.IGNORE_PIC_FAIL),
-        (self.Ui.checkBox_ignore_youma, DownloadableFile.IGNORE_YOUMA),
-        (self.Ui.checkBox_poster_auto_best, DownloadableFile.POSTER_AUTO_BEST),
-        (self.Ui.checkBox_ignore_wuma, DownloadableFile.IGNORE_WUMA),
-        (self.Ui.checkBox_ignore_oumei, DownloadableFile.IGNORE_OUMEI),
-        (self.Ui.checkBox_ignore_fc2, DownloadableFile.IGNORE_FC2),
-        (self.Ui.checkBox_ignore_guochan, DownloadableFile.IGNORE_GUOCHAN),
-        (self.Ui.checkBox_ignore_size, DownloadableFile.IGNORE_SIZE),
-    )
-
-    manager.config.keep_files = get_checkboxes(
-        (self.Ui.checkBox_old_poster, KeepableFile.POSTER),
-        (self.Ui.checkBox_old_thumb, KeepableFile.THUMB),
-        (self.Ui.checkBox_old_fanart, KeepableFile.FANART),
-        (self.Ui.checkBox_old_extrafanart, KeepableFile.EXTRAFANART),
-        (self.Ui.checkBox_old_trailer, KeepableFile.TRAILER),
-        (self.Ui.checkBox_old_nfo, KeepableFile.NFO),
-        (self.Ui.checkBox_old_extrafanart_copy, KeepableFile.EXTRAFANART_COPY),
-        (self.Ui.checkBox_old_theme_videos, KeepableFile.THEME_VIDEOS),
-    )
-
     manager.config.amazon_skip_poster_size_precheck = (
         self.Ui.checkBox_amazon_big_pic.isChecked() and self.Ui.checkBox_amazon_skip_poster_size_precheck.isChecked()
     )
