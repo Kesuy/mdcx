@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 from mdcx.config.models import str_to_list
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 
-from .config_binding import ConfigBinder, SettingBinding
+from .config_binding import ChoiceBinding, ConfigBinder, SettingBinding
 
 
 def parse_duration(value: str) -> timedelta:
@@ -231,6 +231,12 @@ class SettingsPageController:
                 SettingBinding("lineEdit_actors_name", "actors_name", parser=lambda value: value.replace("\n", "")),
                 SettingBinding("lineEdit_netdisk_path", "netdisk_path"),
                 SettingBinding("lineEdit_localdisk_path", "localdisk_path"),
+                SettingBinding(
+                    "checkBox_hide_window_title",
+                    "window_title",
+                    parser=lambda checked: "hide" if checked else "show",
+                    formatter=lambda value: value == "hide",
+                ),
                 SettingBinding("checkBox_create_link", "auto_link"),
                 SettingBinding("checkBox_use_proxy", "use_proxy"),
                 SettingBinding("lineEdit_proxy", "proxy", parser=lambda value: value.strip()),
@@ -240,6 +246,43 @@ class SettingsPageController:
                 SettingBinding("lineEdit_cf_bypass_proxy", "cf_bypass_proxy", parser=lambda value: value.strip()),
                 SettingBinding("horizontalSlider_timeout", "timeout", parser=int),
                 SettingBinding("horizontalSlider_retry", "retry", parser=int),
+            ],
+            choices=[
+                ChoiceBinding(
+                    "success_file_move",
+                    (("radioButton_succ_move_on", True), ("radioButton_succ_move_off", False)),
+                    False,
+                ),
+                ChoiceBinding(
+                    "failed_file_move",
+                    (("radioButton_fail_move_on", True), ("radioButton_fail_move_off", False)),
+                    False,
+                ),
+                ChoiceBinding(
+                    "success_file_rename",
+                    (("radioButton_succ_rename_on", True), ("radioButton_succ_rename_off", False)),
+                    False,
+                ),
+                ChoiceBinding(
+                    "del_empty_folder",
+                    (("radioButton_del_empty_folder_on", True), ("radioButton_del_empty_folder_off", False)),
+                    False,
+                ),
+                ChoiceBinding(
+                    "server_type",
+                    (("radioButton_server_emby", "emby"), ("radioButton_server_jellyfin", "jellyfin")),
+                    "emby",
+                ),
+                ChoiceBinding(
+                    "save_log",
+                    (("radioButton_log_on", True), ("radioButton_log_off", False)),
+                    True,
+                ),
+                ChoiceBinding(
+                    "update_check",
+                    (("radioButton_update_on", True), ("radioButton_update_off", False)),
+                    True,
+                ),
             ],
         )
 

@@ -308,11 +308,6 @@ def save_config(self: "MyMAinWindow"):
     else:  # 软链接关
         manager.config.soft_link = 0
 
-    # 文件操作设置
-    manager.config.success_file_move = self.Ui.radioButton_succ_move_on.isChecked()
-    manager.config.failed_file_move = self.Ui.radioButton_fail_move_on.isChecked()
-    manager.config.success_file_rename = self.Ui.radioButton_succ_rename_on.isChecked()
-    manager.config.del_empty_folder = self.Ui.radioButton_del_empty_folder_on.isChecked()
     # endregion
 
     # region download
@@ -421,7 +416,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region emby
-    manager.config.server_type = "emby" if self.Ui.radioButton_server_emby.isChecked() else "jellyfin"
     emby_url = self.Ui.lineEdit_emby_url.text()  # emby地址
     emby_url = emby_url.replace("：", ":").strip("/ ")
     if emby_url and "://" not in emby_url:
@@ -579,18 +573,6 @@ def save_config(self: "MyMAinWindow"):
 
     manager.config.switch_on = switch_actions
 
-    # 日志设置
-    manager.config.save_log = get_radio_buttons(
-        (self.Ui.radioButton_log_on, True),
-        (self.Ui.radioButton_log_off, False),
-        default=True,
-    )
-    manager.config.update_check = get_radio_buttons(
-        (self.Ui.radioButton_update_on, True),
-        (self.Ui.radioButton_update_off, False),
-        default=True,
-    )
-    manager.config.window_title = "hide" if self.Ui.checkBox_hide_window_title.isChecked() else "show"
     # endregion
 
     # 保存

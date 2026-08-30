@@ -455,34 +455,6 @@ def load_config(self: "MyMAinWindow"):
             (self.Ui.radioButton_soft_off, 0),
             default=self.Ui.radioButton_soft_off,
         )
-        # 成功后移动文件
-        set_radio_buttons(
-            manager.config.success_file_move,
-            (self.Ui.radioButton_succ_move_on, True),
-            (self.Ui.radioButton_succ_move_off, False),
-            default=self.Ui.radioButton_succ_move_off,
-        )
-        # 失败后移动文件
-        set_radio_buttons(
-            manager.config.failed_file_move,
-            (self.Ui.radioButton_fail_move_on, True),
-            (self.Ui.radioButton_fail_move_off, False),
-            default=self.Ui.radioButton_fail_move_off,
-        )
-        # 成功后重命名文件
-        set_radio_buttons(
-            manager.config.success_file_rename,
-            (self.Ui.radioButton_succ_rename_on, True),
-            (self.Ui.radioButton_succ_rename_off, False),
-            default=self.Ui.radioButton_succ_rename_off,
-        )
-        # 结束后删除空文件夹
-        set_radio_buttons(
-            manager.config.del_empty_folder,
-            (self.Ui.radioButton_del_empty_folder_on, True),
-            (self.Ui.radioButton_del_empty_folder_off, False),
-            default=self.Ui.radioButton_del_empty_folder_off,
-        )
 
         # endregion
 
@@ -624,13 +596,6 @@ def load_config(self: "MyMAinWindow"):
         # endregion
 
         # region emby
-        # 服务器类型
-        set_radio_buttons(
-            manager.config.server_type,
-            (self.Ui.radioButton_server_emby, "emby"),
-            (self.Ui.radioButton_server_jellyfin, "jellyfin"),
-            default=self.Ui.radioButton_server_emby,
-        )
         # emby地址
         self.Ui.lineEdit_emby_url.setText(str(manager.config.emby_url))
 
@@ -797,21 +762,6 @@ def load_config(self: "MyMAinWindow"):
         timed_interval_convert = timed_interval.total_seconds() * 1000
         self.timer_scrape.stop()
 
-        # 保存日志
-        set_radio_buttons(
-            manager.config.save_log,
-            (self.Ui.radioButton_log_off, False),
-            default=self.Ui.radioButton_log_on,
-        )
-        # 检查更新
-        set_radio_buttons(
-            manager.config.update_check,
-            (self.Ui.radioButton_update_off, False),
-            default=self.Ui.radioButton_update_on,
-        )
-
-        # 窗口标题栏
-        self.Ui.checkBox_hide_window_title.setChecked(manager.config.window_title == "hide")
         # endregion
 
         # region switch_on

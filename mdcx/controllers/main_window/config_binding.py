@@ -31,12 +31,25 @@ class SettingBinding:
     formatter: Callable[[Any], Any] = lambda value: value
 
 
+@dataclass(frozen=True)
+class ChoiceBinding:
+    path: str
+    choices: tuple[tuple[str, Any], ...]
+    default: Any
+
+
 class ConfigBinder:
     """Declarative two-way binding between generated Qt widgets and Config."""
 
-    def __init__(self, ui: object, bindings: list[SettingBinding]):
+    def __init__(
+        self,
+        ui: object,
+        bindings: list[SettingBinding],
+        choices: list[ChoiceBinding] | None = None,
+    ):
         self.ui = ui
         self.bindings = bindings
+        self.choices = choices or []
 
     @staticmethod
     def _read_widget(widget: object) -> Any:
@@ -69,9 +82,23 @@ class ConfigBinder:
         for binding in self.bindings:
             owner, name = _resolve(config, binding.path)
             self._write_widget(getattr(self.ui, binding.widget), binding.formatter(getattr(owner, name)))
+        for binding in self.choices:
+            owner, name = _resolve(config, binding.path)
+            value = getattr(owner, name)
+            selected = next((widget for widget, choice in binding.choices if choice == value), None)
+            if selected is None:
+                selected = next(widget for widget, choice in binding.choices if choice == binding.default)
+            getattr(self.ui, selected).setChecked(True)
 
     def save(self, config: object) -> None:
         for binding in self.bindings:
             owner, name = _resolve(config, binding.path)
             raw = self._read_widget(getattr(self.ui, binding.widget))
             setattr(owner, name, binding.parser(raw))
+        for binding in self.choices:
+            owner, name = _resolve(config, binding.path)
+            value = next(
+                (choice for widget, choice in binding.choices if getattr(self.ui, widget).isChecked()),
+                binding.default,
+            )
+            setattr(owner, name, value)

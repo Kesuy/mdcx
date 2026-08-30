@@ -10,9 +10,9 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, QSlider, QTextEdit
+from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, QRadioButton, QSlider, QTextEdit
 
-from mdcx.controllers.main_window.config_binding import ConfigBinder, SettingBinding
+from mdcx.controllers.main_window.config_binding import ChoiceBinding, ConfigBinder, SettingBinding
 from mdcx.controllers.main_window.settings_page import (
     format_duration,
     is_valid_http_url,
@@ -92,6 +92,27 @@ def test_config_binder_supports_multiline_text_and_collection_formatters():
     binder.save(config)
     assert config.prompt == "更新后的提示词"
     assert config.extensions == [".avi", ".wmv"]
+
+
+def test_choice_binding_round_trips_values_and_uses_declared_default():
+    ui = SimpleNamespace(emby=QRadioButton(), jellyfin=QRadioButton())
+    config = SimpleNamespace(server_type="jellyfin")
+    binder = ConfigBinder(
+        ui,
+        [],
+        choices=[ChoiceBinding("server_type", (("emby", "emby"), ("jellyfin", "jellyfin")), "emby")],
+    )
+
+    binder.load(config)
+    assert ui.jellyfin.isChecked()
+
+    ui.emby.setChecked(True)
+    binder.save(config)
+    assert config.server_type == "emby"
+
+    config.server_type = "unsupported"
+    binder.load(config)
+    assert ui.emby.isChecked()
 
 
 def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():
