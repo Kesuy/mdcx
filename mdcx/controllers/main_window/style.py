@@ -356,6 +356,8 @@ def build_sidebar_style(dark: bool, radius: int) -> str:
             border-right: 1px solid {t["border"]};
             border-top-left-radius: {radius}px;
             border-bottom-left-radius: {radius}px;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
         }}
         QPushButton#pushButton_main, QPushButton#pushButton_log,
         QPushButton#pushButton_tool, QPushButton#pushButton_setting,
@@ -372,6 +374,20 @@ def build_sidebar_style(dark: bool, radius: int) -> str:
             font-size: 13px;
             color: {t["text_muted"]};
             border: 0;
+        }}
+    """
+
+
+def build_shell_splitter_style(dark: bool) -> str:
+    """Paint the internal seam with opaque theme colors at every pixel."""
+    t = _tokens(dark)
+    return f"""
+        QSplitter#window_shell_splitter {{
+            background: {t["input_bg"]};
+            border: 0;
+        }}
+        QSplitter#window_shell_splitter::handle:horizontal {{
+            background: {t["border"]};
         }}
     """
 
@@ -416,24 +432,66 @@ def build_main_page_style(dark: bool) -> str:
 
 def build_tool_page_style(dark: bool) -> str:
     t = _tokens(dark)
+    card_background = "rgba(180, 180, 180, 20)" if dark else "#F5F5F6"
     return f"""
         * {{ color: {t["text"]}; font-size: 13px; }}
-        QScrollArea, QWidget#scrollAreaWidgetContents_gongju {{
-            background: transparent;
+        QWidget#page_tool, QScrollArea#scrollArea_10,
+        QScrollArea#scrollArea_10 QWidget#qt_scrollarea_viewport,
+        QWidget#scrollAreaWidgetContents_gongju {{
+            background: {t["input_bg"]};
             border: 0;
         }}
         QLabel {{ border: 0; }}
+        QLabel[toolRole="help"] {{ color: {t["success"]}; background: transparent; }}
         QLineEdit {{
             color: {t["text"]};
             background: {t["input_bg"]};
             border: 1px solid {t["border"]};
             border-radius: {t["radius_md"]};
+            padding: 0 10px;
         }}
         QComboBox {{ color: {t["text"]}; combobox-popup: 0; }}
         QGroupBox {{
             color: {t["text"]};
-            background: {t["surface_muted"]};
+            background: {card_background};
+            border: 0;
             border-radius: {t["radius_lg"]};
+            margin-top: 10px;
+            padding-top: 8px;
+            font-weight: 500;
+        }}
+        QGroupBox::title {{
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 14px;
+            padding: 0 4px;
+            background: transparent;
+        }}
+        QPushButton[toolRole="secondary"] {{
+            color: {t["text"]};
+            background: {t["input_bg"]};
+            border: 1px solid {t["border"]};
+            border-radius: {t["radius_md"]};
+            padding: 0 12px;
+        }}
+        QPushButton[toolRole="secondary"]:hover {{
+            color: {t["accent"]};
+            border-color: {t["accent"]};
+        }}
+        QPushButton[toolRole="primary"] {{
+            color: {t["on_accent"]};
+            background: {t["accent"]};
+            border: 1px solid {t["accent"]};
+            border-radius: {t["radius_md"]};
+            font-weight: 500;
+        }}
+        QPushButton[toolRole="primary"]:hover {{
+            background: {t["accent_hover"]};
+            border-color: {t["accent_hover"]};
+        }}
+        QPushButton[toolRole="primary"]:pressed {{
+            background: {t["accent_pressed"]};
+            border-color: {t["accent_pressed"]};
         }}
     """
 
@@ -526,6 +584,8 @@ def set_style(self: "MyMAinWindow"):
     _normalize_form_control_radius(self)
 
     self.Ui.widget_setting.setStyleSheet(build_sidebar_style(False, self.window_radius))
+    if hasattr(self, "_shell_splitter"):
+        self._shell_splitter.setStyleSheet(build_shell_splitter_style(False))
     self.Ui.page_main.setStyleSheet(build_main_page_style(False))
     self.Ui.page_tool.setStyleSheet(build_tool_page_style(False))
     self.Ui.page_about.setStyleSheet(build_about_page_style(False))
@@ -921,6 +981,8 @@ def set_dark_style(self: "MyMAinWindow"):
     _normalize_form_control_radius(self)
 
     self.Ui.widget_setting.setStyleSheet(build_sidebar_style(True, self.window_radius))
+    if hasattr(self, "_shell_splitter"):
+        self._shell_splitter.setStyleSheet(build_shell_splitter_style(True))
     self.Ui.page_main.setStyleSheet(build_main_page_style(True))
     self.Ui.page_tool.setStyleSheet(build_tool_page_style(True))
     self.Ui.page_about.setStyleSheet(build_about_page_style(True))

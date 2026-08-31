@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 
 BASE_WINDOW_WIDTH = 1089
 BASE_WINDOW_HEIGHT = 700
-MIN_WINDOW_WIDTH = 960
-MIN_WINDOW_HEIGHT = 680
+MIN_WINDOW_WIDTH = 1089
+MIN_WINDOW_HEIGHT = 700
 NARROW_BREAKPOINT = 1020
 STACKED_LEFT = 210
 STACKED_TOP = 6
@@ -46,7 +46,7 @@ THUMB_ASPECT_WIDTH = 328
 IMAGE_ASPECT_HEIGHT = 220
 PAGE_BOTTOM_MARGIN = 8
 NETWORK_FORM_MAX_WIDTH = 860
-TOOL_FORM_MAX_WIDTH = 920
+FORM_SECTION_HORIZONTAL_MARGIN = 29
 
 
 @dataclass(frozen=True)
@@ -185,7 +185,8 @@ def _setup_shell_splitter(window: "MyMAinWindow") -> None:
     splitter.setChildrenCollapsible(False)
     splitter.setHandleWidth(1)
     splitter.setStyleSheet(
-        "QSplitter#window_shell_splitter::handle:horizontal { background: rgba(120, 120, 120, 35); }"
+        "QSplitter#window_shell_splitter { background: #FFFFFF; border: 0; }"
+        "QSplitter#window_shell_splitter::handle:horizontal { background: #D8DEE9; }"
     )
     splitter.addWidget(ui.widget_setting)
     splitter.addWidget(ui.stackedWidget)
@@ -473,7 +474,12 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
         if groups and len(layout_sections) == len(direct_widgets):
             layout_sections.sort(key=lambda widget: widget.y())
             content_layout = QVBoxLayout(content)
-            content_layout.setContentsMargins(29, 14, 29, 14)
+            content_layout.setContentsMargins(
+                FORM_SECTION_HORIZONTAL_MARGIN,
+                14,
+                FORM_SECTION_HORIZONTAL_MARGIN,
+                14,
+            )
             content_layout.setSpacing(16)
             content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
             for section in layout_sections:
@@ -518,7 +524,13 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
         if metrics[0] == "layout":
             _, scroll_area, content, groups, holder_metrics, is_network_content = metrics
             if is_network_content:
-                available_width = max(1, min(NETWORK_FORM_MAX_WIDTH, scroll_area.viewport().width() - 58))
+                available_width = max(
+                    1,
+                    min(
+                        NETWORK_FORM_MAX_WIDTH,
+                        scroll_area.viewport().width() - 2 * FORM_SECTION_HORIZONTAL_MARGIN,
+                    ),
+                )
                 for group in groups:
                     group.setMinimumWidth(available_width)
                     group.setMaximumWidth(NETWORK_FORM_MAX_WIDTH)
@@ -561,7 +573,12 @@ def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
         key=lambda group: group.y(),
     )
     content_layout = QVBoxLayout(content)
-    content_layout.setContentsMargins(12, 12, 12, 12)
+    content_layout.setContentsMargins(
+        FORM_SECTION_HORIZONTAL_MARGIN,
+        14,
+        FORM_SECTION_HORIZONTAL_MARGIN,
+        14,
+    )
     content_layout.setSpacing(18)
     for group in groups:
         if group.layout() is None:
@@ -571,7 +588,7 @@ def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
             group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
             continue
-        group.setMaximumWidth(TOOL_FORM_MAX_WIDTH)
+        group.setMaximumWidth(16777215)
         group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         content_layout.addWidget(group, 0, Qt.AlignmentFlag.AlignHCenter)
     content_layout.addStretch(1)
@@ -585,12 +602,12 @@ def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
 
     scroll_area, content, groups = metrics
     content.setMinimumWidth(max(1, scroll_area.viewport().width()))
-    available_width = max(1, min(TOOL_FORM_MAX_WIDTH, scroll_area.viewport().width() - 24))
+    available_width = max(1, scroll_area.viewport().width() - 2 * FORM_SECTION_HORIZONTAL_MARGIN)
     for group in groups:
         if group.layout() is None:
             continue
         group.setMinimumWidth(available_width)
-        group.setMaximumWidth(TOOL_FORM_MAX_WIDTH)
+        group.setMaximumWidth(16777215)
     if content.layout() is not None:
         content.layout().activate()
 
@@ -716,7 +733,7 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     net_layout.addWidget(ui.textBrowser_net_main, 1)
 
     tool_layout = QVBoxLayout(ui.page_tool)
-    tool_layout.setContentsMargins(10, 8, 8, PAGE_BOTTOM_MARGIN)
+    tool_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     tool_layout.addWidget(ui.scrollArea_10)
     _setup_tool_scroll_area(window)
 

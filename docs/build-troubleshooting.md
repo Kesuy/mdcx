@@ -52,7 +52,7 @@ MDCx 的约束如下：
 
 ## Windows pytest 临时目录
 
-pytest 由 `tests/conftest.py` 为每个进程创建独立的系统临时目录并在退出时清理，项目内只持久化可随时重建的 `.test-cache`。不要固定复用同一个 `--basetemp`，也不要重新指向历史 `.pytest-cache`：测试进程、杀毒软件或异常退出可能让旧目录保留句柄或异常 ACL，导致后续测试在 fixture 初始化阶段报 `PermissionError`。
+pytest 由 `tests/conftest.py` 为每个进程创建独立的系统临时目录并在退出时清理，项目内只在 `.cache/pytest` 持久化可随时重建的测试索引。不要固定复用同一个 `--basetemp`，也不要重新指向历史 `.pytest-cache` / `.test-cache`：测试进程、杀毒软件或异常退出可能让旧目录保留句柄或异常 ACL，导致后续测试在 fixture 初始化阶段报 `PermissionError`。缓存路径只由 `pyproject.toml` 的 `cache_dir` 管理；历史缓存即使因 ACL 无法删除，也不会再影响测试。
 
 Qt 测试的 `QT_QPA_PLATFORM=offscreen`、离线模型模式和测试 FFmpeg 路径都由 `tests/conftest.py` 自动配置。日常执行无需管理员权限、Developer Mode、symlink 或系统 FFmpeg。
 

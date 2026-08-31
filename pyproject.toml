@@ -54,7 +54,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-cache_dir = ".test-cache"
+cache_dir = ".cache/pytest"
 filterwarnings = [
     "ignore:pkg_resources is deprecated as an API:UserWarning:zhconv.zhconv",
 ]
