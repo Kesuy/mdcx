@@ -29,7 +29,9 @@ CURATED_CATEGORY_ALIASES = {
     "安全": "修复",
     "架构": "优化",
     "界面": "优化",
+    "界面与架构": "优化",
     "工程": "优化",
+    "依赖与工程": "优化",
 }
 COMMIT_TYPE_CATEGORIES = {
     "feat": "新功能",
