@@ -1,0 +1,292 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ui version="4.0">
+  <class>LogPage</class>
+  <widget class="QWidget" name="page_log">
+    <widget class="QTextBrowser" name="textBrowser_log_main_2">
+      <property name="geometry">
+        <rect>
+          <x>28</x>
+          <y>421</y>
+          <width>790</width>
+          <height>271</height>
+        </rect>
+      </property>
+      <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+      </property>
+      <property name="frameShape">
+        <enum>QFrame::Box</enum>
+      </property>
+      <property name="frameShadow">
+        <enum>QFrame::Raised</enum>
+      </property>
+      <property name="readOnly">
+        <bool>true</bool>
+      </property>
+      <property name="html">
+        <string>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
+                &lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;style type="text/css"&gt;
+                p, li { white-space: pre-wrap; }
+                &lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'.AppleSystemUIFont'; font-size:13pt; font-weight:400; font-style:normal;"&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="textInteractionFlags">
+        <set>Qt::TextBrowserInteraction</set>
+      </property>
+      <property name="openExternalLinks">
+        <bool>true</bool>
+      </property>
+      <property name="openLinks">
+        <bool>true</bool>
+      </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_start_cap2">
+      <property name="geometry">
+        <rect>
+          <x>680</x>
+          <y>13</y>
+          <width>120</width>
+          <height>40</height>
+        </rect>
+      </property>
+      <property name="text">
+        <string>开始</string>
+      </property>
+    </widget>
+    <widget class="QTextBrowser" name="textBrowser_log_main">
+      <property name="geometry">
+        <rect>
+          <x>28</x>
+          <y>0</y>
+          <width>790</width>
+          <height>421</height>
+        </rect>
+      </property>
+      <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+      </property>
+      <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+        <enum>QFrame::Sunken</enum>
+      </property>
+      <property name="midLineWidth">
+        <number>0</number>
+      </property>
+      <property name="readOnly">
+        <bool>true</bool>
+      </property>
+      <property name="html">
+        <string>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
+                &lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;style type="text/css"&gt;
+                p, li { white-space: pre-wrap; }
+                &lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'.AppleSystemUIFont'; font-size:13pt; font-weight:400; font-style:normal;"&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="textInteractionFlags">
+        <set>Qt::TextBrowserInteraction</set>
+      </property>
+      <property name="openExternalLinks">
+        <bool>true</bool>
+      </property>
+      <property name="openLinks">
+        <bool>true</bool>
+      </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_show_hide_logs">
+      <property name="geometry">
+        <rect>
+          <x>0</x>
+          <y>650</y>
+          <width>40</width>
+          <height>40</height>
+        </rect>
+      </property>
+      <property name="mouseTracking">
+        <bool>true</bool>
+      </property>
+      <property name="text">
+        <string />
+      </property>
+      <property name="icon">
+        <iconset>
+          <normalon>../../MDCx-py-20220407/edit.png</normalon>
+        </iconset>
+      </property>
+      <property name="iconSize">
+        <size>
+          <width>30</width>
+          <height>30</height>
+        </size>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <property name="autoDefault">
+        <bool>false</bool>
+      </property>
+      <property name="default">
+        <bool>false</bool>
+      </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_view_failed_list">
+      <property name="geometry">
+        <rect>
+          <x>565</x>
+          <y>13</y>
+          <width>101</width>
+          <height>40</height>
+        </rect>
+      </property>
+      <property name="text">
+        <string>失败 0</string>
+      </property>
+    </widget>
+    <widget class="QTextBrowser" name="textBrowser_log_main_3">
+      <property name="enabled">
+        <bool>true</bool>
+      </property>
+      <property name="geometry">
+        <rect>
+          <x>0</x>
+          <y>0</y>
+          <width>690</width>
+          <height>693</height>
+        </rect>
+      </property>
+      <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+      </property>
+      <property name="frameShape">
+        <enum>QFrame::Box</enum>
+      </property>
+      <property name="frameShadow">
+        <enum>QFrame::Raised</enum>
+      </property>
+      <property name="readOnly">
+        <bool>true</bool>
+      </property>
+      <property name="html">
+        <string>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
+                &lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;style type="text/css"&gt;
+                p, li { white-space: pre-wrap; }
+                &lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'.AppleSystemUIFont'; font-size:13pt; font-weight:400; font-style:normal;"&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt; &lt;/p&gt;
+                &lt;p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-family:'Microsoft YaHei UI'; font-size:9pt;"&gt; &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="textInteractionFlags">
+        <set>Qt::TextBrowserInteraction</set>
+      </property>
+      <property name="openExternalLinks">
+        <bool>true</bool>
+      </property>
+      <property name="openLinks">
+        <bool>true</bool>
+      </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_scraper_failed_list">
+      <property name="geometry">
+        <rect>
+          <x>20</x>
+          <y>13</y>
+          <width>531</width>
+          <height>40</height>
+        </rect>
+      </property>
+      <property name="text">
+        <string>当有失败任务时，点击可以一键刮削当前失败列表</string>
+      </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_save_failed_list">
+      <property name="geometry">
+        <rect>
+          <x>0</x>
+          <y>650</y>
+          <width>40</width>
+          <height>40</height>
+        </rect>
+      </property>
+      <property name="font">
+        <font>
+          <pointsize>12</pointsize>
+        </font>
+      </property>
+      <property name="mouseTracking">
+        <bool>true</bool>
+      </property>
+      <property name="text">
+        <string />
+      </property>
+      <property name="icon">
+        <iconset>
+          <normalon>../../MDCx-py-20220407/edit.png</normalon>
+        </iconset>
+      </property>
+      <property name="iconSize">
+        <size>
+          <width>30</width>
+          <height>30</height>
+        </size>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <property name="autoDefault">
+        <bool>false</bool>
+      </property>
+      <property name="default">
+        <bool>false</bool>
+      </property>
+    </widget>
+    <zorder>textBrowser_log_main_2</zorder>
+    <zorder>textBrowser_log_main</zorder>
+    <zorder>pushButton_start_cap2</zorder>
+    <zorder>pushButton_show_hide_logs</zorder>
+    <zorder>textBrowser_log_main_3</zorder>
+    <zorder>pushButton_view_failed_list</zorder>
+    <zorder>pushButton_scraper_failed_list</zorder>
+    <zorder>pushButton_save_failed_list</zorder>
+  </widget>
+  <customwidgets>
+    <customwidget>
+      <class>CustomQSlider</class>
+      <extends>QSlider</extends>
+      <header>.CustomClass</header>
+    </customwidget>
+  </customwidgets>
+  <resources />
+  <connections />
+</ui>

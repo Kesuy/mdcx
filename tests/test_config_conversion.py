@@ -69,6 +69,17 @@ def test_config_default_keep_files_match_default_template():
     assert Config().keep_files == template_config.keep_files == [KeepableFile.TRAILER, KeepableFile.THEME_VIDEOS]
 
 
+def test_advanced_settings_visibility_is_backward_compatible_and_round_trips():
+    old_config = Config().model_dump(mode="json")
+    old_config.pop("show_advanced_settings")
+    assert Config.model_validate(old_config).show_advanced_settings is False
+
+    old_config["show_advanced_settings"] = True
+    restored = Config.model_validate(old_config)
+    assert restored.show_advanced_settings is True
+    assert restored.model_dump(mode="json")["show_advanced_settings"] is True
+
+
 def test_resource_policy_exposes_download_and_keep_semantics():
     policy = resource_policy(
         DownloadableFile.POSTER,

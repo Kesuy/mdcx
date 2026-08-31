@@ -9,15 +9,8 @@ from PyQt6.QtCore import Qt
 
 from mdcx.config.enums import (
     CDChar,
-    EmbyAction,
-    FieldRule,
     FixedScrapingType,
-    MarkType,
-    NfoInclude,
-    OutlineShow,
     SuffixSort,
-    Switch,
-    TagInclude,
     Translator,
     Website,
     website_from_display_name,
@@ -77,69 +70,12 @@ def save_config(self: "MyMAinWindow"):
     _fixed_idx = self.Ui.comboBox_fixed_scraping_type.currentIndex()
     manager.config.fixed_scraping_type = FixedScrapingType(_type_values[_fixed_idx])
 
-    # 简介复合显示格式仍由专用逻辑维护。
-    manager.config.outline_format = get_checkboxes(
-        (self.Ui.checkBox_show_translate_from, OutlineShow.SHOW_FROM),
-        (self.Ui.radioButton_trans_show_zh_jp, OutlineShow.SHOW_ZH_JP),
-        (self.Ui.radioButton_trans_show_jp_zh, OutlineShow.SHOW_JP_ZH),
-    )
-
-    # 标签派生内容是复合集合，保留专用逻辑。
-    manager.config.nfo_tag_include = get_checkboxes(
-        (self.Ui.checkBox_tag_actor, TagInclude.ACTOR),
-        (self.Ui.checkBox_tag_letters, TagInclude.LETTERS),
-        (self.Ui.checkBox_tag_series, TagInclude.SERIES),
-        (self.Ui.checkBox_tag_studio, TagInclude.STUDIO),
-        (self.Ui.checkBox_tag_publisher, TagInclude.PUBLISHER),
-        (self.Ui.checkBox_tag_cnword, TagInclude.CNWORD),
-        (self.Ui.checkBox_tag_mosaic, TagInclude.MOSAIC),
-        (self.Ui.checkBox_tag_definition, TagInclude.DEFINITION),
-    )
-
     manager.config.fill_missing_type_field_configs()
     refresh_site_priority_ui(self)
 
     # 注意：whole_fields 和 none_fields 已弃用，不再设置这些字段
     # 它们的功能已经通过新的字段配置API来实现
 
-    # region nfo
-    manager.config.nfo_include_new = get_checkboxes(
-        (self.Ui.checkBox_nfo_sorttitle, NfoInclude.SORTTITLE),
-        (self.Ui.checkBox_nfo_originaltitle, NfoInclude.ORIGINALTITLE),
-        (self.Ui.checkBox_nfo_title_cd, NfoInclude.TITLE_CD),
-        (self.Ui.checkBox_nfo_outline, NfoInclude.OUTLINE),
-        (self.Ui.checkBox_nfo_plot, NfoInclude.PLOT_),
-        (self.Ui.checkBox_nfo_originalplot, NfoInclude.ORIGINALPLOT),
-        (self.Ui.checkBox_outline_cdata, NfoInclude.OUTLINE_NO_CDATA),
-        (self.Ui.checkBox_nfo_release, NfoInclude.RELEASE_),
-        (self.Ui.checkBox_nfo_relasedate, NfoInclude.RELEASEDATE),
-        (self.Ui.checkBox_nfo_premiered, NfoInclude.PREMIERED),
-        (self.Ui.checkBox_nfo_country, NfoInclude.COUNTRY),
-        (self.Ui.checkBox_nfo_mpaa, NfoInclude.MPAA),
-        (self.Ui.checkBox_nfo_customrating, NfoInclude.CUSTOMRATING),
-        (self.Ui.checkBox_nfo_year, NfoInclude.YEAR),
-        (self.Ui.checkBox_nfo_runtime, NfoInclude.RUNTIME),
-        (self.Ui.checkBox_nfo_wanted, NfoInclude.WANTED),
-        (self.Ui.checkBox_nfo_score, NfoInclude.SCORE),
-        (self.Ui.checkBox_nfo_criticrating, NfoInclude.CRITICRATING),
-        (self.Ui.checkBox_nfo_actor, NfoInclude.ACTOR),
-        (self.Ui.checkBox_nfo_all_actor, NfoInclude.ACTOR_ALL),
-        (self.Ui.checkBox_nfo_director, NfoInclude.DIRECTOR),
-        (self.Ui.checkBox_nfo_series, NfoInclude.SERIES),
-        (self.Ui.checkBox_nfo_tag, NfoInclude.TAG),
-        (self.Ui.checkBox_nfo_genre, NfoInclude.GENRE),
-        (self.Ui.checkBox_nfo_actor_set, NfoInclude.ACTOR_SET),
-        (self.Ui.checkBox_nfo_set, NfoInclude.SERIES_SET),
-        (self.Ui.checkBox_nfo_studio, NfoInclude.STUDIO),
-        (self.Ui.checkBox_nfo_maker, NfoInclude.MAKER),
-        (self.Ui.checkBox_nfo_publisher, NfoInclude.PUBLISHER),
-        (self.Ui.checkBox_nfo_label, NfoInclude.LABEL),
-        (self.Ui.checkBox_nfo_poster, NfoInclude.POSTER),
-        (self.Ui.checkBox_nfo_cover, NfoInclude.COVER),
-        (self.Ui.checkBox_nfo_trailer, NfoInclude.TRAILER),
-        (self.Ui.checkBox_nfo_website, NfoInclude.WEBSITE),
-    )
-    # endregion
     manager.config.translate_config.translate_by = get_checkboxes(
         (self.Ui.checkBox_google, Translator.GOOGLE),
         (self.Ui.checkBox_baidu, Translator.BAIDU),
@@ -191,13 +127,6 @@ def save_config(self: "MyMAinWindow"):
     # endregion
 
     # region name
-
-    manager.config.fields_rule = get_checkboxes(
-        (self.Ui.checkBox_title_del_actor, FieldRule.DEL_ACTOR),
-        (self.Ui.checkBox_actor_del_char, FieldRule.DEL_CHAR),
-        (self.Ui.checkBox_actor_fc2_seller, FieldRule.FC2_SELLER),
-        (self.Ui.checkBox_number_del_num, FieldRule.DEL_NUM),
-    )
 
     suffix_sort_text = self.Ui.lineEdit_suffix_sort.text()
     suffix_sort_list = []
@@ -268,97 +197,6 @@ def save_config(self: "MyMAinWindow"):
     if manager.config.use_database:
         ActressDB.init_db()
 
-    # 构建 emby_on 配置
-    actor_info_lang = get_radio_buttons(
-        (self.Ui.radioButton_actor_info_zh_cn, EmbyAction.ACTOR_INFO_ZH_CN),
-        (self.Ui.radioButton_actor_info_zh_tw, EmbyAction.ACTOR_INFO_ZH_TW),
-        default=EmbyAction.ACTOR_INFO_JA,
-    )
-    actor_info_mode = get_radio_buttons(
-        (self.Ui.radioButton_actor_info_all, EmbyAction.ACTOR_INFO_ALL), default=EmbyAction.ACTOR_INFO_MISS
-    )
-    actor_photo_source = get_radio_buttons(
-        (self.Ui.radioButton_actor_photo_net, EmbyAction.ACTOR_PHOTO_NET), default=EmbyAction.ACTOR_PHOTO_LOCAL
-    )
-    actor_photo_mode = get_radio_buttons(
-        (self.Ui.radioButton_actor_photo_all, EmbyAction.ACTOR_PHOTO_ALL), default=EmbyAction.ACTOR_PHOTO_MISS
-    )
-    emby_actions = [actor_info_lang, actor_info_mode, actor_photo_source, actor_photo_mode]
-
-    # 添加其他emby选项
-    emby_actions.extend(
-        get_checkboxes(
-            (self.Ui.checkBox_actor_info_translate, EmbyAction.ACTOR_INFO_TRANSLATE),
-            (self.Ui.checkBox_actor_info_photo, EmbyAction.ACTOR_INFO_PHOTO),
-            (self.Ui.checkBox_actor_photo_ne_backdrop, EmbyAction.GRAPHIS_BACKDROP),
-            (self.Ui.checkBox_actor_photo_ne_face, EmbyAction.GRAPHIS_FACE),
-            (self.Ui.checkBox_actor_photo_ne_new, EmbyAction.GRAPHIS_NEW),
-            (self.Ui.checkBox_actor_photo_auto, EmbyAction.ACTOR_PHOTO_AUTO),
-            (self.Ui.checkBox_actor_pic_replace, EmbyAction.ACTOR_REPLACE),
-        )
-    )
-
-    manager.config.emby_on = emby_actions
-    # endregion
-
-    # region mark
-    manager.config.poster_mark = 1 if self.Ui.checkBox_poster_mark.isChecked() else 0
-    manager.config.thumb_mark = 1 if self.Ui.checkBox_thumb_mark.isChecked() else 0
-    manager.config.fanart_mark = 1 if self.Ui.checkBox_fanart_mark.isChecked() else 0
-    manager.config.mark_size = self.Ui.horizontalSlider_mark_size.value()  # 水印大小
-
-    manager.config.mark_type = get_checkboxes(
-        (self.Ui.checkBox_sub, MarkType.SUB),
-        (self.Ui.checkBox_censored, MarkType.YOUMA),
-        (self.Ui.checkBox_umr, MarkType.UMR),
-        (self.Ui.checkBox_leak, MarkType.LEAK),
-        (self.Ui.checkBox_uncensored, MarkType.UNCENSORED),
-        (self.Ui.checkBox_hd, MarkType.HD),
-    )
-
-    # 水印位置设置
-    manager.config.mark_fixed = get_radio_buttons(
-        (self.Ui.radioButton_not_fixed_position, "not_fixed"),
-        (self.Ui.radioButton_fixed_corner, "corner"),
-        default="fixed",
-    )
-    manager.config.mark_pos = get_radio_buttons(
-        (self.Ui.radioButton_top_left, "top_left"),
-        (self.Ui.radioButton_top_right, "top_right"),
-        (self.Ui.radioButton_bottom_left, "bottom_left"),
-        (self.Ui.radioButton_bottom_right, "bottom_right"),
-        default="top_left",
-    )
-    manager.config.mark_pos_corner = get_radio_buttons(
-        (self.Ui.radioButton_top_left_corner, "top_left"),
-        (self.Ui.radioButton_top_right_corner, "top_right"),
-        (self.Ui.radioButton_bottom_left_corner, "bottom_left"),
-        (self.Ui.radioButton_bottom_right_corner, "bottom_right"),
-        default="top_left",
-    )
-    manager.config.mark_pos_hd = get_radio_buttons(
-        (self.Ui.radioButton_top_left_hd, "top_left"),
-        (self.Ui.radioButton_top_right_hd, "top_right"),
-        (self.Ui.radioButton_bottom_left_hd, "bottom_left"),
-        (self.Ui.radioButton_bottom_right_hd, "bottom_right"),
-        default="top_left",
-    )
-    manager.config.mark_pos_sub = get_radio_buttons(
-        (self.Ui.radioButton_top_left_sub, "top_left"),
-        (self.Ui.radioButton_top_right_sub, "top_right"),
-        (self.Ui.radioButton_bottom_left_sub, "bottom_left"),
-        (self.Ui.radioButton_bottom_right_sub, "bottom_right"),
-        default="top_left",
-    )
-    manager.config.mark_pos_mosaic = get_radio_buttons(
-        (self.Ui.radioButton_top_left_mosaic, "top_left"),
-        (self.Ui.radioButton_top_right_mosaic, "top_right"),
-        (self.Ui.radioButton_bottom_left_mosaic, "bottom_left"),
-        (self.Ui.radioButton_bottom_right_mosaic, "bottom_right"),
-        default="top_left",
-    )
-    # endregion
-
     # region network
     site = self.Ui.comboBox_custom_website.currentText()
     if site in Website and site != Website.AIRAV.value:
@@ -372,44 +210,6 @@ def save_config(self: "MyMAinWindow"):
 
     if manager.config.javdb:
         manager.config.javdb = manager.config.javdb.replace("locale=en", "locale=zh")
-    # endregion
-
-    # region other
-    # 开关汇总和其他设置
-    show_logs_value = not self.Ui.textBrowser_log_main_2.isHidden()
-    switch_actions = get_checkboxes(
-        (self.Ui.checkBox_auto_start, Switch.AUTO_START),
-        (self.Ui.checkBox_auto_exit, Switch.AUTO_EXIT),
-        (self.Ui.checkBox_rest_scrape, Switch.REST_SCRAPE),
-        (self.Ui.checkBox_timed_scrape, Switch.TIMED_SCRAPE),
-        (self.Ui.checkBox_remain_task, Switch.REMAIN_TASK),
-        (self.Ui.checkBox_show_dialog_exit, Switch.SHOW_DIALOG_EXIT),
-        (self.Ui.checkBox_show_dialog_stop_scrape, Switch.SHOW_DIALOG_STOP_SCRAPE),
-        (self.Ui.checkBox_sortmode_delpic, Switch.SORT_DEL),
-        (self.Ui.checkBox_dialog_qt, Switch.QT_DIALOG),
-        (self.Ui.checkBox_theporndb_hash, Switch.THEPORNDB_NO_HASH),
-        (self.Ui.checkBox_hide_dock_icon, Switch.HIDE_DOCK),
-        (self.Ui.checkBox_highdpi_passthrough, Switch.PASSTHROUGH),
-        (self.Ui.checkBox_hide_menu_icon, Switch.HIDE_MENU),
-        (self.Ui.checkBox_dark_mode, Switch.DARK_MODE),
-        (self.Ui.checkBox_copy_netdisk_nfo, Switch.COPY_NETDISK_NFO),
-    )
-
-    # 手动添加 show_logs 设置
-    if show_logs_value:
-        switch_actions.append(Switch.SHOW_LOGS)
-
-    # 添加隐藏设置
-    switch_actions.append(
-        get_radio_buttons(
-            (self.Ui.radioButton_hide_close, Switch.HIDE_CLOSE),
-            (self.Ui.radioButton_hide_mini, Switch.HIDE_MINI),
-            default=Switch.HIDE_NONE,
-        )
-    )
-
-    manager.config.switch_on = switch_actions
-
     # endregion
 
     # 保存

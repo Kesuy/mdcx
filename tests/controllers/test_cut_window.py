@@ -38,6 +38,20 @@ def _image_data(file_path=None):
     )
 
 
+def test_crop_dialog_uses_shared_rounded_rectangle_controls():
+    window = _window()
+
+    panel_style = window.Ui.widget.styleSheet()
+    crop_range_style = window.pushButton_select_cutrange.styleSheet()
+    assert "border-radius:8px" in panel_style
+    assert "border-radius:20px" not in panel_style
+    assert "border-radius:25px" not in panel_style
+    assert "QComboBox" in panel_style
+    assert "border-radius: 8px" in crop_range_style
+
+    window.close()
+
+
 def test_open_image_defaults_to_current_movie_directory(tmp_path, monkeypatch):
     movie_directory = tmp_path / "movies" / "TEST-001"
     movie_directory.mkdir(parents=True)

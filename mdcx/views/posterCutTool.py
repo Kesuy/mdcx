@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'mdcx/views/posterCutTool.ui'
+# Form implementation generated from reading ui file 'D:\AI Agent\MDCx\mdcx\views\posterCutTool.ui'
 #
 # Created by: PyQt6 UI code generator 6.11.0
 #
@@ -16,7 +16,6 @@ class Ui_Dialog_cut_poster(object):
         self.widget_cutimage = QtWidgets.QWidget(parent=Dialog_cut_poster)
         self.widget_cutimage.setGeometry(QtCore.QRect(0, 0, 800, 600))
         self.widget_cutimage.setAutoFillBackground(False)
-        self.widget_cutimage.setStyleSheet("background-color: rgb(200, 200, 200);")
         self.widget_cutimage.setObjectName("widget_cutimage")
         self.label_backgroud_pic = QtWidgets.QLabel(parent=self.widget_cutimage)
         self.label_backgroud_pic.setGeometry(QtCore.QRect(0, 0, 800, 600))
@@ -145,7 +144,6 @@ class Ui_Dialog_cut_poster(object):
         self.horizontalLayout.addWidget(self.radioButton_add_no_2)
         self.widget_2 = QtWidgets.QWidget(parent=Dialog_cut_poster)
         self.widget_2.setGeometry(QtCore.QRect(0, 540, 800, 60))
-        self.widget_2.setStyleSheet("")
         self.widget_2.setObjectName("widget_2")
         self.pushButton_to_cut_2 = QtWidgets.QPushButton(parent=self.widget_2)
         self.pushButton_to_cut_2.setGeometry(QtCore.QRect(30, 520, 141, 61))

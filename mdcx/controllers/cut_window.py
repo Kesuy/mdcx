@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from PIL import Image
 from PyQt6.QtCore import QPoint, QRect, Qt
-from PyQt6.QtGui import QCursor, QPixmap, QTransform
+from PyQt6.QtGui import QColor, QCursor, QPalette, QPixmap, QTransform
 from PyQt6.QtWidgets import QDialog, QFileDialog, QPushButton
 
 from ..base.image import add_mark_thread
@@ -159,11 +159,16 @@ class CutWindow(QDialog):
         # 控件美化 裁剪弹窗
         dark_mode = bool(getattr(self.main_window, "dark_mode", False))
         t = get_theme_tokens(dark_mode)
+        preview_palette = self.Ui.widget_cutimage.palette()
+        preview_palette.setColor(QPalette.ColorRole.Window, QColor(t["surface_muted"]))
+        self.Ui.widget_cutimage.setPalette(preview_palette)
+        self.Ui.widget_cutimage.setAutoFillBackground(True)
         self.pushButton_select_cutrange.setStyleSheet(f"""
             QPushButton#pushButton_select_cutrange {{
                 color: {t["text"]};
                 background-color: rgba(76, 110, 255, 34);
                 border: 2px solid {t["accent"]};
+                border-radius: 8px;
                 font-size: 13px;
                 font-weight: normal;
             }}
@@ -186,7 +191,7 @@ class CutWindow(QDialog):
                 font-size:14px;
                 background-color:{t["surface"]};
                 border: 1px solid {t["border"]};
-                border-radius:20px;
+                border-radius:8px;
                 padding: 2px;
             }}
             QPushButton:hover{{
@@ -203,7 +208,7 @@ class CutWindow(QDialog):
                 color: white;
                 font-size:14px;
                 background-color:{t["accent"]};
-                border-radius:25px;
+                border-radius:8px;
                 padding: 2px;
             }}
             QPushButton:hover#pushButton_cut_close{{
@@ -215,6 +220,17 @@ class CutWindow(QDialog):
                 background-color:{t["accent_pressed"]};
                 border-color:{t["accent_pressed"]};
                 font-weight:bold;
+            }}
+            QComboBox{{
+                color:{t["text"]};
+                background:{t["surface"]};
+                border:1px solid {t["border"]};
+                border-radius:8px;
+                padding:3px 8px;
+            }}
+            QComboBox::drop-down{{
+                width:24px;
+                border:0;
             }}
             QSlider::groove:horizontal{{
                 height: 6px;

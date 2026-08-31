@@ -54,6 +54,15 @@ class FieldOptionBinding:
     mirror_fields: tuple[Any, ...] = ()
 
 
+@dataclass(frozen=True)
+class CompositeBinding:
+    """Typed load/save contract for settings represented by several widgets."""
+
+    name: str
+    load: Callable[[object, object], None]
+    save: Callable[[object, object], None]
+
+
 class ConfigBinder:
     """Declarative two-way binding between generated Qt widgets and Config."""
 
@@ -64,12 +73,14 @@ class ConfigBinder:
         choices: list[ChoiceBinding] | None = None,
         multi_choices: list[MultiChoiceBinding] | None = None,
         field_options: list[FieldOptionBinding] | None = None,
+        composites: list[CompositeBinding] | None = None,
     ):
         self.ui = ui
         self.bindings = bindings
         self.choices = choices or []
         self.multi_choices = multi_choices or []
         self.field_options = field_options or []
+        self.composites = composites or []
 
     @staticmethod
     def _read_widget(widget: object) -> Any:
@@ -122,6 +133,8 @@ class ConfigBinder:
             )
             getattr(self.ui, selected).setChecked(True)
             getattr(self.ui, binding.translate_widget).setChecked(field_config.translate)
+        for binding in self.composites:
+            binding.load(self.ui, config)
 
     def save(self, config: object) -> None:
         for binding in self.bindings:
@@ -151,3 +164,5 @@ class ConfigBinder:
             for field in (binding.field, *binding.mirror_fields):
                 config.set_field_language(field, language)
                 config.set_field_translate(field, translate)
+        for binding in self.composites:
+            binding.save(self.ui, config)

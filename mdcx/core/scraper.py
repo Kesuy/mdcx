@@ -81,25 +81,51 @@ async def prepare_primary_images(
     thumb_final_path: Path,
     fanart_final_path: Path,
     media_context: MediaResourceContext | None,
+    *,
+    force_refresh: bool = False,
 ) -> bool:
     """优先处理同番号本地图片；未命中时才走网站图片流程。"""
-    local_found, local_success = await prepare_local_number_images(
+    if not force_refresh:
+        local_found, local_success = await prepare_local_number_images(
+            result,
+            other,
+            folder_old_path,
+            folder_new_path,
+            poster_final_path,
+            thumb_final_path,
+            fanart_final_path,
+            copy_poster=_get_poster_copy_policy(result, manager.config.download_files),
+        )
+        if local_found:
+            return local_success
+
+    if not await thumb_download(
         result,
         other,
-        folder_old_path,
+        cd_part,
+        folder_new_path,
+        thumb_final_path,
+        media_context,
+        force_refresh=force_refresh,
+    ):
+        return False
+    if not await fanart_download(
+        result.number,
+        other,
+        cd_part,
+        fanart_final_path,
+        force_refresh=force_refresh,
+    ):
+        return False
+    return await poster_download(
+        result,
+        other,
+        cd_part,
         folder_new_path,
         poster_final_path,
-        thumb_final_path,
-        fanart_final_path,
-        copy_poster=_get_poster_copy_policy(result, manager.config.download_files),
+        media_context,
+        force_refresh=force_refresh,
     )
-    if local_found:
-        return local_success
-
-    if not await thumb_download(result, other, cd_part, folder_new_path, thumb_final_path, media_context):
-        return False
-    await fanart_download(result.number, other, cd_part, fanart_final_path)
-    return await poster_download(result, other, cd_part, folder_new_path, poster_final_path, media_context)
 
 
 class Scraper:
@@ -849,6 +875,7 @@ class Scraper:
 
         # 如果 final_pic_path 没处理过，这时才需要下载和加水印
         if pic_final_catched and file_can_download:
+            force_refresh_images = file_mode == FileMode.Again and bool(file_info.appoint_url)
             if not await prepare_primary_images(
                 res,
                 other,
@@ -859,6 +886,7 @@ class Scraper:
                 thumb_final_path,
                 fanart_final_path,
                 media_context,
+                force_refresh=force_refresh_images,
             ):
                 return None, None
 
@@ -870,7 +898,12 @@ class Scraper:
 
             # 下载剧照和剧照副本
             if single_folder_catched:
-                await extrafanart_download(res.extrafanart, res.extrafanart_from, folder_new_path)
+                await extrafanart_download(
+                    res.extrafanart,
+                    res.extrafanart_from,
+                    folder_new_path,
+                    force_refresh=force_refresh_images,
+                )
                 await extrafanart_copy2(folder_new_path)
                 await extrafanart_extras_copy(folder_new_path)
 

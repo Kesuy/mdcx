@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLineEdit, 
 
 from mdcx.controllers.main_window.config_binding import (
     ChoiceBinding,
+    CompositeBinding,
     ConfigBinder,
     FieldOptionBinding,
     MultiChoiceBinding,
@@ -217,6 +218,34 @@ def test_field_option_binding_round_trips_language_translation_and_mirrors():
     for field in ("actors", "all_actors"):
         assert config.field_configs[field].language == "zh_cn"
         assert config.field_configs[field].translate is False
+
+
+def test_composite_binding_round_trips_a_multi_widget_value_as_one_schema_unit():
+    ui = SimpleNamespace(first=QCheckBox(), second=QCheckBox())
+    config = SimpleNamespace(flags=["first"])
+
+    def load_flags(bound_ui, bound_config):
+        bound_ui.first.setChecked("first" in bound_config.flags)
+        bound_ui.second.setChecked("second" in bound_config.flags)
+
+    def save_flags(bound_ui, bound_config):
+        bound_config.flags = [
+            name for name, widget in (("first", bound_ui.first), ("second", bound_ui.second)) if widget.isChecked()
+        ]
+
+    binder = ConfigBinder(
+        ui,
+        [],
+        composites=[CompositeBinding("flags", load_flags, save_flags)],
+    )
+    binder.load(config)
+    assert ui.first.isChecked()
+    assert not ui.second.isChecked()
+
+    ui.first.setChecked(False)
+    ui.second.setChecked(True)
+    binder.save(config)
+    assert config.flags == ["second"]
 
 
 def test_duration_binding_rejects_invalid_minutes_instead_of_silent_fallback():

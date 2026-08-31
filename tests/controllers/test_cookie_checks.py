@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from mdcx.controllers.main_window import main_window as main_window_module
+from mdcx.controllers.main_window import window_lifecycle as window_lifecycle_module
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.network_controller import CookieCheckResult, NetworkController
 
@@ -15,8 +16,8 @@ class _Signal:
 
 def test_startup_does_not_check_website_cookies(monkeypatch):
     monkeypatch.setattr(main_window_module, "check_version", lambda: "")
-    monkeypatch.setattr(main_window_module.signal_qt, "show_log_text", lambda _message: None)
-    monkeypatch.setattr(main_window_module.manager, "config", SimpleNamespace(use_database=False))
+    monkeypatch.setattr(window_lifecycle_module.signal_qt, "show_log_text", lambda _message: None)
+    monkeypatch.setattr(window_lifecycle_module.manager, "config", SimpleNamespace(use_database=False))
 
     submitted = []
 

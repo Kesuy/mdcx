@@ -5,9 +5,12 @@ from PyQt6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
     QComboBox,
+    QLabel,
     QLineEdit,
     QPlainTextEdit,
+    QPushButton,
     QTextEdit,
+    QWidget,
 )
 
 from mdcx.config.resources import resources
@@ -348,6 +351,15 @@ def build_code_editor_style(dark: bool) -> str:
     )
 
 
+def set_semantic_property(widget: QWidget, name: str, value: object) -> None:
+    """Update a semantic style property and refresh only the affected widget."""
+    widget.setProperty(name, value)
+    style = widget.style()
+    style.unpolish(widget)
+    style.polish(widget)
+    widget.update()
+
+
 def build_sidebar_style(dark: bool, radius: int) -> str:
     t = _tokens(dark)
     return f"""
@@ -392,6 +404,28 @@ def build_shell_splitter_style(dark: bool) -> str:
     """
 
 
+def build_window_chrome_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return f"""
+        QPushButton#pushButton_close {{
+            color: {t["danger"]}; background: {t["danger"]};
+            border: 0; border-radius: {t["radius_md"]}; margin: 2px;
+            font: 900 14pt Tahoma;
+        }}
+        QPushButton#pushButton_close:hover {{ color: {t["text"]}; background: {t["danger"]}; }}
+        QPushButton#pushButton_min {{
+            color: {t["warning"]}; background: {t["warning"]};
+            border: 0; border-radius: {t["radius_md"]}; margin: 2px;
+            font: 900 14pt Tahoma;
+        }}
+        QPushButton#pushButton_min:hover {{ color: {t["text"]}; background: {t["warning"]}; }}
+        QProgressBar#progressBar_scrape {{
+            border: 0; border-radius: 0; text-align: center; background: transparent;
+        }}
+        QProgressBar#progressBar_scrape::chunk {{ background: {t["accent"]}; width: 3px; }}
+    """
+
+
 def build_main_page_style(dark: bool) -> str:
     t = _tokens(dark)
     return f"""
@@ -424,7 +458,7 @@ def build_main_page_style(dark: bool) -> str:
             background: transparent;
             border: 0;
         }}
-        QLabel#label_poster_size {{ color: {t["text_muted"]}; }}
+        QLabel#label_poster_size, QLabel#label_thumb_size {{ color: {t["text_muted"]}; }}
         QLabel#label_poster, QLabel#label_thumb {{ border: 1px solid {t["border"]}; }}
         QGroupBox {{ background: transparent; }}
     """
@@ -456,14 +490,15 @@ def build_tool_page_style(dark: bool) -> str:
             background: {card_background};
             border: 0;
             border-radius: {t["radius_lg"]};
-            margin-top: 10px;
+            margin-top: 0;
             padding-top: 8px;
             font-weight: 500;
         }}
         QGroupBox::title {{
-            subcontrol-origin: margin;
+            subcontrol-origin: border;
             subcontrol-position: top left;
             left: 14px;
+            top: 8px;
             padding: 0 4px;
             background: transparent;
         }}
@@ -512,7 +547,7 @@ def build_about_page_style(dark: bool) -> str:
 
 
 def _normalize_form_control_radius(self: "MyMAinWindow") -> None:
-    """Use one rounded-rectangle radius even for generated inline QSS."""
+    """Expose the shared radius as metadata without creating inline QSS."""
     selector_types = (
         (QLineEdit, "QLineEdit"),
         (QComboBox, "QComboBox"),
@@ -520,14 +555,79 @@ def _normalize_form_control_radius(self: "MyMAinWindow") -> None:
         (QPlainTextEdit, "QPlainTextEdit"),
         (QTextEdit, "QTextEdit"),
     )
-    for widget_type, selector in selector_types:
+    for widget_type, _selector in selector_types:
         for widget in self.findChildren(widget_type):
-            base_style = widget.property("mdcxBaseFormControlStyle")
-            if base_style is None:
-                base_style = widget.styleSheet()
-                widget.setProperty("mdcxBaseFormControlStyle", base_style)
-            widget.setStyleSheet(f"{base_style}\n{selector} {{ border-radius: 8px; }}")
             widget.setProperty("mdcxControlRadius", 8)
+
+
+def _adopt_settings_semantic_styles(self: "MyMAinWindow") -> None:
+    """Convert Designer-era color QSS into stable semantic widget roles."""
+    if self.Ui.page_setting.property("mdcxSemanticStylesAdopted"):
+        return
+    for widget in self.Ui.page_setting.findChildren(QWidget):
+        legacy_style = widget.styleSheet().strip()
+        if not legacy_style:
+            continue
+        compact = legacy_style.replace(" ", "").lower()
+        role = None
+        if isinstance(widget, QLabel):
+            if "255,38,0" in compact:
+                role = "danger"
+            elif "10,52,255" in compact:
+                role = "link"
+            elif "8,128,128" in compact:
+                role = "help"
+        elif isinstance(widget, QPushButton) and "background-color:rgba(255,255,255,0)" in compact:
+            role = "ghost"
+        elif isinstance(widget, (QLineEdit, QPlainTextEdit, QTextEdit)):
+            role = "code" if "courier" in compact else "input"
+        if role is not None:
+            widget.setProperty("semanticRole", role)
+        widget.setProperty("mdcxLegacyInlineStyle", legacy_style)
+        widget.setStyleSheet("")
+    self.Ui.page_setting.setProperty("mdcxSemanticStylesAdopted", True)
+
+
+def _settings_semantic_style(dark: bool) -> str:
+    t = _tokens(dark)
+    return f"""
+        QLabel[semanticRole="help"] {{ color: {t["success"]}; }}
+        QLabel[semanticRole="danger"] {{ color: {t["danger"]}; font-weight: 600; }}
+        QLabel[semanticRole="link"] {{ color: {t["link"]}; }}
+        QLabel[semanticRole="danger"][semanticEmphasis="hero"] {{ font-size: 17px; font-weight: 700; }}
+        QLabel[validationMessage="true"] {{ color: {t["danger"]}; }}
+        QLabel[statusRole="neutral"] {{ color: {t["text_muted"]}; }}
+        QLabel[statusRole="danger"] {{ color: {t["danger"]}; }}
+        QLabel[statusRole="success"] {{ color: {t["success"]}; }}
+        QLabel[sectionTitle="true"] {{
+            color: {t["success"]}; font-weight: 600; padding: 6px 2px 2px;
+        }}
+        QLabel[sectionTitle="true"][sectionSeparated="true"] {{
+            border-top: 1px solid {t["border"]};
+        }}
+        QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox, QComboBox {{
+            color: {t["text"]}; background: {t["input_bg"]};
+            border: 1px solid {t["border"]}; border-radius: {t["radius_md"]};
+        }}
+        QLineEdit[semanticRole="code"], QPlainTextEdit[semanticRole="code"], QTextEdit[semanticRole="code"],
+        QGroupBox[semanticRole="codeGroup"] {{
+            font-family: Consolas, 'Cascadia Mono', monospace;
+        }}
+        QWidget[semanticRole="mutedContainer"] {{ color: {t["text_muted"]}; }}
+        QPushButton[semanticRole="ghost"] {{
+            color: {t["text"]};
+            background: transparent;
+            border: 0;
+            border-radius: {t["radius_md"]};
+        }}
+        QPushButton[semanticRole="ghost"]:hover {{ background: {t["selection_bg"]}; }}
+        QPushButton[semanticRole="ghost"]:pressed {{ background: {t["selection_bg_inactive"]}; }}
+        QPlainTextEdit[cookieEditor="true"] {{
+            color: {t["text"]}; background: {t["input_bg"]};
+            border: 1px solid {t["border"]}; border-radius: {t["radius_sm"]};
+            font-family: Courier;
+        }}
+    """
 
 
 def _apply_dynamic_semantic_styles(self: "MyMAinWindow", dark: bool) -> None:
@@ -535,16 +635,20 @@ def _apply_dynamic_semantic_styles(self: "MyMAinWindow", dark: bool) -> None:
     if preview is not None:
         preview_text = preview.text()
         state = "danger" if "语法错误" in preview_text else "success" if "语法正确" in preview_text else "neutral"
-        preview.setStyleSheet(build_status_text_style(dark, state))
+        preview.setStyleSheet("")
+        set_semantic_property(preview, "statusRole", state)
 
     for name in ("label_javdb_cookie_section", "label_javbus_cookie_section", "label_fc2cmadb_cookie_section"):
         label = getattr(self.Ui, name, None)
         if label is not None:
-            label.setStyleSheet(build_section_title_style(dark, separated=name != "label_javdb_cookie_section"))
+            label.setStyleSheet("")
+            set_semantic_property(label, "sectionTitle", True)
+            set_semantic_property(label, "sectionSeparated", name != "label_javdb_cookie_section")
 
     cookie_editor = getattr(self.Ui, "plainTextEdit_cookie_fc2ppvdb", None)
     if cookie_editor is not None:
-        cookie_editor.setStyleSheet(build_code_editor_style(dark))
+        cookie_editor.setStyleSheet("")
+        set_semantic_property(cookie_editor, "cookieEditor", True)
 
 
 def _apply_log_document_style(self: "MyMAinWindow", dark: bool) -> None:
@@ -578,10 +682,10 @@ def set_style(self: "MyMAinWindow"):
         return
 
     apply_application_palette(False)
+    _adopt_settings_semantic_styles(self)
     _apply_dynamic_semantic_styles(self, False)
     _apply_log_document_style(self, False)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
-    _normalize_form_control_radius(self)
 
     self.Ui.widget_setting.setStyleSheet(build_sidebar_style(False, self.window_radius))
     if hasattr(self, "_shell_splitter"):
@@ -611,18 +715,19 @@ def set_style(self: "MyMAinWindow"):
         QTabBar::tab{
             color: black;
             border:1px solid #E8E8E8;
-            min-height: 3ex;
-            min-width: 6ex;
-            padding: 2px;
+            min-height: 28px;
+            min-width: 0;
+            padding: 2px 8px;
+            margin-right: 2px;
             background-color:#FFFFFF;
-            border-radius: 1px;
+            border-radius: 8px;
         }
         QTabBar::tab:selected{
             color: white;
             font-weight:bold;
-            border-bottom: 2px solid #2080F7;
-            background-color:#2080F7;
-            border-radius: 1px;
+            border: 1px solid #4C6EFF;
+            background-color:#4C6EFF;
+            border-radius: 8px;
         }
         QWidget#tab1,#tab2,#tab3,#tab4,#tab5,#tab,#tab_2,#tab_3,#tab_4,#tab_5,#tab_6,#tab_7,#scrollAreaWidgetContents_guaxiaomulu,#scrollAreaWidgetContents_guaxiaomoshi,#scrollAreaWidgetContents_guaxiaowangzhan,#scrollAreaWidgetContents_xiazai,#scrollAreaWidgetContents_mingming,#scrollAreaWidgetContents_fanyi,#scrollAreaWidgetContents_zimu,#scrollAreaWidgetContents_shuiyin,#scrollAreaWidgetContents_nfo,#scrollAreaWidgetContents_yanyuan,#scrollAreaWidgetContents_wangluo,#scrollAreaWidgetContents_gaoji{
             background-color: rgba(255, 255, 255, 255);
@@ -641,7 +746,7 @@ def set_style(self: "MyMAinWindow"):
         QLineEdit{
             font-size:13px;
             border:0px solid rgba(130, 30, 30, 20);
-            border-radius: 15px;
+            border-radius: 8px;
         }
         QRadioButton{
             font-size:13px;
@@ -690,6 +795,7 @@ def set_style(self: "MyMAinWindow"):
             )
         )
     )
+    self.Ui.page_setting.setStyleSheet(self.Ui.page_setting.styleSheet() + _settings_semantic_style(False))
     # 整个页面
     self.Ui.centralwidget.setStyleSheet(
         _qss_resources(
@@ -749,7 +855,7 @@ def set_style(self: "MyMAinWindow"):
         QLineEdit, QPlainTextEdit, QTextEdit, QDoubleSpinBox, QSpinBox{{
             font-size:14px;
             background:white;
-            border-radius:10px;
+            border-radius:8px;
             border: 1px solid #D8DEE9;
             padding: 4px 8px;
             selection-background-color: #4C6EFF;
@@ -970,15 +1076,18 @@ def set_style(self: "MyMAinWindow"):
             )
         )
     )
+    self.Ui.centralwidget.setStyleSheet(self.Ui.centralwidget.styleSheet() + build_window_chrome_style(False))
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(False))
+    # Parent styles are applied above, so normalize generated inline styles last.
+    _normalize_form_control_radius(self)
 
 
 def set_dark_style(self: "MyMAinWindow"):
     apply_application_palette(True)
+    _adopt_settings_semantic_styles(self)
     _apply_dynamic_semantic_styles(self, True)
     _apply_log_document_style(self, True)
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(True))
-    _normalize_form_control_radius(self)
 
     self.Ui.widget_setting.setStyleSheet(build_sidebar_style(True, self.window_radius))
     if hasattr(self, "_shell_splitter"):
@@ -1007,17 +1116,18 @@ def set_dark_style(self: "MyMAinWindow"):
         }
         QTabBar::tab{
             border:1px solid #1F272F;
-            min-height: 3ex;
-            min-width: 6ex;
-            padding: 2px;
+            min-height: 28px;
+            min-width: 0;
+            padding: 2px 8px;
+            margin-right: 2px;
             background-color:#242D37;
-            border-radius: 2px;
+            border-radius: 8px;
         }
         QTabBar::tab:selected{
             font-weight:bold;
-            border-bottom: 2px solid #2080F7;
-            background-color:#2080F7;
-            border-radius: 1px;
+            border: 1px solid #4C6EFF;
+            background-color:#4C6EFF;
+            border-radius: 8px;
         }
         QWidget#tab1,#tab2,#tab3,#tab4,#tab5,#tab,#tab_2,#tab_3,#tab_4,#tab_5,#tab_6,#tab_7,#scrollAreaWidgetContents_guaxiaomulu,#scrollAreaWidgetContents_guaxiaomoshi,#scrollAreaWidgetContents_guaxiaowangzhan,#scrollAreaWidgetContents_xiazai,#scrollAreaWidgetContents_mingming,#scrollAreaWidgetContents_fanyi,#scrollAreaWidgetContents_zimu,#scrollAreaWidgetContents_shuiyin,#scrollAreaWidgetContents_nfo,#scrollAreaWidgetContents_yanyuan,#scrollAreaWidgetContents_wangluo,#scrollAreaWidgetContents_gaoji{
             background-color: #18222D;
@@ -1035,7 +1145,7 @@ def set_dark_style(self: "MyMAinWindow"):
         QLineEdit{
             font-size:13px;
             border:0px solid rgba(130, 30, 30, 20);
-            border-radius: 15px;
+            border-radius: 8px;
         }
         QRadioButton{
             font-size:13px;
@@ -1071,7 +1181,7 @@ def set_dark_style(self: "MyMAinWindow"):
         QPlainTextEdit{
             font-size:13px;
             background:#18222D;
-            border-radius: 4px;
+            border-radius: 8px;
         }
         QGroupBox{
             background-color: rgba(180, 180, 180, 20);
@@ -1102,6 +1212,7 @@ def set_dark_style(self: "MyMAinWindow"):
             )
         )
     )
+    self.Ui.page_setting.setStyleSheet(self.Ui.page_setting.styleSheet() + _settings_semantic_style(True))
     # 整个页面
     self.Ui.centralwidget.setStyleSheet(
         _qss_resources(
@@ -1161,7 +1272,7 @@ def set_dark_style(self: "MyMAinWindow"):
         QLineEdit, QPlainTextEdit, QTextEdit, QDoubleSpinBox, QSpinBox{{
             font-size:13px;
             background:#18222D;
-            border-radius:20px;
+            border-radius:8px;
             border: 1px solid #2F3A46;
             padding: 4px 8px;
             selection-background-color: #4C6EFF;
@@ -1382,4 +1493,7 @@ def set_dark_style(self: "MyMAinWindow"):
             )
         )
     )
+    self.Ui.centralwidget.setStyleSheet(self.Ui.centralwidget.styleSheet() + build_window_chrome_style(True))
     self.Ui.treeWidget_number.setStyleSheet(build_tree_widget_style(True))
+    # Parent styles are applied above, so normalize generated inline styles last.
+    _normalize_form_control_radius(self)

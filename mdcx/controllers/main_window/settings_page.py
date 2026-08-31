@@ -22,12 +22,14 @@ from PyQt6.QtWidgets import (
 )
 
 from mdcx.config.enums import CleanAction, DownloadableFile, HDPicSource, KeepableFile, Language, NoEscape, ReadMode
+from mdcx.config.manager import manager
 from mdcx.config.models import str_to_list
 from mdcx.config.resources import resources
 from mdcx.core.naming import NameRenderOptions, NamingTarget, render_name
 from mdcx.gen.field_enums import CrawlerResultFields
 
 from .config_binding import ChoiceBinding, ConfigBinder, FieldOptionBinding, MultiChoiceBinding, SettingBinding
+from .settings_composites import build_settings_composites
 
 
 def parse_duration(value: str) -> timedelta:
@@ -88,6 +90,7 @@ class SettingsPageController:
         self.binder = ConfigBinder(
             self.ui,
             [
+                SettingBinding("toolButton_advanced_settings", "show_advanced_settings"),
                 SettingBinding(
                     "lineEdit_movie_type",
                     "media_type",
@@ -259,6 +262,16 @@ class SettingsPageController:
                 SettingBinding("horizontalSlider_timeout", "timeout", parser=int),
                 SettingBinding("horizontalSlider_retry", "retry", parser=int),
                 SettingBinding("checkBox_field_priority_try_all_images", "field_priority_try_all_images"),
+                SettingBinding(
+                    "checkBox_poster_mark", "poster_mark", parser=lambda checked: int(checked), formatter=bool
+                ),
+                SettingBinding(
+                    "checkBox_thumb_mark", "thumb_mark", parser=lambda checked: int(checked), formatter=bool
+                ),
+                SettingBinding(
+                    "checkBox_fanart_mark", "fanart_mark", parser=lambda checked: int(checked), formatter=bool
+                ),
+                SettingBinding("horizontalSlider_mark_size", "mark_size", parser=int),
             ],
             choices=[
                 ChoiceBinding(
@@ -464,6 +477,7 @@ class SettingsPageController:
                     "checkBox_director_translate",
                 ),
             ],
+            composites=build_settings_composites(),
         )
 
     def _setup_network_security(self) -> None:
@@ -760,12 +774,20 @@ class SettingsPageController:
         layout.insertWidget(0, bar)
         self.ui.lineEdit_settings_search.textChanged.connect(self._search)
         self.ui.toolButton_advanced_settings.toggled.connect(self._toggle_advanced)
+        self.ui.toolButton_advanced_settings.toggled.connect(self._persist_advanced_visibility)
         self._toggle_advanced(False)
 
     def _toggle_advanced(self, visible: bool) -> None:
         self.ui.toolButton_advanced_settings.setText("隐藏高级设置" if visible else "显示高级设置")
         for widget in self._advanced_widgets:
             widget.setVisible(visible)
+
+    @staticmethod
+    def _persist_advanced_visibility(visible: bool) -> None:
+        if manager.config.show_advanced_settings == visible:
+            return
+        manager.config.show_advanced_settings = visible
+        manager.save()
 
     def _search(self, query: str) -> None:
         query = query.strip().casefold()

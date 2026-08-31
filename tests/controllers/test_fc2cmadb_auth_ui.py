@@ -39,7 +39,9 @@ def test_cookie_settings_visually_separate_each_website():
     ]
 
     assert [label.text() for label in section_titles] == ["JavDB", "JavBus", "FC2CMADB"]
-    assert all(label.styleSheet() for label in section_titles)
+    assert all(label.property("sectionTitle") is True for label in section_titles)
+    assert [label.property("sectionSeparated") for label in section_titles] == [False, True, True]
+    assert all(not label.styleSheet() for label in section_titles)
     assert [
         window.Ui.gridLayout_10.getItemPosition(window.Ui.gridLayout_10.indexOf(label))[0] for label in section_titles
     ] == [0, 4, 8]

@@ -136,6 +136,51 @@ async def test_prepare_primary_images_does_not_call_web_downloads_when_local_ima
 
 
 @pytest.mark.asyncio
+async def test_explicit_url_rescrape_bypasses_local_images_and_forces_web_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    calls = []
+    result = CrawlersResult.empty()
+    result.number = "062526_001"
+    other = OtherInfo.empty()
+
+    async def unexpected_local(*_args, **_kwargs):
+        pytest.fail("指定详情页重新刮削时不应复用同番号本地图片")
+
+    async def fresh_thumb(*_args, **kwargs):
+        calls.append(("thumb", kwargs["force_refresh"]))
+        return True
+
+    async def fresh_fanart(*_args, **kwargs):
+        calls.append(("fanart", kwargs["force_refresh"]))
+        return True
+
+    async def fresh_poster(*_args, **kwargs):
+        calls.append(("poster", kwargs["force_refresh"]))
+        return True
+
+    monkeypatch.setattr("mdcx.core.scraper.prepare_local_number_images", unexpected_local)
+    monkeypatch.setattr("mdcx.core.scraper.thumb_download", fresh_thumb)
+    monkeypatch.setattr("mdcx.core.scraper.fanart_download", fresh_fanart)
+    monkeypatch.setattr("mdcx.core.scraper.poster_download", fresh_poster)
+
+    assert await prepare_primary_images(
+        result,
+        other,
+        "",
+        tmp_path,
+        tmp_path,
+        tmp_path / "poster.jpg",
+        tmp_path / "thumb.jpg",
+        tmp_path / "fanart.jpg",
+        media_context=None,
+        force_refresh=True,
+    )
+    assert calls == [("thumb", True), ("fanart", True), ("poster", True)]
+
+
+@pytest.mark.asyncio
 async def test_prepare_local_number_images_does_not_fall_back_past_first_sorted_image(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

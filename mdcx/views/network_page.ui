@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ui version="4.0">
+  <class>NetworkPage</class>
+  <widget class="QWidget" name="page_net">
+    <widget class="QTextBrowser" name="textBrowser_net_main">
+      <property name="geometry">
+        <rect>
+          <x>30</x>
+          <y>0</y>
+          <width>790</width>
+          <height>682</height>
+        </rect>
+      </property>
+      <property name="readOnly">
+        <bool>true</bool>
+      </property>
+      <property name="openExternalLinks">
+        <bool>true</bool>
+      </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_check_net">
+      <property name="geometry">
+        <rect>
+          <x>680</x>
+          <y>13</y>
+          <width>120</width>
+          <height>40</height>
+        </rect>
+      </property>
+      <property name="text">
+        <string>开始检测</string>
+      </property>
+    </widget>
+  </widget>
+  <customwidgets>
+    <customwidget>
+      <class>CustomQSlider</class>
+      <extends>QSlider</extends>
+      <header>.CustomClass</header>
+    </customwidget>
+  </customwidgets>
+  <resources />
+  <connections />
+</ui>

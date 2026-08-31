@@ -7,6 +7,7 @@ from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
+    QGroupBox,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -559,8 +560,9 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     website_scroll = window.Ui.scrollArea_8
     website_content = website_scroll.widget()
     assert isinstance(website_content.layout(), QVBoxLayout)
-    assert website_content.layout().indexOf(window.Ui.layoutWidget2) >= 0
-    assert window.Ui.layoutWidget2.width() > 701
+    website_separator = window.Ui.layoutWidget1
+    assert website_content.layout().indexOf(website_separator) >= 0
+    assert website_separator.width() > 701
 
     window.Ui.tabWidget.setCurrentWidget(window.Ui.tab3)
     window.Ui.plainTextEdit_cookie_javdb.setPlainText("session=" + "x" * 4000)
@@ -583,6 +585,16 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
 
     assert all(metrics[0] == "layout" for metrics in window._settings_scroll_metrics)
 
+    for tab_index in range(window.Ui.tabWidget.count()):
+        window.Ui.tabWidget.setCurrentIndex(tab_index)
+        APP.processEvents()
+        for group in window.Ui.tabWidget.currentWidget().findChildren(QGroupBox):
+            if not group.isVisible():
+                continue
+            for child in group.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                if child.isVisible():
+                    assert group.rect().contains(child.geometry()), (group.objectName(), child.objectName())
+
     assert window.Ui.comboBox_change_config.size().width() == 151
     assert window.Ui.comboBox_change_config.size().height() == 30
     assert window.Ui.pushButton_save_new_config.size().width() == 91
@@ -592,6 +604,53 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     assert window.Ui.pushButton_save_config.size().width() == 200
     assert window.Ui.pushButton_save_config.size().height() == 50
     assert window.Ui.pushButton_save_config.geometry().right() <= window.Ui.label_config.rect().right() - 12
+    window.close()
+
+
+def test_all_settings_tabs_remain_visible_at_minimum_window_width():
+    window = _generated_ui_window()
+    SettingsPageController(window)
+    setup_responsive_ui(window)
+    window.dark_mode = False
+    window.window_radius = 0
+    window.window_border = 0
+    set_style(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    window.resize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    APP.processEvents()
+
+    tab_bar = window.Ui.tabWidget.tabBar()
+    tab_rects = [tab_bar.tabRect(index) for index in range(tab_bar.count())]
+    assert all(tab_bar.tabText(index) == tab_bar.tabText(index).strip() for index in range(tab_bar.count()))
+    assert sum(rect.width() for rect in tab_rects) <= tab_bar.width()
+    assert tab_rects[0].left() >= 0
+    assert tab_rects[-1].right() < tab_bar.width()
+    assert "border-radius: 8px" in window.Ui.page_setting.styleSheet()
+
+    window.close()
+
+
+def test_settings_theme_uses_semantic_properties_without_inline_widget_qss():
+    window = _generated_ui_window()
+    MyMAinWindow._setup_fc2ppvdb_cookie_ui(window)
+    MyMAinWindow._setup_baidu_translate_ui(window)
+    SettingsPageController(window)
+    window.dark_mode = False
+    window.window_radius = 0
+    window.window_border = 0
+
+    set_style(window)
+
+    inline_widgets = [
+        widget.objectName() for widget in window.Ui.page_setting.findChildren(QWidget) if widget.styleSheet().strip()
+    ]
+    assert inline_widgets == []
+    assert window.Ui.label_javbus_cookie_section.property("sectionTitle") is True
+    assert window.Ui.plainTextEdit_cookie_fc2ppvdb.property("cookieEditor") is True
+    assert window.Ui.label_name_template_preview_result.property("statusRole") == "neutral"
     window.close()
 
 
@@ -636,6 +695,35 @@ def test_tool_page_expands_layout_managed_forms_and_keeps_scrollbar_at_right():
     window.close()
 
 
+def test_tool_page_resyncs_width_when_opened_after_startup_without_window_resize():
+    window = _generated_ui_window()
+    setup_responsive_ui(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
+    window.resize(1100, 700)
+    window.show()
+    APP.processEvents()
+
+    groups = (
+        window.Ui.groupBox_7,
+        window.Ui.groupBox_19,
+        window.Ui.groupBox_6,
+        window.Ui.groupBox_13,
+        window.Ui.groupBox_21,
+    )
+    for group in groups:
+        group.setMinimumWidth(400)
+
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_tool)
+    APP.processEvents()
+
+    viewport_width = window.Ui.scrollArea_10.viewport().width()
+    expected_width = viewport_width - 2 * FORM_SECTION_HORIZONTAL_MARGIN
+    assert expected_width > 400
+    assert window.Ui.scrollArea_10.widget().width() == viewport_width
+    assert all(group.width() == expected_width for group in groups)
+    window.close()
+
+
 def test_tool_page_reopens_at_top_and_form_controls_share_one_radius():
     window = _generated_ui_window()
     setup_responsive_ui(window)
@@ -660,11 +748,16 @@ def test_tool_page_reopens_at_top_and_form_controls_share_one_radius():
         window.Ui.plainTextEdit_cookie_javdb,
     ):
         assert control.property("mdcxControlRadius") == 8
-        assert "border-radius: 8px" in control.styleSheet()
+        assert control.styleSheet() == ""
+        assert "border-radius: 15px" not in control.styleSheet()
+    assert "border-radius:8px" in window.Ui.centralwidget.styleSheet().replace(" ", "")
 
     tool_style = window.Ui.page_tool.styleSheet()
     assert "background: #FFFFFF" in tool_style
     assert "background: #F5F5F6" in tool_style
+    assert "margin-top: 10px" not in tool_style
+    assert "margin-top: 0" in tool_style
+    assert "subcontrol-origin: border" in tool_style
     assert 'QPushButton[toolRole="primary"]' in tool_style
     sidebar_style = window.Ui.widget_setting.styleSheet()
     assert "border-top-right-radius: 0" in sidebar_style
@@ -674,6 +767,7 @@ def test_tool_page_reopens_at_top_and_form_controls_share_one_radius():
     set_dark_style(window)
     assert "background: #18222D" in window.Ui.page_tool.styleSheet()
     assert "background: rgba(180, 180, 180, 20)" in window.Ui.page_tool.styleSheet()
+    assert "margin-top: 10px" not in window.Ui.page_tool.styleSheet()
     assert "background: #2F3A46" in window._shell_splitter.styleSheet()
 
     window.dark_mode = False

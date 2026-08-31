@@ -203,6 +203,7 @@ class Config(BaseModel):
     )
     scrape_softlink_path: bool = Field(default=False, title="刮削软链接路径")
     auto_link: bool = Field(default=False, title="自动创建软链接")
+    show_advanced_settings: bool = Field(default=False, title="显示高级设置")
     # endregion
 
     # region: Cleaning Settings

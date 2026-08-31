@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QTreeWidget, QTreeWidgetItem
 
-from mdcx.controllers.main_window import main_window as main_window_module
+from mdcx.controllers.main_window import main_page_mixin as main_window_module
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.core.local_nfo_loader import LocalNfoLoadResult
 from mdcx.models.flags import Flags

@@ -232,7 +232,7 @@ def _style_site_list(list_widget: QListWidget, min_height: int, dark: bool = Fal
         QListWidget::item {{
             color: {colors["text"]};
             border: 1px solid {colors["border"]};
-            border-radius: 7px;
+            border-radius: 8px;
             padding: 5px 9px;
             margin: 3px;
             background: {colors["surface_muted"]};
@@ -664,12 +664,13 @@ def refresh_site_priority_ui(window: "MyMAinWindow") -> None:
 
 def _style_inline_button(button: QPushButton, dark: bool = False) -> None:
     colors = _site_priority_colors(dark)
+    button.setMinimumHeight(30)
     button.setStyleSheet(
         f"""
         QPushButton {{
             color: {colors["text"]};
             border: 1px solid {colors["border"]};
-            border-radius: 7px;
+            border-radius: 8px;
             padding: 3px 8px;
             background: {colors["surface"]};
         }}
@@ -689,7 +690,7 @@ def _style_inline_button(button: QPushButton, dark: bool = False) -> None:
 
 def _make_inline_button(text: str) -> QPushButton:
     button = QPushButton(text)
-    button.setMinimumHeight(28)
+    button.setMinimumHeight(30)
     button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     _style_inline_button(button)
     return button

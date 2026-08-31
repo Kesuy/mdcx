@@ -69,6 +69,30 @@ POSTER_AUTO_BEST_MIN_CROP_HEIGHT_RATIO = 0.80
 POSTER_SKIP_AMAZON_MIN_BYTES = 400 * 1024
 
 
+async def _replace_downloaded_file(source: Path, destination: Path) -> bool:
+    """Atomically replace an image after its temporary download has succeeded."""
+    try:
+        await to_thread(source.replace, destination)
+        return True
+    except OSError as error:
+        LogBuffer.log().write(f"\n 🔴 图片替换失败: {destination} ({error})")
+        return False
+
+
+async def _copy_image_safely(source: Path, destination: Path) -> bool:
+    """Copy through a validated sibling temp file so an existing image survives failures."""
+    destination_exists = await aiofiles.os.path.exists(destination)
+    temp_path = destination.with_suffix(".[COPY].jpg") if destination_exists else destination
+    copied, _ = await copy_file_async(source, temp_path)
+    if not copied or not await check_pic_async(temp_path):
+        await delete_file_async(temp_path)
+        return False
+    if temp_path != destination and not await _replace_downloaded_file(temp_path, destination):
+        await delete_file_async(temp_path)
+        return False
+    return True
+
+
 @dataclass(frozen=True)
 class PosterCandidate:
     source: str
@@ -739,6 +763,8 @@ async def thumb_download(
     folder_new_path: Path,
     thumb_final_path: Path,
     media_context: MediaResourceContext | None = None,
+    *,
+    force_refresh: bool = False,
 ) -> bool:
     start_time = time.time()
     poster_path = other.poster_path
@@ -752,7 +778,7 @@ async def thumb_download(
     )
 
     # 本地存在 thumb.jpg，且勾选保留旧文件时，不下载
-    if thumb_path and thumb_policy.should_keep:
+    if thumb_path and thumb_policy.should_keep and not force_refresh:
         LogBuffer.log().write(f"\n 🍀 Thumb done! (old)({get_used_time(start_time)}s) ")
         return True
 
@@ -813,8 +839,9 @@ async def thumb_download(
                 if cover_size:
                     # 图片下载正常，替换旧的 thumb.jpg
                     if thumb_final_path_temp != thumb_final_path:
-                        await move_file_async(thumb_final_path_temp, thumb_final_path)
-                        await delete_file_async(thumb_final_path_temp)
+                        if not await _replace_downloaded_file(thumb_final_path_temp, thumb_final_path):
+                            await delete_file_async(thumb_final_path_temp)
+                            continue
                     if cd_part:
                         Flags.file_done_dic[result.number].update({"thumb": thumb_final_path})
                     other.thumb_marked = False  # 表示还没有走加水印流程
@@ -827,6 +854,9 @@ async def thumb_download(
 
     # 下载失败，本地有图
     if thumb_path:
+        if force_refresh:
+            LogBuffer.log().write("\n 🔴 Thumb 强制刷新失败，已安全保留之前的图片！")
+            return False
         LogBuffer.log().write("\n 🟠 Thumb download failed! 将继续使用之前的图片！")
         LogBuffer.log().write(f"\n 🍀 Thumb done! (old)({get_used_time(start_time)}s) ")
         return True
@@ -929,8 +959,9 @@ async def _download_poster_candidate(
         return False
 
     if poster_final_path_temp != poster_final_path:
-        await move_file_async(poster_final_path_temp, poster_final_path)
-        await delete_file_async(poster_final_path_temp)
+        if not await _replace_downloaded_file(poster_final_path_temp, poster_final_path):
+            await delete_file_async(poster_final_path_temp)
+            return False
     if cd_part:
         Flags.file_done_dic[result.number].update({"poster": poster_final_path})
     result.poster = candidate.url
@@ -961,6 +992,8 @@ async def poster_download(
     folder_new_path: Path,
     poster_final_path: Path,
     media_context: MediaResourceContext | None = None,
+    *,
+    force_refresh: bool = False,
 ) -> bool:
     start_time = time.time()
     download_files = manager.config.download_files
@@ -981,7 +1014,7 @@ async def poster_download(
         return True
 
     # 本地有poster时，且勾选保留旧文件时，不下载
-    if poster_path and poster_policy.should_keep:
+    if poster_path and poster_policy.should_keep and not force_refresh:
         LogBuffer.log().write(f"\n 🍀 Poster done! (old)({get_used_time(start_time)}s)")
         return True
 
@@ -1117,7 +1150,9 @@ async def poster_download(
         cut_thumb_to_poster, result, thumb_path, poster_final_path_temp, result.scraping_type, cut_log
     ):
         # 裁剪成功，替换旧图
-        await move_file_async(poster_final_path_temp, poster_final_path)
+        if not await _replace_downloaded_file(poster_final_path_temp, poster_final_path):
+            await delete_file_async(poster_final_path_temp)
+            return False
         if cd_part:
             Flags.file_done_dic[result.number].update({"poster": poster_final_path})
         other.poster_path = poster_final_path
@@ -1126,6 +1161,9 @@ async def poster_download(
 
     # 裁剪失败，本地有图
     if poster_path:
+        if force_refresh:
+            LogBuffer.log().write("\n 🔴 Poster 强制刷新失败，已安全保留之前的图片！")
+            return False
         LogBuffer.log().write("\n 🟠 Poster cut failed! 将继续使用之前的图片！")
         LogBuffer.log().write(f"\n 🍀 Poster done! (old)({get_used_time(start_time)}s) ")
         return True
@@ -1147,6 +1185,8 @@ async def fanart_download(
     other: OtherInfo,
     cd_part: str,
     fanart_final_path: Path,
+    *,
+    force_refresh: bool = False,
 ) -> bool:
     """
     复制thumb为fanart
@@ -1170,7 +1210,7 @@ async def fanart_download(
         return True
 
     # 保留，并且本地存在 fanart.jpg，不下载返回
-    if fanart_policy.should_keep and fanart_path:
+    if fanart_policy.should_keep and fanart_path and not force_refresh:
         LogBuffer.log().write(f"\n 🍀 Fanart done! (old)({get_used_time(start_time)}s)")
         return True
 
@@ -1186,47 +1226,56 @@ async def fanart_download(
             and await aiofiles.os.path.exists(done_fanart_path)
             and done_fanart_path.parent == fanart_final_path.parent
         ):
-            if fanart_path:
-                await delete_file_async(fanart_path)
-            await copy_file_async(done_fanart_path, fanart_final_path)
-            other.fanart_path = fanart_final_path
-            LogBuffer.log().write(f"\n 🍀 Fanart done! (copy cd-fanart)({get_used_time(start_time)}s)")
-            return True
+            if await _copy_image_safely(done_fanart_path, fanart_final_path):
+                if fanart_path and fanart_path != fanart_final_path:
+                    await delete_file_async(fanart_path)
+                other.fanart_path = fanart_final_path
+                LogBuffer.log().write(f"\n 🍀 Fanart done! (copy cd-fanart)({get_used_time(start_time)}s)")
+                return True
+            if force_refresh:
+                LogBuffer.log().write("\n 🔴 Fanart 强制刷新失败，已安全保留之前的图片！")
+                return False
 
     # 复制thumb
     if thumb_path:
-        if fanart_path:
-            await delete_file_async(fanart_path)
-        await copy_file_async(thumb_path, fanart_final_path)
-        other.fanart_path = fanart_final_path
-        other.fanart_marked = other.thumb_marked
-        LogBuffer.log().write(f"\n 🍀 Fanart done! (copy thumb)({get_used_time(start_time)}s)")
-        if cd_part:
-            Flags.file_done_dic[number].update({"fanart": fanart_final_path})
-        return True
-    else:
-        # 本地有 fanart 时，不下载
-        if fanart_path:
-            LogBuffer.log().write("\n 🟠 Fanart copy failed! 未找到 thumb 图片，将继续使用之前的图片！")
-            LogBuffer.log().write(f"\n 🍀 Fanart done! (old)({get_used_time(start_time)}s)")
+        if await _copy_image_safely(thumb_path, fanart_final_path):
+            if fanart_path and fanart_path != fanart_final_path:
+                await delete_file_async(fanart_path)
+            other.fanart_path = fanart_final_path
+            other.fanart_marked = other.thumb_marked
+            LogBuffer.log().write(f"\n 🍀 Fanart done! (copy thumb)({get_used_time(start_time)}s)")
+            if cd_part:
+                Flags.file_done_dic[number].update({"fanart": fanart_final_path})
             return True
+        if force_refresh:
+            LogBuffer.log().write("\n 🔴 Fanart 强制刷新失败，已安全保留之前的图片！")
+            return False
 
-        else:
-            if DownloadableFile.IGNORE_PIC_FAIL in download_files:
-                LogBuffer.log().write("\n 🟠 Fanart failed! (你已勾选「图片下载失败时，不视为失败！」) ")
-                LogBuffer.log().write(f"\n 🍀 Fanart done! (none)({get_used_time(start_time)}s)")
-                return True
-            else:
-                LogBuffer.log().write(
-                    "\n 🔴 Fanart failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
-                )
-                LogBuffer.error().write(
-                    "Fanart 下载失败！你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」"
-                )
-                return False
+    # 本地有 fanart 时，普通流程允许继续使用；强制刷新不得静默成功。
+    if fanart_path:
+        if force_refresh:
+            LogBuffer.log().write("\n 🔴 Fanart 强制刷新失败，已安全保留之前的图片！")
+            return False
+        LogBuffer.log().write("\n 🟠 Fanart copy failed! 未找到 thumb 图片，将继续使用之前的图片！")
+        LogBuffer.log().write(f"\n 🍀 Fanart done! (old)({get_used_time(start_time)}s)")
+        return True
+
+    if DownloadableFile.IGNORE_PIC_FAIL in download_files:
+        LogBuffer.log().write("\n 🟠 Fanart failed! (你已勾选「图片下载失败时，不视为失败！」) ")
+        LogBuffer.log().write(f"\n 🍀 Fanart done! (none)({get_used_time(start_time)}s)")
+        return True
+    LogBuffer.log().write("\n 🔴 Fanart failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 ")
+    LogBuffer.error().write("Fanart 下载失败！你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」")
+    return False
 
 
-async def extrafanart_download(extrafanart: list[str], extrafanart_from: str, folder_new_path: Path) -> bool | None:
+async def extrafanart_download(
+    extrafanart: list[str],
+    extrafanart_from: str,
+    folder_new_path: Path,
+    *,
+    force_refresh: bool = False,
+) -> bool | None:
     start_time = time.time()
     download_files = manager.config.download_files
     keep_files = manager.config.keep_files
@@ -1246,7 +1295,7 @@ async def extrafanart_download(extrafanart: list[str], extrafanart_from: str, fo
         return
 
     # 本地存在 extrafanart_folder，且勾选保留旧文件时，不下载
-    if extrafanart_policy.should_keep and await aiofiles.os.path.exists(extrafanart_folder_path):
+    if extrafanart_policy.should_keep and await aiofiles.os.path.exists(extrafanart_folder_path) and not force_refresh:
         LogBuffer.log().write(f"\n 🍀 Extrafanart done! (old)({get_used_time(start_time)}s) ")
         return True
 
@@ -1300,5 +1349,8 @@ async def extrafanart_download(extrafanart: list[str], extrafanart_from: str, fo
                 return False
         LogBuffer.log().write("\n 🟠 ExtraFanart download failed! 将继续使用之前的本地文件！")
     if await aiofiles.os.path.exists(extrafanart_folder_path):  # 使用旧文件
+        if force_refresh:
+            LogBuffer.log().write("\n 🔴 ExtraFanart 强制刷新失败，已安全保留之前的图片！")
+            return False
         LogBuffer.log().write(f"\n 🍀 ExtraFanart done! (old)({get_used_time(start_time)}s)")
         return True

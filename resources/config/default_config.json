@@ -5,6 +5,7 @@
   "success_output_folder": "D:\\Media\\Input",
   "failed_output_folder": "D:\\Media\\Input\\failed",
   "extrafanart_folder": "extrafanart_copy",
+  "show_advanced_settings": false,
   "media_type": [
     ".mp4",
     ".avi",

@@ -1,9 +1,8 @@
 import threading
 from types import SimpleNamespace
 
-from PyQt6.QtWidgets import QApplication, QTextBrowser
+from PyQt6.QtWidgets import QApplication, QPushButton, QTextBrowser
 
-from mdcx.controllers.main_window import main_window as main_window_module
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.network_controller import NetworkController
 from mdcx.controllers.main_window.usage_guide import build_usage_guide, setup_usage_guide
@@ -38,7 +37,7 @@ def test_setup_usage_guide_uses_log_like_plain_text_content():
 
 
 def test_network_check_button_keeps_shared_rounded_style():
-    button = main_window_module.QPushButton()
+    button = QPushButton()
     button.setObjectName("pushButton_check_net")
     button.setText("开始检测")
     started: list[bool] = []

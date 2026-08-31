@@ -49,7 +49,7 @@ def test_set_elided_label_text_preserves_both_ends_when_space_is_tight():
 
 
 def test_main_ui_allocates_more_space_for_number_without_overlapping_actor_label():
-    ui_path = Path(__file__).parents[2] / "mdcx" / "views" / "MDCx.ui"
+    ui_path = Path(__file__).parents[2] / "mdcx" / "views" / "main_page.ui"
     root = ET.parse(ui_path).getroot()
 
     def geometry(name: str) -> dict[str, int]:

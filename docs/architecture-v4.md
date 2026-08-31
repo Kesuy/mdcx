@@ -55,9 +55,13 @@ group.resize(...)
 content.resize(...)
 ```
 
-网络 Cookie 和翻译服务分组内部也已经使用真实布局。新增设置控件应加入对应 `QGridLayout` / `QVBoxLayout`，不得通过扩大父控件并把后续 sibling 整体下移来“腾位置”。
+所有设置分组（包括网络 Cookie、翻译服务和 NFO 设置）都必须在 `settings_page.ui` 中直接声明 `QGridLayout` / `QVBoxLayout`。分组直接子控件不得保存 geometry，控制器也不得在启动时把坐标重新包装成布局；新增设置控件必须直接加入 Designer 布局，不得通过扩大父控件并把后续 sibling 整体下移来“腾位置”。
 
-NFO 自由表单等尚未完成拆分的特殊编辑器暂时走兼容路径。修改这些页面时，应先把一个完整分组迁入 Layout，再删除对应 geometry 规则，避免两套布局同时控制同一控件。
+## 视图组合与主窗口边界
+
+`MDCx.ui` 只定义窗口壳与页面占位；主页、日志、网络、工具、设置、关于和 NFO 浮层分别保存在页面级 `.ui`。`scripts/split_main_ui.py` 一次生成壳层及全部页面 Python 模块，`Ui_MDCx` facade 负责组合并保持历史控件属性兼容。不得把页面内容重新写回壳层，也不得直接修改生成的页面 `.py`。
+
+`MyMAinWindow` 只编排初始化、跨控制器路由和 Designer 兼容薄槽。页面初始化、主结果页交互、设置/工具槽分别由 `PageSetupMixin`、`MainPageMixin` 和 `SettingsToolSlotsMixin` 承担；窗口生命周期与导航、媒体预览、日志视图、帮助/提示分别由 `WindowLifecycleMixin`、`PreviewControllerMixin`、`LogControllerMixin` 和 `HelpControllerMixin` 承担。页面新增行为应进入对应控制器，而不是继续扩大主窗口类。
 
 ## 主题：语义 token
 
@@ -71,6 +75,10 @@ NFO 自由表单等尚未完成拆分的特殊编辑器暂时走兼容路径。�
 
 新增控件样式必须同时验证亮色、暗色、disabled、focus 和 selected 状态。资源 URL 必须经 `_qss_resources()` 转换，保证源码和 PyInstaller 环境一致。
 
+设置页子控件不得调用 `setStyleSheet()` 保存独立颜色。状态文字、分区标题、代码编辑器和校验信息使用 `statusRole`、`sectionTitle`、`cookieEditor`、`validationError` 等语义属性，由页面 token QSS 统一解析。
+
+所有 Designer `.ui` 禁止保存 `styleSheet` 属性；`scripts/split_main_ui.py` 在生成前移除残留样式并把旧设置页颜色意图迁移为 `semanticRole`。窗口按钮、进度条及裁切预览等特殊控件同样由主题构建器或 Palette 管理。
+
 ## 配置与凭据
 
 普通配置通过 `ConfigBinder` 声明式绑定，保存使用原子替换和备份。API Key、Token 与 Cookie 通过 secret store 优先写入系统密钥库。新增设置项时至少需要：
@@ -81,6 +89,8 @@ NFO 自由表单等尚未完成拆分的特殊编辑器暂时走兼容路径。�
 4. load/save 往返测试；
 5. 若为凭据，加入 secret 字段清单且不得出现在导出配置中。
 
+多个控件共同组成一个持久化列表或互斥选择时，使用 `CompositeBinding` 及 `settings_composites.py` 中的 typed schema。NFO、Emby、水印和总开关不得在 `load_config.py` / `save_config.py` 中重新手工拼装；定时器、主题和托盘等加载副作用继续留在流程控制器中。网站优先级是有序拖放数据，保留专用模型和兼容逻辑。
+
 ## 质量门
 
 提交前执行：
@@ -89,7 +99,7 @@ NFO 自由表单等尚未完成拆分的特殊编辑器暂时走兼容路径。�
 uv run --locked ruff format --check
 uv run --locked ruff check
 uv run --locked pytest tests -q
-uv run --locked python scripts/build.py --version 4.0.0
+uv run --locked python scripts/build.py --debug
 ```
 
 Windows 构建日志必须出现“冻结程序启动验证通过”。结果模型、布局或主题变更还应实际构造一次 offscreen 主窗口；仅导入模块不足以发现 Designer 控件替换和 selection model 信号问题。

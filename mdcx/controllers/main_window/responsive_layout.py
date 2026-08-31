@@ -601,8 +601,13 @@ def _sync_tool_scroll_area(window: "MyMAinWindow") -> None:
         return
 
     scroll_area, content, groups = metrics
-    content.setMinimumWidth(max(1, scroll_area.viewport().width()))
-    available_width = max(1, scroll_area.viewport().width() - 2 * FORM_SECTION_HORIZONTAL_MARGIN)
+    viewport_width = max(1, scroll_area.viewport().width())
+    # The generated content has a wide size hint. When the tool page is hidden
+    # during startup, QScrollArea can retain that width until the window is
+    # manually resized unless both bounds follow the visible viewport.
+    content.setMinimumWidth(viewport_width)
+    content.setMaximumWidth(viewport_width)
+    available_width = max(1, viewport_width - 2 * FORM_SECTION_HORIZONTAL_MARGIN)
     for group in groups:
         if group.layout() is None:
             continue
@@ -736,6 +741,9 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
     tool_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
     tool_layout.addWidget(ui.scrollArea_10)
     _setup_tool_scroll_area(window)
+    if not getattr(window, "_stacked_page_sync_connected", False):
+        ui.stackedWidget.currentChanged.connect(lambda *_: _schedule_content_pane_sync(window))
+        window._stacked_page_sync_connected = True
 
     settings_layout = QVBoxLayout(ui.page_setting)
     settings_layout.setContentsMargins(18, 8, 10, PAGE_BOTTOM_MARGIN)
