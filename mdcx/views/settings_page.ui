@@ -1669,7 +1669,7 @@
                 <item row="8" column="1" colspan="4">
                   <widget class="QLabel" name="label_271">
                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                         <horstretch>0</horstretch>
                         <verstretch>0</verstretch>
                       </sizepolicy>
@@ -1681,7 +1681,7 @@
                       </size>
                     </property>
                     <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
+                      <enum>Qt::LeftToRight</enum>
                     </property>
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -1690,7 +1690,7 @@
                       <string>⚠️ 使用前请确认规则是否已启用！！！不启用不生效！！！</string>
                     </property>
                     <property name="alignment">
-                      <set>Qt::AlignCenter</set>
+                      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                     </property>
                     <property name="wordWrap">
                       <bool>true</bool>
@@ -6553,7 +6553,7 @@
                 <item>
                   <widget class="QLabel" name="label_300">
                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                         <horstretch>0</horstretch>
                         <verstretch>0</verstretch>
                       </sizepolicy>
@@ -6565,7 +6565,7 @@
                       </size>
                     </property>
                     <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
+                      <enum>Qt::LeftToRight</enum>
                     </property>
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -6577,7 +6577,7 @@
                       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                     </property>
                     <property name="wordWrap">
-                      <bool>false</bool>
+                      <bool>true</bool>
                     </property>
                     <property name="semanticRole" stdset="0">
                       <string>danger</string>

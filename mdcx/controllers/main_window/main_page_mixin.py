@@ -74,7 +74,9 @@ class MainPageMixin:
             )
             state = "完成" if result == "succ" else "失败"
             icon = "✓" if result == "succ" else "⚠"
-            display_text = f"{icon} {number or filename} · {source or '本地'} · {state} — {filename}"
+            primary = number or filename
+            filename_suffix = f" — {filename}" if filename != primary else ""
+            display_text = f"{icon} {primary} · {source or '本地'}{filename_suffix}"
             node.setData(
                 0,
                 Qt.ItemDataRole.ToolTipRole,
