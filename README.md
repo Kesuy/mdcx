@@ -45,4 +45,4 @@ Windows 打包前请阅读 [构建与排障指南](docs/build-troubleshooting.md
 
 ## 授权许可
 
-本项目按 GPLv3 许可发布，并仅供学习与技术交流。使用者须遵守当地法律法规并自行承担使用后果，禁止商业用途。
+本项目按 GNU General Public License v3.0（GPLv3）许可发布。使用、修改和分发须遵守 `LICENSE` 中的许可条款及当地法律法规，使用者自行承担使用后果。
