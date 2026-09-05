@@ -192,6 +192,7 @@ jobs:
       - name: Validate focused behavior
         run: |
           uv sync --locked --all-extras --dev
+          uv run --locked ruff check --fix mdcx/controllers/main_window/init.py mdcx/controllers/main_window/window_lifecycle.py mdcx/controllers/main_window/result_model.py mdcx/controllers/main_window/main_page_mixin.py tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py
           uv run --locked ruff format mdcx/controllers/main_window/init.py mdcx/controllers/main_window/window_lifecycle.py mdcx/controllers/main_window/result_model.py mdcx/controllers/main_window/main_page_mixin.py tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py
           uv run --locked ruff check mdcx/controllers/main_window/init.py mdcx/controllers/main_window/window_lifecycle.py mdcx/controllers/main_window/result_model.py mdcx/controllers/main_window/main_page_mixin.py tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py
           sudo apt-get update
