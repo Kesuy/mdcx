@@ -23,7 +23,7 @@ uv run --locked ruff check
 uv run --locked pytest tests -q
 ```
 
-测试配置已固化：`uv.toml` 将缓存放在项目可写目录，pytest 使用系统分配的隔离临时目录、Qt offscreen 和离线模型模式；锁定的开发依赖自带 FFmpeg，因此不要求系统预装 FFmpeg 或启用 Windows Developer Mode。开发 FFmpeg 仅由测试配置注入，不会打进正式 EXE。
+项目级 uv 配置将缓存放在仓库内的可写目录，pytest 使用系统分配的隔离临时目录、Qt offscreen 和离线模型模式；锁定的开发依赖自带 FFmpeg，因此不要求系统预装 FFmpeg 或启用 Windows Developer Mode。开发 FFmpeg 仅由测试配置注入，不会打进正式 EXE。
 
 Windows 打包前请阅读 [构建与排障指南](docs/build-troubleshooting.md)。构建脚本会实际启动冻结产物并检查 Qt 与完整启动导入树；验收未通过时不会把文件视为成功产物。
 
