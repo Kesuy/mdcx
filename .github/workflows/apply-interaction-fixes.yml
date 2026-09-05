@@ -1,0 +1,202 @@
+name: Apply settings and result interaction fixes
+
+on:
+  push:
+    branches:
+      - codex/ui-result-list-4.0.12
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/ui-result-list-4.0.12
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Apply focused code changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:100]!r}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'mdcx/controllers/main_window/init.py',
+              '        combo_box.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)\n',
+              '        combo_box.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)\n'
+              '        if self.Ui.page_setting.isAncestorOf(combo_box):\n'
+              '            combo_box.setFocusPolicy(Qt.FocusPolicy.StrongFocus)\n'
+              '            combo_box.setProperty("wheelRequiresFocus", True)\n'
+              '            combo_box.installEventFilter(self)\n',
+          )
+
+          replace_once(
+              'mdcx/controllers/main_window/window_lifecycle.py',
+              'from PyQt6.QtWidgets import QMessageBox, QPushButton, QSystemTrayIcon\n',
+              'from PyQt6.QtWidgets import QComboBox, QMessageBox, QPushButton, QSystemTrayIcon\n',
+          )
+          replace_once(
+              'mdcx/controllers/main_window/window_lifecycle.py',
+              '    def eventFilter(self, a0, a1):\n        # print(event.type())\n\n',
+              '    def eventFilter(self, a0, a1):\n'
+              '        if (\n'
+              '            isinstance(a0, QComboBox)\n'
+              '            and a0.property("wheelRequiresFocus")\n'
+              '            and a1.type() == QEvent.Type.Wheel\n'
+              '            and not a0.hasFocus()\n'
+              '        ):\n'
+              '            a1.ignore()\n'
+              '            return True\n\n'
+              '        # print(event.type())\n\n',
+          )
+
+          result_model = Path('mdcx/controllers/main_window/result_model.py')
+          text = result_model.read_text(encoding='utf-8')
+          widget_import = 'from PyQt6.QtWidgets import QAbstractItemView, QTreeView, QTreeWidget, QTreeWidgetItem\n'
+          if 'from PyQt6.QtGui import QKeySequence\n' not in text:
+              if text.count(widget_import) != 1:
+                  raise SystemExit('result_model import anchor mismatch')
+              text = text.replace(widget_import, 'from PyQt6.QtGui import QKeySequence\n' + widget_import, 1)
+          anchor = '    @classmethod\n    def replace(cls, old: QTreeWidget) -> ResultTreeView:\n'
+          method = '''    def keyPressEvent(self, event) -> None:
+        if event.matches(QKeySequence.StandardKey.SelectAll):
+            item = self.itemFromIndex(self.currentIndex())
+            if item is None:
+                selected = self.selectedItems()
+                item = selected[0] if selected else None
+
+            group = item
+            while group is not None and group.parent() is not None and group.parent() is not self.source_model.root:
+                group = group.parent()
+
+            if group is not None and group.parent() is self.source_model.root:
+                selection_model = self.selectionModel()
+                selection_model.clearSelection()
+                for index in range(group.childCount()):
+                    child_index = self.indexFromItem(group.child(index))
+                    if child_index.isValid():
+                        selection_model.select(
+                            child_index,
+                            QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+                        )
+                event.accept()
+                return
+
+        super().keyPressEvent(event)
+
+'''
+          if method not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit('result_model method anchor mismatch')
+              text = text.replace(anchor, method + anchor, 1)
+          result_model.write_text(text, encoding='utf-8')
+
+          replace_once(
+              'mdcx/controllers/main_window/main_page_mixin.py',
+              '            display_text = f"{icon} {number or filename} · {source or \'本地\'} · {state} — {filename}"\n',
+              '            primary = number or filename\n'
+              '            filename_suffix = f" — {filename}" if filename != primary else ""\n'
+              '            display_text = f"{icon} {primary} · {source or \'本地\'}{filename_suffix}"\n',
+          )
+
+          test_model = Path('tests/controllers/test_result_model.py')
+          text = test_model.read_text(encoding='utf-8')
+          replace_import = 'from PyQt6.QtCore import QPoint, Qt\n'
+          if replace_import in text:
+              text = text.replace(replace_import, 'from PyQt6.QtCore import QEvent, QPoint, Qt\nfrom PyQt6.QtGui import QKeyEvent\n', 1)
+          if 'test_ctrl_a_selects_only_current_result_category' not in text:
+              text += '''
+
+
+def test_ctrl_a_selects_only_current_result_category() -> None:
+    _app()
+    view = ResultTreeView()
+    view.setSelectionMode(view.SelectionMode.ExtendedSelection)
+    success = create_result_item(view)
+    failure = create_result_item(view)
+    assert isinstance(success, ResultTreeItem)
+    assert isinstance(failure, ResultTreeItem)
+    success.setText(0, "成功")
+    failure.setText(0, "失败")
+    success_items = [create_result_item(success), create_result_item(success)]
+    failure_items = [create_result_item(failure), create_result_item(failure)]
+    assert all(isinstance(item, ResultTreeItem) for item in success_items + failure_items)
+
+    view.setCurrentItem(success_items[0])
+    view.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier))
+    assert set(view.selectedItems()) == set(success_items)
+
+    view.clearSelection()
+    view.setCurrentItem(failure_items[0])
+    view.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier))
+    assert set(view.selectedItems()) == set(failure_items)
+'''
+          test_model.write_text(text, encoding='utf-8')
+
+          test_settings = Path('tests/controllers/test_settings_page_ui.py')
+          text = test_settings.read_text(encoding='utf-8')
+          if 'from PyQt6.QtCore import QEvent, Qt\n' not in text:
+              text = text.replace('from PyQt6.QtCore import Qt\n', 'from PyQt6.QtCore import QEvent, Qt\n', 1)
+          if 'from mdcx.controllers.main_window.init import _setup_combo_boxes\n' not in text:
+              text = text.replace(
+                  'from mdcx.controllers.main_window.main_window import MyMAinWindow\n',
+                  'from mdcx.controllers.main_window.init import _setup_combo_boxes\n'
+                  'from mdcx.controllers.main_window.main_window import MyMAinWindow\n'
+                  'from mdcx.controllers.main_window.window_lifecycle import WindowLifecycleMixin\n',
+                  1,
+              )
+          if 'test_long_settings_danger_prompts_expand_and_align_consistently' not in text:
+              text += '''
+
+
+def test_long_settings_danger_prompts_expand_and_align_consistently():
+    window, _controller_instance = _controller()
+
+    for label in (window.Ui.label_271, window.Ui.label_300):
+        assert label.sizePolicy().horizontalPolicy() == label.sizePolicy().Policy.Expanding
+        assert label.layoutDirection() == Qt.LayoutDirection.LeftToRight
+        assert label.alignment() & Qt.AlignmentFlag.AlignLeft
+        assert label.wordWrap()
+
+
+def test_settings_combo_boxes_ignore_wheel_until_focused():
+    window, _controller_instance = _controller()
+    _setup_combo_boxes(window)
+
+    combo_box = window.Ui.comboBox_website_all
+    combo_box.clearFocus()
+    assert combo_box.property("wheelRequiresFocus") is True
+    assert combo_box.focusPolicy() == Qt.FocusPolicy.StrongFocus
+    assert WindowLifecycleMixin.eventFilter(window, combo_box, QEvent(QEvent.Type.Wheel)) is True
+'''
+          test_settings.write_text(text, encoding='utf-8')
+      - name: Validate focused behavior
+        run: |
+          uv sync --locked --all-extras --dev
+          uv run --locked ruff format mdcx/controllers/main_window/init.py mdcx/controllers/main_window/window_lifecycle.py mdcx/controllers/main_window/result_model.py mdcx/controllers/main_window/main_page_mixin.py tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py
+          uv run --locked ruff check mdcx/controllers/main_window/init.py mdcx/controllers/main_window/window_lifecycle.py mdcx/controllers/main_window/result_model.py mdcx/controllers/main_window/main_page_mixin.py tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libegl1 fonts-noto-cjk
+          QT_QPA_PLATFORM=offscreen MDCX_OFFLINE=1 uv run --locked pytest tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py -q
+      - name: Commit fixes and remove bootstrap workflow
+        run: |
+          rm .github/workflows/apply-interaction-fixes.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mdcx/controllers/main_window/init.py mdcx/controllers/main_window/window_lifecycle.py mdcx/controllers/main_window/result_model.py mdcx/controllers/main_window/main_page_mixin.py tests/controllers/test_result_model.py tests/controllers/test_settings_page_ui.py .github/workflows/apply-interaction-fixes.yml
+          git diff --cached --check
+          git commit -m "fix: refine settings and result list interactions"
+          git push origin HEAD:codex/ui-result-list-4.0.12
