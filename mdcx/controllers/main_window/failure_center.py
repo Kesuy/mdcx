@@ -5,8 +5,8 @@ from collections.abc import Callable, Iterable
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QTextBrowser,
