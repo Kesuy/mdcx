@@ -1,68 +1,80 @@
-# 开发
+# 开发指南
 
 ## 环境准备
 
-### 依赖
-
-* [uv](https://docs.astral.sh/uv/getting-started/installation/)
-
-### clone
+需要 Python 版本和依赖以 `pyproject.toml` / `uv.lock` 为准，并安装 [uv](https://docs.astral.sh/uv/)。
 
 ```bash
-git clone https://github.com/sqzw-x/mdcx.git
+git clone https://github.com/Kesuy/mdcx.git
 cd mdcx
-uv sync --all-extras --dev
-uv run pre-commit install
-uv pip install -e .
+uv sync --locked --all-extras --dev
+uv run --locked pre-commit install
 ```
 
-## Run
-
-启动 qt 版本
+启动 GUI：
 
 ```bash
-uv run main.py
+uv run --locked python main.py
 ```
 
-## Test
+## 验证
 
-Python 侧使用 pytest
+先运行与改动最相关的测试；涉及共享配置、文件整理、网络基础层、构建或发布时再扩大范围。完整发布前验证由 CI / Release workflow 负责兜底。
 
 ```bash
-uv run pytest
+uv run --locked ruff format --check
+uv run --locked ruff check
+uv run --locked pytest <相关测试> -q
+# 需要完整回归时：
+uv run --locked pytest tests -q
 ```
 
-## 如何添加新配置项
+不要为了低风险、可逆改动增加只复述实现的测试；修复回归和高风险边界应增加能真实覆盖失败条件的测试。
 
-1. 在 `mdcx/config/models.py` `Config` 类中添加配置字段及默认值
-2. 通过 `from mdcx.models.config.manager import manager` 导入配置, 并通过 `manager.config.<key>` 访问配置项
-3. 按下一节所述在设置界面中添加对应的控件, 修改 `mdcx/controllers/main_window/` 目录下 `load_config.py` 及 `save_config.py`, 以实现 UI 绑定
+## 添加或修改配置
 
-## 如何修改图形界面
+- 当前配置模型：`mdcx/config/models.py`
+- 配置管理与持久化：`mdcx/config/manager.py`、`mdcx/config/io.py`
+- 旧配置迁移：`mdcx/config/v1.py`、`mdcx/config/migrations.py`
+- 设置页绑定：`mdcx/controllers/main_window/config_binding.py` 及相关 typed binding
 
-* `mdcx/views/MDCx.ui` 定义了主窗口, `mdcx/views/posterCutTool.ui` 是图片裁剪窗口, 可使用 Qt Designer 或 Qt Creator 编辑
-* 修改后运行 `./scripts/pyuic.sh` 生成对应的 Python 代码
-* 如需设置控件事件等, 需修改 `mdcx.controllers.main_window.init.Init_Singal`
-* 所有事件处理函数均在 `mdcx/controllers/main_window/main_window.py` 及 `mdcx/controllers/main_window/handlers.py`
+运行时代码通过：
 
-## 代码结构说明
+```python
+from mdcx.config.manager import manager
+
+value = manager.config.<key>
+```
+
+修改持久化字段时必须考虑旧 INI/JSON，并补迁移或 round-trip 测试；不要要求用户删除旧配置才能升级。
+
+## 修改图形界面
+
+`mdcx/views/` 已拆分为主壳和页面级 `.ui`。应修改 Designer 源文件，不要直接编辑对应的生成 `.py`。
+
+修改 `.ui` 后运行：
 
 ```bash
-mdcx
-├── mdcx # 源代码目录
-│   ├── config # 配置管理
-│   ├── controllers # Qt UI 控制器
-│   │   └── main_window
-│   ├── crawlers # 各网站爬虫
-│   ├── models # 业务逻辑
-│   │   ├── base
-│   │   ├── core
-│   │   └── tools
-│   ├── utils
-│   └── views # Qt UI 定义
-├── scripts # 开发/构建脚本
-│   ├── build.sh # 构建 Qt 版本
-│   ├── changelog.sh # 生成变更日志模板
-│   └── pyuic.sh # 从 Qt UI 生成 Python 代码
-└── tests # 测试
+uv run --locked bash scripts/pyuic.sh
 ```
+
+主窗口行为按职责放在 `mdcx/controllers/main_window/` 的对应控制器 / mixin 中，不要重新把逻辑堆回 `main_window.py`。持久架构边界见 `docs/architecture-v4.md`。
+
+## 目录概览
+
+```text
+mdcx/
+├── mdcx/
+│   ├── config/        # 配置、迁移、凭据
+│   ├── controllers/   # Qt 控制器
+│   ├── core/          # 媒体/NFO/图片/整理核心逻辑
+│   ├── crawlers/      # 站点适配
+│   ├── models/        # 领域与运行状态
+│   ├── utils/         # 共享工具
+│   └── views/         # Designer 源文件与生成视图
+├── scripts/           # 生成、构建、版本、发布辅助脚本
+├── tests/             # 离线回归测试
+└── .github/workflows/ # CI / Release
+```
+
+提交前避免无关重构、全仓格式化和本地配置/密钥进入 diff。更完整的 Agent 约束见 `AGENTS.md`。
