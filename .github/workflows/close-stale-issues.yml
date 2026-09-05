@@ -5,15 +5,21 @@ on:
     - cron: "0 20 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   stale:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Close Stale Issues
+      - name: Close stale issues
         uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           stale-issue-message: "此 issue 长时间未活跃，将自动关闭。如需继续讨论请重新打开。"
           days-before-stale: 90
           days-before-close: 7
+          days-before-pr-stale: -1
           exempt-issue-labels: "pinned,security"
-          exempt-pr-labels: "pinned,security"

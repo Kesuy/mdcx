@@ -103,8 +103,6 @@ class LogControllerMixin:
                 self.Ui.textBrowser_log_main_2.verticalScrollBar().maximum()
             )
 
-            # self.Ui.textBrowser_log_main_2.moveCursor(self.Ui.textBrowser_log_main_2.textCursor().End)
-
         else:
             self.Ui.pushButton_show_hide_logs.setIcon(QIcon(resources.show_logs_icon))
             self.Ui.textBrowser_log_main_2.hide()
@@ -144,11 +142,7 @@ class LogControllerMixin:
     def show_failure_center(self) -> None:
         dialog = getattr(self, "_failure_center", None)
         if dialog is None:
-            dialog = FailureCenterDialog(
-                self,
-                retry_callback=self._retry_failure_records,
-                legacy_callback=lambda: self.show_hide_failed_list(True),
-            )
+            dialog = FailureCenterDialog(self, retry_callback=self._retry_failure_records)
             self._failure_center = dialog
         dialog.set_records(Flags.failed_records)
         dialog.show()

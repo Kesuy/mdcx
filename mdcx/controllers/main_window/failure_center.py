@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Callable, Iterable
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QTextBrowser,
@@ -15,56 +15,64 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mdcx.models.failure import FailureRecord
+from mdcx.models.failure import FailureRecord, failure_stage_label
 
 FAILURE_RECORD_ROLE = Qt.ItemDataRole.UserRole.value + 31
 
 
 class FailureCenterDialog(QDialog):
-    """Grouped, retry-aware view over structured scrape failures."""
+    """Compact view over failures from the current scrape run."""
 
     def __init__(
         self,
         parent=None,
         *,
         retry_callback: Callable[[list[FailureRecord]], bool | None] | None = None,
-        legacy_callback: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("failure_center")
         self.setWindowTitle("失败中心")
-        self.resize(820, 560)
+        self.resize(920, 600)
         self._retry_callback = retry_callback
         self._records: list[FailureRecord] = []
 
         layout = QVBoxLayout(self)
+
+        intro = QLabel("这里汇总本轮刮削失败项。先看问题类型和处理建议；网络、图片等临时故障可直接重试。", self)
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
         self.summary = QLabel(self)
         layout.addWidget(self.summary)
+
         self.tree = QTreeWidget(self)
-        self.tree.setHeaderLabels(["类别 / 阶段 / 文件", "站点", "可重试"])
+        self.tree.setHeaderLabels(["文件", "问题类型", "来源", "可重试"])
+        self.tree.setRootIsDecorated(False)
         self.tree.setAlternatingRowColors(True)
+        self.tree.setUniformRowHeights(True)
+        header = self.tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in (1, 2, 3):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.currentItemChanged.connect(self._show_current)
         layout.addWidget(self.tree, 3)
+
         self.detail = QTextBrowser(self)
-        self.detail.setPlaceholderText("选择一条失败记录查看详细原因")
+        self.detail.setPlaceholderText("选择一条失败记录查看原因和处理建议")
         layout.addWidget(self.detail, 2)
 
         actions = QHBoxLayout()
         self.retry_one = QPushButton("重试所选", self)
-        self.retry_group = QPushButton("重试当前分类", self)
+        self.retry_all = QPushButton("重试全部可重试项", self)
         self.show_debug = QPushButton("显示调试信息", self)
         self.show_debug.setCheckable(True)
         self.show_debug.setVisible(False)
         self.retry_one.clicked.connect(self._retry_selected)
-        self.retry_group.clicked.connect(self._retry_selected_group)
+        self.retry_all.clicked.connect(self._retry_all)
         self.show_debug.toggled.connect(lambda _checked: self._show_current(self.tree.currentItem(), None))
         actions.addWidget(self.retry_one)
-        actions.addWidget(self.retry_group)
+        actions.addWidget(self.retry_all)
         actions.addWidget(self.show_debug)
-        if legacy_callback is not None:
-            legacy = QPushButton("查看旧失败日志", self)
-            legacy.clicked.connect(legacy_callback)
-            actions.addWidget(legacy)
         actions.addStretch(1)
         close = QPushButton("关闭", self)
         close.clicked.connect(self.close)
@@ -75,76 +83,82 @@ class FailureCenterDialog(QDialog):
         self._records = list(records)
         self.show_debug.setChecked(False)
         self.tree.clear()
-        grouped: dict[object, dict[str, list[FailureRecord]]] = defaultdict(lambda: defaultdict(list))
+
         for record in self._records:
-            grouped[record.category][record.stage].append(record)
-
-        for category, stages in sorted(grouped.items(), key=lambda item: item[0].value):
-            count = sum(len(records) for records in stages.values())
-            category_item = QTreeWidgetItem([f"{category.value} ({count})"])
-            category_item.setData(0, FAILURE_RECORD_ROLE, [record for records in stages.values() for record in records])
-            self.tree.addTopLevelItem(category_item)
-            for stage, records in sorted(stages.items()):
-                stage_item = QTreeWidgetItem([f"{stage} ({len(records)})"])
-                stage_item.setData(0, FAILURE_RECORD_ROLE, records)
-                category_item.addChild(stage_item)
-                for record in records:
-                    item = QTreeWidgetItem(
-                        [record.path.name or str(record.path), record.site or "—", "是" if record.retryable else "否"]
-                    )
-                    item.setToolTip(0, record.message)
-                    item.setData(0, FAILURE_RECORD_ROLE, record)
-                    stage_item.addChild(item)
-            category_item.setExpanded(True)
-        self.summary.setText(f"共 {len(self._records)} 条失败记录，{sum(r.retryable for r in self._records)} 条可重试")
-        self._sync_retry_actions(None)
-
-    def _records_for_item(self, item: QTreeWidgetItem | None) -> list[FailureRecord]:
-        if item is None:
-            return []
-        payload = item.data(0, FAILURE_RECORD_ROLE)
-        if isinstance(payload, FailureRecord):
-            return [payload]
-        if isinstance(payload, list):
-            return [record for record in payload if isinstance(record, FailureRecord)]
-        return []
-
-    def _show_current(self, current: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None) -> None:
-        records = self._records_for_item(current)
-        if len(records) == 1:
-            record = records[0]
-            detail = (
-                f"路径：{record.path}\n阶段：{record.stage}\n类别：{record.category.value}\n"
-                f"站点：{record.site or '—'}\n可重试：{'是' if record.retryable else '否'}\n\n"
-                f"原因：{record.message}"
+            item = QTreeWidgetItem(
+                [
+                    record.path.name or str(record.path),
+                    record.category.label,
+                    record.site or "—",
+                    "是" if record.retryable else "否",
+                ]
             )
-            has_debug = bool(record.debug_detail and record.debug_detail != record.message)
-            self.show_debug.setVisible(has_debug)
-            if has_debug and self.show_debug.isChecked():
-                detail += f"\n\n调试信息：\n{record.debug_detail}"
-            self.detail.setPlainText(detail)
-        elif records:
-            self.detail.setPlainText(f"当前分组包含 {len(records)} 条失败记录。")
+            item.setToolTip(0, str(record.path))
+            item.setToolTip(1, record.category.description)
+            item.setData(0, FAILURE_RECORD_ROLE, record)
+            self.tree.addTopLevelItem(item)
+
+        retryable_count = sum(record.retryable for record in self._records)
+        if self._records:
+            category_count = len({record.category for record in self._records})
+            self.summary.setText(
+                f"本轮共 {len(self._records)} 条失败 · {category_count} 类问题 · {retryable_count} 条可直接重试"
+            )
+            self.tree.setCurrentItem(self.tree.topLevelItem(0))
         else:
+            self.summary.setText("当前没有失败记录。")
             self.detail.clear()
             self.show_debug.setVisible(False)
+
+        self._sync_retry_actions(self.tree.currentItem())
+
+    @staticmethod
+    def _record_for_item(item: QTreeWidgetItem | None) -> FailureRecord | None:
+        if item is None:
+            return None
+        payload = item.data(0, FAILURE_RECORD_ROLE)
+        return payload if isinstance(payload, FailureRecord) else None
+
+    def _show_current(self, current: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None) -> None:
+        record = self._record_for_item(current)
+        if record is None:
+            self.detail.clear()
+            self.show_debug.setVisible(False)
+            self._sync_retry_actions(current)
+            return
+
+        detail = (
+            f"文件：{record.path}\n"
+            f"问题类型：{record.category.label}\n"
+            f"发生阶段：{failure_stage_label(record.stage)}\n"
+            f"来源站点：{record.site or '未记录'}\n"
+            f"可直接重试：{'是' if record.retryable else '否'}\n\n"
+            f"处理建议：{record.category.description}\n\n"
+            f"原始原因：{record.message}"
+        )
+        has_debug = bool(record.debug_detail and record.debug_detail != record.message)
+        self.show_debug.setVisible(has_debug)
+        if has_debug and self.show_debug.isChecked():
+            detail += f"\n\n调试信息：\n{record.debug_detail}"
+        self.detail.setPlainText(detail)
         self._sync_retry_actions(current)
 
     def _sync_retry_actions(self, item: QTreeWidgetItem | None) -> None:
-        records = self._records_for_item(item)
-        is_leaf = len(records) == 1 and isinstance(item.data(0, FAILURE_RECORD_ROLE), FailureRecord) if item else False
-        self.retry_one.setVisible(is_leaf and records[0].retryable)
-        self.retry_group.setVisible(bool(records) and not is_leaf and any(record.retryable for record in records))
+        record = self._record_for_item(item)
+        self.retry_one.setEnabled(bool(record and record.retryable))
+        self.retry_all.setEnabled(any(record.retryable for record in self._records))
 
     def _retry(self, records: list[FailureRecord]) -> None:
         retryable = [record for record in records if record.retryable]
-        if retryable and self._retry_callback is not None:
-            accepted = self._retry_callback(retryable)
-            if accepted is not False:
-                self.set_records(record for record in self._records if record not in retryable)
+        if not retryable or self._retry_callback is None:
+            return
+        accepted = self._retry_callback(retryable)
+        if accepted is not False:
+            self.set_records(record for record in self._records if record not in retryable)
 
     def _retry_selected(self) -> None:
-        self._retry(self._records_for_item(self.tree.currentItem()))
+        record = self._record_for_item(self.tree.currentItem())
+        self._retry([record] if record is not None else [])
 
-    def _retry_selected_group(self) -> None:
-        self._retry(self._records_for_item(self.tree.currentItem()))
+    def _retry_all(self) -> None:
+        self._retry(self._records)

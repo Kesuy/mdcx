@@ -1,20 +1,13 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: local
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: ruff check --fix
-        stages: [pre-merge-commit, pre-push]
-        language: python
+        entry: uv run --locked ruff check --fix
+        language: system
         types: [python, pyi]
-        require_serial: true
-        minimum_pre_commit_version: "2.9.2"
       - id: ruff-format
         name: ruff format
-        entry: ruff format
-        language: python
+        entry: uv run --locked ruff format
+        language: system
         types: [python, pyi]
-        require_serial: true
-        minimum_pre_commit_version: "2.9.2"

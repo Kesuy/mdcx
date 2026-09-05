@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from mdcx.models.failure import FailureCategory, classify_failure
+from mdcx.models.failure import FailureCategory, classify_failure, failure_stage_label
 
 
 @pytest.mark.parametrize(
@@ -10,6 +10,7 @@ from mdcx.models.failure import FailureCategory, classify_failure
     [
         ("request timeout", "crawl", FailureCategory.NETWORK, True),
         ("Cookie 已过期", "crawl", FailureCategory.AUTHENTICATION, False),
+        ("HTTP 403", "crawl", FailureCategory.AUTHENTICATION, False),
         ("search no result", "search", FailureCategory.SEARCH_NO_RESULT, True),
         ("parser selector missing", "crawl", FailureCategory.PARSER, False),
         ("poster image download failed", "image", FailureCategory.IMAGE_DOWNLOAD, True),
@@ -25,6 +26,14 @@ def test_failure_classification_is_structured(message, stage, category, retryabl
     assert record.retryable is retryable
     assert record.site == "javdb"
     assert record.legacy_tuple() == (Path("movie.mp4"), message)
+
+
+def test_failure_categories_expose_user_facing_chinese_copy():
+    assert FailureCategory.NETWORK.label == "网络连接"
+    assert "代理" in FailureCategory.NETWORK.description
+    assert FailureCategory.INTERNAL_ERROR.label == "程序异常"
+    assert failure_stage_label("scrape") == "刮削"
+    assert failure_stage_label("custom-stage") == "custom-stage"
 
 
 def test_programming_error_is_not_misclassified_from_message_keywords():
