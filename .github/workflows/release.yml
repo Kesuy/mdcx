@@ -168,7 +168,7 @@ jobs:
           fi
           uv run --locked python scripts/changelog.py \
             --tag "$tag" \
-            --curated changelog.md \
+            --curated .github/release-notes.md \
             --output release-changelog.md
           test -s release-changelog.md
       - name: Download verified platform artifacts

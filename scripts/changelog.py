@@ -153,7 +153,7 @@ def _notes_from_commit_log(commit_lines: list[str]) -> dict[str, list[str]]:
         commit_type, subject = match.groups()
         subject = LEGACY_SUBJECT_TRANSLATIONS.get(subject.casefold(), subject)
         if not re.search(r"[\u3400-\u9fff]", subject):
-            console.print(f"[red]发布说明不是中文，请维护 changelog.md 或改用中文提交信息: {subject}[/red]")
+            console.print(f"[red]发布说明不是中文，请维护 .github/release-notes.md 或改用中文提交信息: {subject}[/red]")
             raise typer.Exit(1)
         sections[COMMIT_TYPE_CATEGORIES[commit_type.casefold()]].append(subject)
     return sections
@@ -237,7 +237,7 @@ def generate_changelog(
 @app.command()
 def main(
     pattern: Annotated[str, typer.Option("--pattern", "-p", help="Git tag匹配模式")] = "[0-9]*",
-    output: Annotated[str, typer.Option("--output", "-o", help="输出文件路径")] = "changelog.md",
+    output: Annotated[str, typer.Option("--output", "-o", help="输出文件路径")] = "release-changelog.md",
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="显示详细信息")] = False,
     tag: Annotated[str, typer.Option("--tag", help="当前发布 tag（用于 release 工作流）")] = "",
     curated: Annotated[str, typer.Option("--curated", help="人工维护的中文分类 changelog 路径")] = "",

@@ -95,7 +95,7 @@ def test_generate_changelog_accepts_compound_curated_categories(tmp_path: Path):
 
 def test_current_curated_changelog_can_generate_release_notes(tmp_path: Path):
     output = tmp_path / "release.md"
-    curated = (Path(__file__).parent.parent / "changelog.md").read_text(encoding="utf-8")
+    curated = (Path(__file__).parent.parent / ".github" / "release-notes.md").read_text(encoding="utf-8")
 
     generate_changelog(
         "abc1234 fix: 验证当前发布说明",
