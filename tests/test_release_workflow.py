@@ -73,10 +73,12 @@ def test_pr_ci_has_locked_windows_build_and_both_smoke_checks():
     assert ".\\dist\\MDCx.exe --smoke-test" in windows
 
 
-def test_linux_test_jobs_install_qt_egl_runtime_before_pytest():
+def test_linux_test_jobs_install_qt_egl_runtime_and_cjk_fonts_before_pytest():
     for workflow_path in (WORKFLOW, CI_WORKFLOW):
         workflow = workflow_path.read_text(encoding="utf-8")
         install_index = workflow.index("sudo apt-get install --no-install-recommends -y libegl1")
+        cjk_index = workflow.index("fonts-noto-cjk")
         pytest_index = workflow.index("pytest tests -q")
 
         assert install_index < pytest_index
+        assert cjk_index < pytest_index

@@ -61,8 +61,8 @@ jobs:
             echo "发布 Tag 与应用版本不一致: tag=$tag app=$app_version"
             exit 1
           fi
-      - name: Install Qt runtime libraries
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libegl1
+      - name: Install Qt runtime and CJK fonts
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libegl1 fonts-noto-cjk
       - run: uv run --locked pytest tests -q
 
   build-app:
