@@ -6553,7 +6553,7 @@
                 <item>
                   <widget class="QLabel" name="label_300">
                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                         <horstretch>0</horstretch>
                         <verstretch>0</verstretch>
                       </sizepolicy>
@@ -6565,7 +6565,7 @@
                       </size>
                     </property>
                     <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
+                      <enum>Qt::LeftToRight</enum>
                     </property>
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -6577,7 +6577,7 @@
                       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                     </property>
                     <property name="wordWrap">
-                      <bool>false</bool>
+                      <bool>true</bool>
                     </property>
                     <property name="semanticRole" stdset="0">
                       <string>danger</string>
