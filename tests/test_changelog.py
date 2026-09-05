@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import typer
 
+from mdcx.consts import LOCAL_VERSION
 from scripts.changelog import generate_changelog, get_commit_log_for_head_tag, get_latest_tag
 
 
@@ -90,6 +91,21 @@ def test_generate_changelog_accepts_compound_curated_categories(tmp_path: Path):
     )
 
     assert output.read_text(encoding="utf-8") == ("## 优化\n- 设置页使用原生布局\n- 升级存在安全告警的依赖\n")
+
+
+def test_current_curated_changelog_can_generate_release_notes(tmp_path: Path):
+    output = tmp_path / "release.md"
+    curated = (Path(__file__).parent.parent / "changelog.md").read_text(encoding="utf-8")
+
+    generate_changelog(
+        "abc1234 fix: 验证当前发布说明",
+        output,
+        curated_content=curated,
+        curated_version=LOCAL_VERSION,
+    )
+
+    assert output.is_file()
+    assert "修复" in output.read_text(encoding="utf-8")
 
 
 def test_generate_changelog_rejects_empty_release(tmp_path: Path):

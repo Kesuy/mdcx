@@ -2,7 +2,7 @@ import platform
 import sys
 from pathlib import Path
 
-LOCAL_VERSION = "4.0.8"
+LOCAL_VERSION = "4.0.9"
 
 GITHUB_REPO = "Kesuy/mdcx"
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
