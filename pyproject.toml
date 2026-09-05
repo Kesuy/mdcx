@@ -60,6 +60,34 @@ filterwarnings = [
 ]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+force-exclude = true
+extend-exclude = ["*_generated.py", "mdcx/views/*.py"]
+
+[tool.ruff.lint]
+select = [
+    "I",        # isort
+    "UP",       # pyupgrade
+    "E",        # pycodestyle
+    "F",        # Pyflakes
+    "B",        # flake8-bugbear
+    "C4",       # flake8-comprehensions
+    "FAST",     # FastAPI
+    "ASYNC230", # async functions should not use blocking file I/O
+    "ASYNC251", # async functions should not call time.sleep
+]
+ignore = [
+    "E501", # line length is handled by the formatter where practical
+    "B005", # multi-character strip arguments are intentional in legacy parsing paths
+    "B007", # some loop variables are retained for readability/context
+    "B904", # legacy exception paths do not consistently chain exceptions yet
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401", "F403", "F811"]
+
 [tool.uv]
 package = true
 required-environments = [
