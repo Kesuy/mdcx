@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
@@ -11,10 +11,18 @@ on:
       - develop
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -31,6 +39,7 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       QT_QPA_PLATFORM: offscreen
       MDCX_OFFLINE: "1"
@@ -58,7 +67,9 @@ jobs:
 
   windows-smoke:
     name: Windows smoke and debug build
+    needs: [quality, test]
     runs-on: windows-latest
+    timeout-minutes: 45
     env:
       QT_QPA_PLATFORM: offscreen
       MDCX_OFFLINE: "1"
