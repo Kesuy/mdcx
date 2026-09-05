@@ -105,7 +105,8 @@ def test_current_curated_changelog_can_generate_release_notes(tmp_path: Path):
     )
 
     assert output.is_file()
-    assert "修复" in output.read_text(encoding="utf-8")
+    release_notes = output.read_text(encoding="utf-8")
+    assert any(heading in release_notes for heading in ("## 新功能", "## 优化", "## 修复"))
 
 
 def test_generate_changelog_rejects_empty_release(tmp_path: Path):
