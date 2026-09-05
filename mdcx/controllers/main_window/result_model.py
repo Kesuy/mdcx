@@ -10,6 +10,7 @@ from PyQt6.QtCore import (
     QSortFilterProxyModel,
     Qt,
 )
+from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QAbstractItemView, QTreeView, QTreeWidget, QTreeWidgetItem
 
 _INVALID_INDEX = QModelIndex()
@@ -285,6 +286,32 @@ class ResultTreeView(QTreeView):
         self.setHeaderHidden(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setUniformRowHeights(True)
+
+    def keyPressEvent(self, event) -> None:
+        if event.matches(QKeySequence.StandardKey.SelectAll):
+            item = self.itemFromIndex(self.currentIndex())
+            if item is None:
+                selected = self.selectedItems()
+                item = selected[0] if selected else None
+
+            group = item
+            while group is not None and group.parent() is not None and group.parent() is not self.source_model.root:
+                group = group.parent()
+
+            if group is not None and group.parent() is self.source_model.root:
+                selection_model = self.selectionModel()
+                selection_model.clearSelection()
+                for index in range(group.childCount()):
+                    child_index = self.indexFromItem(group.child(index))
+                    if child_index.isValid():
+                        selection_model.select(
+                            child_index,
+                            QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+                        )
+                event.accept()
+                return
+
+        super().keyPressEvent(event)
 
     @classmethod
     def replace(cls, old: QTreeWidget) -> ResultTreeView:

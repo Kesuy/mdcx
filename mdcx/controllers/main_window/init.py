@@ -219,6 +219,10 @@ def _setup_combo_boxes(self: "MyMAinWindow") -> None:
         combo_box.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         combo_box.view().setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         combo_box.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        if self.Ui.page_setting.isAncestorOf(combo_box):
+            combo_box.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            combo_box.setProperty("wheelRequiresFocus", True)
+            combo_box.installEventFilter(self)
 
 
 def Init_Singal(self: "MyMAinWindow"):

@@ -4,7 +4,8 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtCore import QEvent, QPoint, Qt
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QApplication, QTreeWidget, QTreeWidgetItem
 
 from mdcx.controllers.main_window.result_model import ResultTreeItem, ResultTreeView, create_result_item
@@ -92,3 +93,27 @@ def test_result_item_factory_keeps_lightweight_qtreewidget_harnesses_compatible(
     assert isinstance(root, QTreeWidgetItem)
     assert isinstance(child, QTreeWidgetItem)
     assert root.child(0) is child
+
+
+def test_ctrl_a_selects_only_current_result_category() -> None:
+    _app()
+    view = ResultTreeView()
+    view.setSelectionMode(view.SelectionMode.ExtendedSelection)
+    success = create_result_item(view)
+    failure = create_result_item(view)
+    assert isinstance(success, ResultTreeItem)
+    assert isinstance(failure, ResultTreeItem)
+    success.setText(0, "成功")
+    failure.setText(0, "失败")
+    success_items = [create_result_item(success), create_result_item(success)]
+    failure_items = [create_result_item(failure), create_result_item(failure)]
+    assert all(isinstance(item, ResultTreeItem) for item in success_items + failure_items)
+
+    view.setCurrentItem(success_items[0])
+    view.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier))
+    assert set(view.selectedItems()) == set(success_items)
+
+    view.clearSelection()
+    view.setCurrentItem(failure_items[0])
+    view.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier))
+    assert set(view.selectedItems()) == set(failure_items)

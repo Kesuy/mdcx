@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QCursor, QGuiApplication
-from PyQt6.QtWidgets import QMessageBox, QPushButton, QSystemTrayIcon
+from PyQt6.QtWidgets import QComboBox, QMessageBox, QPushButton, QSystemTrayIcon
 
 from mdcx.base.web import check_theporndb_api_token
 from mdcx.config.enums import Switch
@@ -48,6 +48,15 @@ class WindowLifecycleMixin:
         self.pushButton_main_clicked()
 
     def eventFilter(self, a0, a1):
+        if (
+            isinstance(a0, QComboBox)
+            and a0.property("wheelRequiresFocus")
+            and a1.type() == QEvent.Type.Wheel
+            and not a0.hasFocus()
+        ):
+            a1.ignore()
+            return True
+
         # print(event.type())
 
         if a1.type() == QEvent.Type.MouseButtonRelease:  # 松开鼠标，检查是否在前台

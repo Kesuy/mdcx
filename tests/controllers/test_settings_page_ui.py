@@ -4,13 +4,15 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtWidgets import QApplication, QGroupBox, QMainWindow, QVBoxLayout
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, Switch, TagInclude
 from mdcx.config.manager import manager
+from mdcx.controllers.main_window.init import _setup_combo_boxes
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.settings_page import SettingsPageController
+from mdcx.controllers.main_window.window_lifecycle import WindowLifecycleMixin
 from mdcx.views.MDCx import Ui_MDCx
 
 APP = QApplication.instance() or QApplication([])
@@ -264,3 +266,24 @@ def test_config_binder_preserves_zero_numeric_text_values():
     assert float(window.Ui.lineEdit_escape_size.text()) == 0
     controller.binder.save(config)
     assert config.file_size == 0
+
+
+def test_long_settings_danger_prompts_expand_and_align_consistently():
+    window, _controller_instance = _controller()
+
+    for label in (window.Ui.label_271, window.Ui.label_300):
+        assert label.sizePolicy().horizontalPolicy() == label.sizePolicy().Policy.Expanding
+        assert label.layoutDirection() == Qt.LayoutDirection.LeftToRight
+        assert label.alignment() & Qt.AlignmentFlag.AlignLeft
+        assert label.wordWrap()
+
+
+def test_settings_combo_boxes_ignore_wheel_until_focused():
+    window, _controller_instance = _controller()
+    _setup_combo_boxes(window)
+
+    combo_box = window.Ui.comboBox_website_all
+    combo_box.clearFocus()
+    assert combo_box.property("wheelRequiresFocus") is True
+    assert combo_box.focusPolicy() == Qt.FocusPolicy.StrongFocus
+    assert WindowLifecycleMixin.eventFilter(window, combo_box, QEvent(QEvent.Type.Wheel)) is True
