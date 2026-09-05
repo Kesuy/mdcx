@@ -1,6 +1,6 @@
-# MDCx 4.x 架构与维护约束
+# MDCx 架构与维护约束
 
-本文描述 4.x 已落地的架构边界。它不是愿望清单，而是新增和修改代码应遵守的长期约束；对应回归测试主要位于 `tests/controllers` 与相关核心测试中。
+本文描述当前已落地的长期架构边界。它不是愿望清单，也不记录迁移完成度；新增和修改代码时，仅在任务涉及对应领域时参考。
 
 ## 结果列表：Model/View
 
@@ -34,19 +34,17 @@ AsyncBackgroundExecutor
 完成/失败信号回到 Qt 主线程
 ```
 
-约束如下：
-
 - 网络协程直接用 `submit`，不得包装成 `threading.Thread → executor.run → asyncio`。
 - 阻塞文件或第三方库操作用 `submit_sync`。
 - UI 更新只能放在 `on_success` / `on_error` 或 Qt signal 接收端。
-- 网络检测、取消状态和 JavDB/FC2CMADB/JavBus Cookie 校验由 `NetworkController` 管理；新增网络站点校验应进入该控制器，不把请求、解析或任务状态重新写回主窗口。
+- 网络检测、取消状态和 JavDB/FC2CMADB/JavBus Cookie 校验由 `NetworkController` 管理；新增网络站点校验应进入该控制器。
 - 同类任务使用稳定名称；重新提交同名任务会取消旧 Future，并忽略过期回调。
 - 窗口退出必须调用 `QtTaskManager.shutdown()`，随后由配置管理器关闭网络客户端和共享事件循环。
 - 裸 `threading.Thread` 仅允许存在于旧刮削工作线程和无完整 Qt 对象的测试兼容分支；新增主窗口功能不得使用。
 
 ## 设置页：Layout 优先
 
-标准设置 Tab 的滚动内容由垂直布局管理顶层 `QGroupBox`。分组宽度、顺序和滚动内容高度交给 Layout 与 size hint，禁止新增下列补丁：
+标准设置 Tab 的滚动内容由垂直布局管理顶层 `QGroupBox`。分组宽度、顺序和滚动内容高度交给 Layout 与 size hint，禁止新增固定几何补丁：
 
 ```python
 child.setGeometry(...)
@@ -58,7 +56,7 @@ content.resize(...)
 
 ## 视图组合与主窗口边界
 
-`MDCx.ui` 只定义窗口壳与页面占位；主页、日志、网络、工具、设置、关于和 NFO 浮层分别保存在页面级 `.ui`。`scripts/split_main_ui.py` / `scripts/pyuic.sh` 负责生成页面 Python 模块，`Ui_MDCx` facade 组合并保持历史控件属性兼容。不得把页面内容重新写回壳层，也不得直接修改生成的页面 `.py`。
+`MDCx.ui` 只定义窗口壳与页面占位；主页、日志、网络、工具、设置、关于和 NFO 浮层分别保存在页面级 `.ui`。`scripts/generate_ui.py` 负责把这些 Designer 源文件生成对应 Python 视图，`Ui_MDCx` facade 组合并保持历史控件属性兼容。不得把页面内容重新写回壳层，也不得直接修改生成的页面 `.py`。
 
 `MyMAinWindow` 只编排初始化、跨控制器路由和 Designer 兼容薄槽。页面初始化、主结果页交互、设置/工具槽、窗口生命周期、预览、日志和帮助逻辑应进入已有对应控制器或 mixin，而不是继续扩大主窗口类。
 
@@ -101,4 +99,4 @@ content.resize(...)
 - 配置迁移、共享文件系统逻辑、网络基础层：扩大到对应模块完整测试。
 - 构建、依赖、发布流程或正式发布：完整离线测试，并执行相关平台构建 / 冻结启动验证。
 
-CI 和 `.github/workflows/release.yml` 是最终发布质量门的执行事实来源。这样既保留高风险路径的回归保障，也避免低风险改动反复消耗完整构建资源。
+CI 和 `.github/workflows/release.yml` 是最终发布质量门的执行事实来源。

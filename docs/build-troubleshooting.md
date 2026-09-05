@@ -1,70 +1,68 @@
 # 构建与排障指南
 
-本文记录 MDCx 4.0 的可复现测试与打包约束。构建发布包时应使用项目锁文件和 `scripts/build.py`，不要直接调用 PyInstaller。
+本文只记录难以从代码表面重新推导、且长期可能复现的构建问题。常规测试、版本校验和发布步骤以 `AGENTS.md`、`scripts/build.py` 与 `.github/workflows/` 为准，不在这里复制一套易过期流程。
 
-## 标准验收流程
+## 标准构建入口
 
-```powershell
-uv sync --locked --group dev
-uv run --locked ruff format --check
-uv run --locked ruff check
-uv run --locked pytest tests -q
-uv run --locked python scripts/build.py --version 4.0.0
+首次检出或依赖变化后使用锁文件同步环境：
+
+```bash
+uv sync --locked --all-extras --dev
 ```
 
-`scripts/build.py` 不以“PyInstaller 返回 0”作为最终成功条件。打包后它会启动真实冻结产物并传入 `--smoke-test`，检查 Qt DLL、PyQt6 模块和 MDCx 启动导入树；返回非零、无法启动或 45 秒超时都会使构建失败。这个检查必须保留在本地构建和 Release CI 中。
+构建统一走：
 
-## Windows EXE“详细信息”必须同步
+```bash
+uv run --locked python scripts/build.py
+```
 
-Windows 文件属性不是手工维护文件。`scripts/build.py` 每次打包都会从 `mdcx/consts.py` 的 `LOCAL_VERSION` 生成 PE 版本资源，写入文件说明、产品名称、文件版本、产品版本、版权、内部名称、原始文件名、项目地址和简体中文语言。
+不要直接调用 PyInstaller。`scripts/build.py` 会从 `mdcx/consts.py` 读取版本、生成平台构建配置，并对冻结产物执行真实启动 smoke test；构建返回 0 本身不代表最终可发布。
 
-构建结束后脚本会重新读取 `dist/MDCx.exe` 的版本资源，核对应用名、版本、文件说明、版权主体和原始文件名。任何字段缺失或版本未同步都会使构建失败。因此以后升级只修改唯一版本源并使用标准构建脚本，禁止直接运行 PyInstaller 或手工维护另一个版本文件。
+## Windows：`ImportError: DLL load failed while importing QtCore`
 
-## `ImportError: DLL load failed while importing QtCore`
+### 常见根因
 
-### 已确认的根因
+Windows 构建环境中的 Poppler、Conda、旧 Qt 或其他软件可能把同名但 ABI 不兼容的 ICU DLL 暴露到 `PATH`。PyInstaller 依赖分析若把这些 DLL 收进冻结产物，源码环境仍可能正常 `import PyQt6.QtCore`，而 EXE 启动时报 DLL load failed。
 
-Qt 6.11 的 Windows `Qt6Core.dll` 使用 Windows 自带的 ICU ABI。PyInstaller 会沿构建进程的 `PATH` 搜索 DLL；如果环境里有 Poppler、Anaconda、旧 Qt 或其他软件的 `icuuc.dll`，它可能把同名但 ABI 不兼容的 DLL 收进 EXE。
+### 诊断
 
-此时 DLL 文件看似齐全，Windows 仍会报告“找不到指定的程序”。这里的“程序”实际可能是 DLL 导出入口点，而不一定是文件缺失。典型证据是：源码环境可以 `import PyQt6.QtCore`，最小冻结程序却失败；检查冻结归档后发现第三方 `icuuc.dll`/`icudt*.dll`。
+先查看构建目录中的 PyInstaller Analysis 记录，确认 `icuuc.dll` / `icudt*.dll` 的来源。它们不应来自 Poppler、Conda 或其他应用目录。
 
-### 项目中的永久防护
+### 项目防护
 
-- Windows spec 在 `Analysis` 后移除 `icuuc.dll` 和 `icudt*.dll`，让 Qt 使用受支持的 Windows System32 ICU。
-- 每个构建产物必须通过真实启动 smoke test。
-- 不从工作站 PATH 复制 ICU 到 `resources`、`libs` 或发布目录。
-- 升级 PyQt6、Qt6、PyInstaller 或 Python 后，必须重新执行完整构建与启动验收。
+- 构建脚本在 Windows spec 中排除冲突 ICU DLL，让 Qt 使用受支持的系统 ICU。
+- 每个构建产物都必须通过真实冻结启动 smoke test。
+- 不要通过手工复制 ICU DLL 到 `resources`、`libs` 或发布目录解决入口点错误。
+- 升级 Python、PyQt6/Qt6 或 PyInstaller 后，应重新执行完整平台构建验证。
 
-若问题再次出现，先查看 `build/<应用名>/Analysis-00.toc` 中 `icuuc.dll` 的来源；它不应指向 Poppler、Conda 或其他应用目录。不要通过随意复制 DLL 解决入口点错误，这通常会把 ABI 冲突带进发布包。
+## EXE 体积突然增大
 
-## EXE 体积异常增大
+`imageio-ffmpeg` wheel 自带完整 FFmpeg 可执行文件。生产模块一旦直接或间接导入它，PyInstaller 可能把该二进制一起打入 EXE。
 
-`imageio-ffmpeg` 的 wheel 包含完整 FFmpeg 可执行文件。只要生产模块导入它，PyInstaller 的依赖分析就可能把该二进制打进单文件 EXE，造成几十 MB 的额外增长。
+MDCx 的约束：
 
-MDCx 的约束如下：
-
-- `imageio-ffmpeg` 只属于开发依赖。
-- `tests/conftest.py` 将其路径写入 `MDCX_FFMPEG`，确保测试无需系统 FFmpeg。
+- `imageio-ffmpeg` 只作为测试/开发依赖提供已知可用的 FFmpeg。
+- `tests/conftest.py` 把测试 FFmpeg 路径写入 `MDCX_FFMPEG`。
 - 生产代码只读取 `MDCX_FFMPEG` 或系统 `PATH`，不导入 `imageio_ffmpeg`。
-- 构建脚本额外排除 `imageio_ffmpeg`，防止未来间接依赖再次收集它。
+- 构建脚本显式排除 `imageio_ffmpeg`。
 
-体积突然增加时，可用 PyInstaller 的归档查看工具检查是否包含 `imageio_ffmpeg/binaries/ffmpeg-*.exe`。正式 MDCx EXE 中不应出现该路径。
+若体积异常，检查 PyInstaller 归档中是否出现 `imageio_ffmpeg/binaries/ffmpeg-*`；正式产物不应包含该路径。
 
-## Windows pytest 临时目录
+## Windows pytest 临时目录 `PermissionError`
 
-pytest 由 `tests/conftest.py` 为每个进程创建独立的系统临时目录并在退出时清理，项目内只在 `.cache/pytest` 持久化可随时重建的测试索引。不要固定复用同一个 `--basetemp`，也不要重新指向历史 `.pytest-cache` / `.test-cache`：测试进程、杀毒软件或异常退出可能让旧目录保留句柄或异常 ACL，导致后续测试在 fixture 初始化阶段报 `PermissionError`。缓存路径只由 `pyproject.toml` 的 `cache_dir` 管理；历史缓存即使因 ACL 无法删除，也不会再影响测试。
+Windows 上异常退出、杀毒软件或残留句柄可能让旧 pytest 临时目录保留异常 ACL。固定复用 `--basetemp` 会让后续测试在 fixture 初始化阶段继续失败。
 
-Qt 测试的 `QT_QPA_PLATFORM=offscreen`、离线模型模式和测试 FFmpeg 路径都由 `tests/conftest.py` 自动配置。日常执行无需管理员权限、Developer Mode、symlink 或系统 FFmpeg。
+项目由 `tests/conftest.py` 为测试进程创建新的系统临时根目录，并在退出时尽力清理。不要重新固定历史 `.pytest-cache` / `.test-cache` 作为 basetemp。pytest 的可重建缓存仅由 `pyproject.toml` 的 `cache_dir` 管理。
 
-首次检出或依赖变更后执行 `uv sync --frozen` 创建项目内 `.venv`；后续统一使用该环境运行测试和构建。`uv.toml` 将下载缓存固定到项目内 `.uv-cache`，环境和缓存均可持久复用，避免临时 Python 环境消失后跳过测试。
+Qt 测试的 offscreen 模式、离线模式和测试 FFmpeg 也由 `tests/conftest.py` 统一配置，日常测试不应依赖管理员权限、Developer Mode 或系统 FFmpeg。
 
-## 发布前检查表
+## 冻结产物 smoke test 失败
 
-- 完整测试无跳过、无失败。
-- 构建日志包含“冻结程序启动验证通过”。
-- EXE 可在未安装 Python 的 Windows 机器启动。
-- 归档中没有第三方 `icuuc.dll`、`icudt*.dll` 或测试 FFmpeg。
-- 版本号来自 `mdcx/consts.py`，与产物文件名和发布标签一致。
-- EXE 属性页包含文件说明、产品名、文件/产品版本、版权和语言，且构建日志包含“Windows 文件属性与应用版本同步验证通过”。
-- 工作流不得引用声明 `node20` 的 JavaScript action；升级 action 后先确认其 `runs.using` 为 `node24`。
-- 发布资产使用 GitHub CLI 上传；不要重新引入尚未迁移到 Node 24 的旧上传 action。
+源码可启动不代表冻结产物可启动。遇到构建后 smoke test 失败时，优先检查：
+
+1. PyInstaller 是否误收集了工作站环境中的同名 DLL 或大型开发依赖；
+2. Qt/PyQt6 模块和资源是否进入冻结导入树；
+3. `resources/` 与平台图标等必需文件是否存在；
+4. 最近的 Python、Qt、PyInstaller 或依赖升级是否改变了冻结行为。
+
+不要跳过 smoke test 来“让发布通过”。如果本地问题只在某个平台复现，应在对应平台构建中修复根因，再由 CI / Release workflow 做最终发布验证。

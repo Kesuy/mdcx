@@ -27,9 +27,7 @@ uv run --locked pytest tests -q
 
 Windows 打包前请阅读 [构建与排障指南](docs/build-troubleshooting.md)。构建脚本会实际启动冻结产物并检查 Qt 与完整启动导入树；验收未通过时不会把文件视为成功产物。
 
-4.x 的界面、任务和配置扩展须遵循 [架构与维护约束](docs/architecture-v4.md)，其中记录了 Model/View 结果列表、统一 TaskManager、设置页布局和主题 token 的边界，避免重新引入旧式补丁。
-
-静态审计建议的逐项完成度和后续顺序记录在 [MDCx 4.x 优化完成度](docs/optimization-status-v4.md)，部分完成项不得视为已经结束。
+界面、后台任务和配置扩展须遵循 [架构与维护约束](docs/architecture.md)，其中记录了 Model/View 结果列表、统一 TaskManager、设置页布局和主题 token 的长期边界。
 
 ## 安全说明
 

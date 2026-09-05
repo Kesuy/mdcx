@@ -8,7 +8,7 @@ MDCx 是 PyQt6 本地媒体元数据工具。仓库级原则只有一个：**用
 
 1. 先检查 `git status --short --branch`，不要覆盖用户现有改动。
 2. 用精准搜索定位目标符号、调用方和相关测试；先读局部，再决定是否扩大范围。
-3. 只在任务涉及对应领域时读取 `docs/` 中的专题文档，不做无目的全仓扫描。
+3. 只在任务涉及对应领域时读取 `docs/` 专题文档，不做无目的全仓扫描。
 4. `build/`、`dist/`、`.venv/`、缓存、日志、`userdata/` 和生成产物不是源码阅读入口。
 
 ## 项目地图
@@ -21,18 +21,18 @@ MDCx 是 PyQt6 本地媒体元数据工具。仓库级原则只有一个：**用
 - `mdcx/models/`：运行状态与领域模型。
 - `mdcx/views/`：Designer `.ui` 和生成的 Python 视图。
 - `tests/`：离线回归测试；在线站点探测不能替代单元测试。
-- `scripts/`：生成、构建、版本和发布辅助脚本。
+- `scripts/`：UI 生成、构建、版本、发布和专项诊断脚本。
 - `.github/workflows/`：CI / Release 的执行事实来源。
 
-持久架构边界见 `docs/architecture-v4.md`；爬虫迁移见 `docs/crawler-migration.md`。不要把这些文档重新复制进 AGENTS.md。
+持久架构边界见 `docs/architecture.md`；构建环境疑难问题见 `docs/build-troubleshooting.md`。不要把专题文档复制进 AGENTS.md。
 
 ## 修改约束
 
 - 不做与当前任务无关的重构，不顺手全仓格式化。
 - 不提交 Cookie、Token、密钥、账号、`MDCx.config` 或其他本地用户数据。
-- 修改持久化配置、枚举值、默认值或迁移时，必须兼容已有 INI/JSON；确需改键时提供 migration 和 round-trip 测试。与配置无关的改动无需重复审计整套配置系统。
+- 修改持久化配置、枚举值、默认值或迁移时，必须兼容已有 INI/JSON；确需改键时提供 migration 和 round-trip 测试。
 - 修改真实文件移动/重命名/整理逻辑时保持 fail-closed：不得静默覆盖，需考虑冲突、跨盘、链接、大小写改名和失败回滚。
-- 修改 `.ui` 后运行 `scripts/pyuic.sh` 并提交对应生成文件；不要手改生成视图来绕过 Designer 源文件。
+- 修改 `.ui` 后运行 `uv run --locked python scripts/generate_ui.py` 并提交对应生成文件；不要手改生成视图绕过 Designer 源文件。
 - 依赖变更通过 `uv` 更新 `uv.lock`，不要手工编辑锁文件。
 - 爬虫解析变化优先增加脱敏本地 fixture；不要把某次在线请求成功当成稳定回归测试。
 - 修复应覆盖根因和直接同类路径，但不要因此扩大成无边界“清理工程”。
@@ -44,7 +44,7 @@ MDCx 是 PyQt6 本地媒体元数据工具。仓库级原则只有一个：**用
 
 - 文档、注释或低风险配置文本：至少 `git diff --check`。
 - 普通 Python 改动：Ruff + 最相关 pytest。
-- 共享配置、会话状态、网络基础层、文件系统或爬虫公共层：先相关测试，稳定后再扩大测试范围。
+- 共享配置、会话状态、网络基础层、文件系统或爬虫公共层：先相关测试，稳定后再扩大范围。
 - Designer/UI 改动：生成视图 + 相关控制器/UI 测试；需要时构造 offscreen 主窗口。
 - 构建、依赖、发布流程或准备发布：完整离线 pytest、Ruff、必要平台构建/冒烟。
 
@@ -58,10 +58,9 @@ uv run --locked ruff format --check
 uv run --locked ruff check --output-format=concise
 uv run --locked pytest <relevant tests> -q
 uv run --locked pytest tests -q
-uv run --locked python -m compileall -q mdcx main.py scripts
 git diff --check
-uv run --locked bash scripts/pyuic.sh
-uv run --locked scripts/build.py --debug
+uv run --locked python scripts/generate_ui.py
+uv run --locked python scripts/build.py --debug
 ```
 
 `main.py` 顶层会启动事件循环，不作为普通库导入。GUI 冒烟使用 `QT_QPA_PLATFORM=offscreen` 并显式退出。
@@ -76,4 +75,4 @@ uv run --locked scripts/build.py --debug
 
 ## 发布
 
-发布规则以 `.github/workflows/release.yml`、`mdcx/consts.py::LOCAL_VERSION` 和当前 Git Tag/Release 状态为准。需要发布时再读取并核对这些实时来源；不要依赖 AGENTS.md 中的历史版本或旧发布步骤。
+发布规则以 `.github/workflows/release.yml`、`mdcx/consts.py::LOCAL_VERSION` 和当前 Git Tag/Release 状态为准。需要发布时再读取并核对这些实时来源。

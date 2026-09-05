@@ -1,687 +1,32 @@
-from pathlib import Path
-
 import pytest
 
-from mdcx.config.enums import DownloadableFile, FixedScrapingType, Language, Website
-from mdcx.config.models import Config, FieldConfig, FieldPriorityConfig
-from mdcx.core.file_crawler import (
-    FileScraper,
-    _deal_res,
-    _is_suren_number,
-    classify_existing_scrape_result,
-    classify_scrape_task,
-)
-from mdcx.core.translate import AVWIKI_SCRAPING_TYPES, _should_query_avwiki_actor
+from mdcx.config.enums import FixedScrapingType, Website
+from mdcx.config.models import Config
+from mdcx.core.file_crawler import FileScraper
 from mdcx.gen.field_enums import CrawlerResultFields
-from mdcx.manual import ManualConfig
 from mdcx.models.enums import FileMode
 from mdcx.models.log_buffer import LogBuffer
-from mdcx.models.types import CrawlerDebugInfo, CrawlerInput, CrawlerResponse, CrawlerResult, CrawlersResult, CrawlTask
-
-
-class _FakeCrawler:
-    def __init__(self, data: CrawlerResult | None, error: Exception | None = None):
-        self._data = data
-        self._error = error
-
-    async def run(self, task_input: CrawlerInput) -> CrawlerResponse:
-        return CrawlerResponse(
-            debug_info=CrawlerDebugInfo(execution_time=0.01, error=self._error),
-            data=self._data,
-        )
-
-
-class _FakeCrawlerProvider:
-    def __init__(self, website_data: dict[Website, CrawlerResult | tuple[CrawlerResult | None, Exception | None]]):
-        self._website_crawlers = {}
-        for site, data in website_data.items():
-            if isinstance(data, tuple):
-                self._website_crawlers[site] = _FakeCrawler(data[0], data[1])
-            else:
-                self._website_crawlers[site] = _FakeCrawler(data)
-
-    async def get(self, site: Website):
-        return self._website_crawlers[site]
-
-
-class _RecordingCrawler:
-    def __init__(self, site: Website, records: list[tuple[str, str]], should_raise: bool = False):
-        self._site = site
-        self._records = records
-        self._should_raise = should_raise
-
-    async def run(self, task_input: CrawlerInput) -> CrawlerResponse:
-        self._records.append((self._site.value, task_input.number))
-        if self._should_raise:
-            raise RuntimeError("boom")
-
-        data = CrawlerResult.empty()
-        data.title = "ok"
-        data.source = self._site.value
-        data.external_id = f"{self._site.value}:id"
-        return CrawlerResponse(
-            debug_info=CrawlerDebugInfo(execution_time=0.01),
-            data=data,
-        )
-
-
-class _RecordingCrawlerProvider:
-    def __init__(self, crawlers: dict[Website, _RecordingCrawler]):
-        self._website_crawlers = crawlers
-
-    async def get(self, site: Website):
-        return self._website_crawlers[site]
-
-
-class _ResultRecordingCrawler:
-    def __init__(
-        self,
-        site: Website,
-        records: list[Website],
-        data: CrawlerResult | None,
-        error: Exception | None = None,
-    ):
-        self._site = site
-        self._records = records
-        self._data = data
-        self._error = error
-
-    async def run(self, task_input: CrawlerInput) -> CrawlerResponse:
-        self._records.append(self._site)
-        return CrawlerResponse(
-            debug_info=CrawlerDebugInfo(execution_time=0.01, error=self._error),
-            data=self._data,
-        )
-
-
-class _ResultRecordingCrawlerProvider:
-    def __init__(self, crawlers: dict[Website, _ResultRecordingCrawler]):
-        self._website_crawlers = crawlers
-
-    async def get(self, site: Website):
-        return self._website_crawlers[site]
-
-
-class _FakeConfig:
-    def get_field_config(self, field: CrawlerResultFields) -> FieldConfig:
-        if field in (CrawlerResultFields.RUNTIME, CrawlerResultFields.RELEASE, CrawlerResultFields.YEAR):
-            return FieldConfig(site_prority=[Website.AVBASE, Website.JAVDB])
-        return FieldConfig(site_prority=[])
-
-
-class _TypePriorityConfig(_FakeConfig):
-    def get_type_field_config(
-        self, scraping_type: FixedScrapingType, field: CrawlerResultFields
-    ) -> FieldPriorityConfig:
-        if scraping_type == FixedScrapingType.YOUMA and field == CrawlerResultFields.RUNTIME:
-            return FieldPriorityConfig(site_prority=[Website.JAVDB, Website.AVBASE])
-        return FieldPriorityConfig()
-
-
-class _ImagePriorityConfig(_FakeConfig):
-    scrape_like = "info"
-    field_priority_try_all_images = True
-
-    def get_field_config(self, field: CrawlerResultFields) -> FieldConfig:
-        if field in (CrawlerResultFields.POSTER, CrawlerResultFields.THUMB):
-            return FieldConfig(site_prority=[Website.AVBASE, Website.JAVDB])
-        return FieldConfig(site_prority=[])
-
-    def get_type_field_config(
-        self, scraping_type: FixedScrapingType, field: CrawlerResultFields
-    ) -> FieldPriorityConfig:
-        if field in (CrawlerResultFields.POSTER, CrawlerResultFields.THUMB):
-            return FieldPriorityConfig(site_prority=[Website.AVBASE, Website.JAVDB])
-        return FieldPriorityConfig()
-
-
-class _Fc2PosterPriorityConfig(_FakeConfig):
-    scrape_like = "info"
-    field_priority_try_all_images = True
-
-    def get_field_config(self, field: CrawlerResultFields) -> FieldConfig:
-        if field == CrawlerResultFields.TITLE:
-            return FieldConfig(site_prority=[Website.FC2, Website.FC2HUB])
-        if field == CrawlerResultFields.POSTER:
-            return FieldConfig(site_prority=[Website.FC2HUB])
-        if field == CrawlerResultFields.THUMB:
-            return FieldConfig(site_prority=[Website.FC2HUB, Website.FC2])
-        return FieldConfig(site_prority=[])
-
-    def get_type_field_config(
-        self, scraping_type: FixedScrapingType, field: CrawlerResultFields
-    ) -> FieldPriorityConfig:
-        if scraping_type == FixedScrapingType.FC2 and field == CrawlerResultFields.TITLE:
-            return FieldPriorityConfig(site_prority=[Website.FC2, Website.FC2HUB])
-        if scraping_type == FixedScrapingType.FC2 and field == CrawlerResultFields.POSTER:
-            return FieldPriorityConfig(site_prority=[Website.FC2HUB])
-        if scraping_type == FixedScrapingType.FC2 and field == CrawlerResultFields.THUMB:
-            return FieldPriorityConfig(site_prority=[Website.FC2HUB, Website.FC2])
-        return FieldPriorityConfig()
-
-
-class _ClassificationConfig:
-    fixed_scraping_type = FixedScrapingType.AUTO
-    website_youma = {Website.DMM}
-    website_wuma = {Website.JAVBUS}
-    website_suren = {Website.MGSTAGE}
-    website_fc2 = {Website.FC2}
-    website_oumei = {Website.THEPORNDB}
-    website_guochan = {Website.MDTV}
-
-
-def _build_result(site: Website, runtime: str = "", release: str = "", year: str = "") -> CrawlerResult:
-    result = CrawlerResult.empty()
-    result.source = site.value
-    result.external_id = f"{site.value}:id"
-    result.title = f"{site.value} title"
-    result.runtime = runtime
-    result.release = release
-    result.year = year
-    return result
-
-
-def _build_image_result(site: Website, poster: str = "", thumb: str = "", image_download: bool = True) -> CrawlerResult:
-    result = _build_result(site)
-    result.poster = poster
-    result.thumb = thumb
-    result.image_download = image_download
-    return result
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("0", True),
-        ("00", True),
-        ("0.0", True),
-        ("0.00", True),
-        ("55", False),
-        ("", False),
-    ],
+from mdcx.models.types import CrawlerInput, CrawlTask
+from tests.file_crawler_test_support import (
+    FakeConfig,
+    FakeCrawlerProvider,
+    RecordingCrawler,
+    RecordingCrawlerProvider,
+    ResultRecordingCrawler,
+    ResultRecordingCrawlerProvider,
+    build_result,
 )
-def test_is_invalid_runtime(value: str, expected: bool):
-    assert FileScraper._is_invalid_runtime(value) is expected
-
-
-def test_deal_res_normalize_iso_release():
-    result = CrawlersResult.empty()
-    result.release = "2023-07-14T01:00:00Z"
-
-    normalized = _deal_res(result)
-
-    assert normalized.release == "2023-07-14"
-
-
-@pytest.mark.parametrize(
-    ("file_number", "short_number", "expected"),
-    [
-        ("259LUXU-1488", "LUXU-1488", True),
-        ("435MFC-142", "MFC-142", True),
-        ("SIRO-5533", "", True),
-        ("SSIS-001", "", False),
-        ("FC2-123456", "", False),
-    ],
-)
-def test_is_suren_number_matches_current_scrape_branch(file_number: str, short_number: str, expected: bool):
-    assert _is_suren_number(file_number, short_number) is expected
-
-
-@pytest.mark.parametrize(
-    ("number", "mosaic", "short_number", "expected_type", "expected_sites"),
-    [
-        ("259LUXU-1488", "", "LUXU-1488", FixedScrapingType.SUREN, {Website.MGSTAGE}),
-        ("SIRO-5533", "", "", FixedScrapingType.SUREN, {Website.MGSTAGE}),
-        ("FC2-123456", "", "", FixedScrapingType.FC2, {Website.FC2}),
-        ("100225_100", "无码", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
-        ("100225_101", "無修正", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
-        ("ABF-131", "无码破解", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("ABF-132", "无码流出", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("ABF-133", "流出", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("ABF-134", "無碼破解", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("ABF-135", "無碼流出", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("ABF-136", "无码流出", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("HEYZO-3843", "", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
-        ("FDD-2007", "", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
-        ("FZ65", "", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
-        ("MD-1234", "", "", FixedScrapingType.GUOCHAN, {Website.MDTV}),
-        ("DANDY-732", "", "", FixedScrapingType.YOUMA, {Website.DMM}),
-        ("SSNI00321", "", "", FixedScrapingType.YOUMA, {Website.DMM}),
-    ],
-)
-def test_classify_scrape_task_keeps_existing_type_branches(
-    number: str,
-    mosaic: str,
-    short_number: str,
-    expected_type: FixedScrapingType,
-    expected_sites: set[Website],
-):
-    task = CrawlTask.empty()
-    task.number = number
-    task.mosaic = mosaic
-    task.short_number = short_number
-
-    classification = classify_scrape_task(task, _ClassificationConfig())
-
-    assert classification.scraping_type == expected_type
-    assert classification.scraping_type_source == "auto"
-    assert classification.sites == expected_sites
-
-
-@pytest.mark.parametrize(
-    ("number", "file_path", "expected_website"),
-    [
-        ("KIN8-4188", "", Website.KIN8),
-        ("MYWIFE-1500", "D:/test/mywife/MYWIFE-1500.mp4", Website.MYWIFE),
-    ],
-)
-def test_classify_scrape_task_marks_youma_specific_crawlers(number: str, file_path: str, expected_website: Website):
-    task = CrawlTask.empty()
-    task.number = number
-    if file_path:
-        task.file_path = Path(file_path)
-
-    classification = classify_scrape_task(task, _ClassificationConfig())
-
-    assert classification.scraping_type == FixedScrapingType.YOUMA
-    assert classification.website == expected_website
-
-
-def test_classify_existing_scrape_result_uses_nfo_mosaic_without_substring_wuma_match():
-    task = CrawlTask.empty()
-    task.number = "ABF-131"
-
-    result = CrawlersResult.empty()
-    result.number = "ABF-131"
-    result.mosaic = "无码破解"
-
-    classification = classify_existing_scrape_result(task, result, _ClassificationConfig())
-
-    assert classification.scraping_type == FixedScrapingType.YOUMA
-    assert result.scraping_type == FixedScrapingType.YOUMA
-    assert result.scraping_type_source == "auto"
-
-
-def test_classify_scrape_task_fixed_type_overrides_auto_detection():
-    class FixedSurenConfig(_ClassificationConfig):
-        fixed_scraping_type = FixedScrapingType.SUREN
-
-    task = CrawlTask.empty()
-    task.number = "DANDY-732"
-
-    classification = classify_scrape_task(task, FixedSurenConfig())
-
-    assert classification.scraping_type == FixedScrapingType.SUREN
-    assert classification.scraping_type_source == "fixed"
-    assert classification.sites == {Website.MGSTAGE}
-
-
-def test_avwiki_uses_unified_scraping_types():
-    assert AVWIKI_SCRAPING_TYPES == {
-        FixedScrapingType.YOUMA,
-        FixedScrapingType.SUREN,
-        FixedScrapingType.FC2,
-    }
-
-
-@pytest.mark.parametrize(
-    ("website", "expected_language", "expected_org_language"),
-    [
-        (Website.AIRAV_CC, Language.ZH_CN, Language.ZH_CN),
-        (Website.IQQTV, Language.ZH_CN, Language.ZH_CN),
-        (Website.JAVLIBRARY, Language.ZH_CN, Language.ZH_CN),
-        (Website.MDTV, Language.ZH_CN, Language.ZH_CN),
-        (Website.DMM, Language.JP, Language.ZH_CN),
-    ],
-)
-def test_specific_crawler_language_uses_website_enum_members(
-    website: Website, expected_language: Language, expected_org_language: Language
-):
-    config = Config()
-    config.set_field_language(CrawlerResultFields.TITLE, Language.ZH_CN)
-    scraper = FileScraper(config, _FakeCrawlerProvider({}))
-
-    assert scraper._get_specific_crawler_language(website) == (expected_language, expected_org_language)
-
-
-@pytest.mark.parametrize(
-    ("scraping_type", "actors", "expected"),
-    [
-        (FixedScrapingType.YOUMA, [], True),
-        (FixedScrapingType.YOUMA, ["未知演员"], True),
-        (FixedScrapingType.YOUMA, ["葵つかさ"], False),
-        (FixedScrapingType.SUREN, ["素人"], True),
-        (FixedScrapingType.FC2, ["販売者"], True),
-        (FixedScrapingType.WUMA, [], False),
-    ],
-)
-def test_avwiki_youma_only_queries_when_actor_unknown_or_empty(
-    scraping_type: FixedScrapingType, actors: list[str], expected: bool
-):
-    result = CrawlersResult.empty()
-    result.scraping_type = scraping_type
-    result.actors = actors
-
-    assert _should_query_avwiki_actor(result) is expected
-
-
-@pytest.mark.asyncio
-async def test_call_crawlers_runtime_skip_zero(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.RUNTIME,))
-
-    provider = _FakeCrawlerProvider(
-        {
-            Website.AVBASE: _build_result(Website.AVBASE, "0"),
-            Website.JAVDB: _build_result(Website.JAVDB, "55"),
-        }
-    )
-    scraper = FileScraper(_FakeConfig(), provider)
-    task_input = CrawlerInput.empty()
-    task_input.number = "SCUTE-1354"
-
-    result = await scraper._call_crawlers(task_input, {Website.AVBASE, Website.JAVDB})
-
-    assert result is not None
-    assert result.runtime == "55"
-    assert result.field_sources[CrawlerResultFields.RUNTIME] == Website.JAVDB.value
-    provenance = result.get_provenance(CrawlerResultFields.RUNTIME)
-    assert provenance is not None
-    assert provenance.source == Website.JAVDB.value
-    assert provenance.priority_chain == (Website.AVBASE.value, Website.JAVDB.value)
-
-
-@pytest.mark.asyncio
-async def test_call_crawlers_release_skip_invalid_and_fill_year(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.RELEASE,))
-
-    provider = _FakeCrawlerProvider(
-        {
-            Website.AVBASE: _build_result(Website.AVBASE, release="0000-00-00"),
-            Website.JAVDB: _build_result(Website.JAVDB, release="2024-1-2"),
-        }
-    )
-    scraper = FileScraper(_FakeConfig(), provider)
-    task_input = CrawlerInput.empty()
-    task_input.number = "SIRO-5533"
-
-    result = await scraper._call_crawlers(task_input, {Website.AVBASE, Website.JAVDB})
-
-    assert result is not None
-    assert result.release == "2024-01-02"
-    assert result.year == "2024"
-    assert result.field_sources[CrawlerResultFields.RELEASE] == Website.JAVDB.value
-
-
-@pytest.mark.asyncio
-async def test_call_crawlers_uses_type_field_priority(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.RUNTIME,))
-
-    provider = _FakeCrawlerProvider(
-        {
-            Website.AVBASE: _build_result(Website.AVBASE, "120"),
-            Website.JAVDB: _build_result(Website.JAVDB, "55"),
-        }
-    )
-    scraper = FileScraper(_TypePriorityConfig(), provider)
-    task_input = CrawlerInput.empty()
-    task_input.number = "SCUTE-1354"
-
-    result = await scraper._call_crawlers(
-        task_input,
-        classification=classify_scrape_task(task_input, Config(website_youma=[Website.AVBASE, Website.JAVDB])),
-    )
-
-    assert result is not None
-    assert result.runtime == "55"
-    assert result.field_sources[CrawlerResultFields.RUNTIME] == Website.JAVDB.value
-
-
-@pytest.mark.asyncio
-async def test_call_crawlers_legacy_site_list_uses_global_field_priority(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.RUNTIME,))
-
-    provider = _FakeCrawlerProvider(
-        {
-            Website.AVBASE: _build_result(Website.AVBASE, "120"),
-            Website.JAVDB: _build_result(Website.JAVDB, "55"),
-        }
-    )
-    config = Config(website_youma=[Website.AVBASE, Website.JAVDB])
-    config.set_field_sites(CrawlerResultFields.RUNTIME, [Website.JAVDB, Website.AVBASE])
-    scraper = FileScraper(config, provider)
-    task_input = CrawlerInput.empty()
-    task_input.number = "SCUTE-1354"
-
-    result = await scraper._call_crawlers(task_input, {Website.AVBASE, Website.JAVDB})
-
-    assert result is not None
-    assert result.runtime == "55"
-    assert result.field_sources[CrawlerResultFields.RUNTIME] == Website.JAVDB.value
-
-
-@pytest.mark.asyncio
-async def test_call_crawlers_collects_all_image_candidates_when_enabled(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.POSTER, CrawlerResultFields.THUMB))
-
-    provider = _FakeCrawlerProvider(
-        {
-            Website.AVBASE: _build_image_result(
-                Website.AVBASE,
-                poster="https://example.test/avbase-poster.jpg",
-                thumb="https://example.test/avbase-thumb.jpg",
-                image_download=False,
-            ),
-            Website.JAVDB: _build_image_result(
-                Website.JAVDB,
-                poster="https://example.test/javdb-poster.jpg",
-                thumb="https://example.test/javdb-thumb.jpg",
-                image_download=True,
-            ),
-        }
-    )
-    scraper = FileScraper(_ImagePriorityConfig(), provider)
-    task_input = CrawlerInput.empty()
-    task_input.number = "SCUTE-1354"
-
-    result = await scraper._call_crawlers(
-        task_input,
-        classification=classify_scrape_task(task_input, Config(website_youma=[Website.AVBASE, Website.JAVDB])),
-    )
-
-    assert result is not None
-    assert result.poster == "https://example.test/avbase-poster.jpg"
-    assert result.poster_from == Website.AVBASE.value
-    assert result.get_provenance(CrawlerResultFields.POSTER).source == Website.AVBASE.value
-    assert result.get_provenance("fanart").source == Website.AVBASE.value
-    assert result.poster_list == [
-        (Website.AVBASE.value, "https://example.test/avbase-poster.jpg", False),
-        (Website.JAVDB.value, "https://example.test/javdb-poster.jpg", True),
-    ]
-    assert result.thumb_list == [
-        (Website.AVBASE.value, "https://example.test/avbase-thumb.jpg"),
-        (Website.JAVDB.value, "https://example.test/javdb-thumb.jpg"),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_call_crawlers_collects_poster_candidates_only_from_type_poster_priority(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.TITLE, CrawlerResultFields.POSTER))
-
-    provider = _FakeCrawlerProvider(
-        {
-            Website.FC2: _build_image_result(
-                Website.FC2,
-                poster="https://example.test/fc2-poster.jpg",
-                image_download=False,
-            ),
-            Website.FC2HUB: _build_image_result(
-                Website.FC2HUB,
-                poster="https://example.test/fc2hub-poster.jpg",
-                image_download=True,
-            ),
-        }
-    )
-    scraper = FileScraper(_Fc2PosterPriorityConfig(), provider)
-    task_input = CrawlerInput.empty()
-    task_input.number = "FC2-1234567"
-
-    result = await scraper._call_crawlers(
-        task_input,
-        classification=classify_scrape_task(task_input, Config(website_fc2=[Website.FC2, Website.FC2HUB])),
-    )
-
-    assert result is not None
-    assert result.title == "fc2 title"
-    assert result.poster == "https://example.test/fc2hub-poster.jpg"
-    assert result.poster_from == Website.FC2HUB.value
-    assert result.poster_list == [
-        (Website.FC2HUB.value, "https://example.test/fc2hub-poster.jpg", True),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_fc2_field_priority_stops_after_complete_fc2cmadb_record(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        ManualConfig,
-        "REDUCED_FIELDS",
-        (
-            CrawlerResultFields.TITLE,
-            CrawlerResultFields.OUTLINE,
-            CrawlerResultFields.SCORE,
-            CrawlerResultFields.RUNTIME,
-            CrawlerResultFields.POSTER,
-        ),
-    )
-    records: list[Website] = []
-    fc2cmadb = _build_image_result(
-        Website.FC2PPVDB,
-        poster="https://fc2cmadb.test/poster.jpg",
-        image_download=True,
-    )
-    fc2cmadb.runtime = "61"
-    fallback = _build_image_result(Website.FC2, poster="https://fc2.test/poster.jpg")
-    fallback.outline = "fallback outline"
-    fallback.score = "4.5"
-    provider = _ResultRecordingCrawlerProvider(
-        {
-            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
-            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
-        }
-    )
-    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
-    scraper = FileScraper(config, provider)
-    task_input = CrawlTask.empty()
-    task_input.number = "FC2-1234567"
-
-    result = await scraper.run(task_input, FileMode.Default)
-
-    assert result is not None
-    assert result.title == "fc2ppvdb title"
-    assert result.runtime == "61"
-    assert result.outline == ""
-    assert records == [Website.FC2PPVDB]
-
-
-@pytest.mark.asyncio
-async def test_fc2_field_priority_still_falls_back_for_missing_core_fields(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ManualConfig, "REDUCED_FIELDS", (CrawlerResultFields.TITLE, CrawlerResultFields.RUNTIME))
-    records: list[Website] = []
-    fc2cmadb = _build_result(Website.FC2PPVDB)
-    fallback = _build_result(Website.FC2, runtime="61")
-    provider = _ResultRecordingCrawlerProvider(
-        {
-            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
-            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
-        }
-    )
-    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
-    scraper = FileScraper(config, provider)
-    task_input = CrawlTask.empty()
-    task_input.number = "FC2-1234567"
-
-    result = await scraper.run(task_input, FileMode.Default)
-
-    assert result is not None
-    assert result.runtime == "61"
-    assert records == [Website.FC2PPVDB, Website.FC2]
-
-
-@pytest.mark.asyncio
-async def test_fc2_field_priority_skips_trailer_fallback_when_trailer_download_is_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setattr(
-        ManualConfig,
-        "REDUCED_FIELDS",
-        (CrawlerResultFields.TITLE, CrawlerResultFields.TRAILER),
-    )
-    records: list[Website] = []
-    fc2cmadb = _build_result(Website.FC2PPVDB)
-    fallback = _build_result(Website.FC2)
-    fallback.trailer = "https://fc2.test/trailer.mp4"
-    provider = _ResultRecordingCrawlerProvider(
-        {
-            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
-            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
-        }
-    )
-    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
-    config.download_files = [item for item in config.download_files if item != DownloadableFile.TRAILER]
-    scraper = FileScraper(config, provider)
-    task_input = CrawlTask.empty()
-    task_input.number = "FC2-1234567"
-
-    result = await scraper.run(task_input, FileMode.Default)
-
-    assert result is not None
-    assert result.title == "fc2ppvdb title"
-    assert result.trailer == ""
-    assert records == [Website.FC2PPVDB]
-
-
-@pytest.mark.asyncio
-async def test_fc2_field_priority_keeps_trailer_fallback_when_trailer_download_is_enabled(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setattr(
-        ManualConfig,
-        "REDUCED_FIELDS",
-        (CrawlerResultFields.TITLE, CrawlerResultFields.TRAILER),
-    )
-    records: list[Website] = []
-    fc2cmadb = _build_result(Website.FC2PPVDB)
-    fallback = _build_result(Website.FC2)
-    fallback.trailer = "https://fc2.test/trailer.mp4"
-    provider = _ResultRecordingCrawlerProvider(
-        {
-            Website.FC2PPVDB: _ResultRecordingCrawler(Website.FC2PPVDB, records, fc2cmadb),
-            Website.FC2: _ResultRecordingCrawler(Website.FC2, records, fallback),
-        }
-    )
-    config = Config(scrape_like="info", website_fc2=[Website.FC2PPVDB, Website.FC2])
-    assert DownloadableFile.TRAILER in config.download_files
-    scraper = FileScraper(config, provider)
-    task_input = CrawlTask.empty()
-    task_input.number = "FC2-1234567"
-
-    result = await scraper.run(task_input, FileMode.Default)
-
-    assert result is not None
-    assert result.trailer == "https://fc2.test/trailer.mp4"
-    assert records == [Website.FC2PPVDB, Website.FC2]
 
 
 @pytest.mark.asyncio
 async def test_speed_mode_uses_first_successful_type_site_without_field_merge():
     records: list[Website] = []
-    provider = _ResultRecordingCrawlerProvider(
+    provider = ResultRecordingCrawlerProvider(
         {
-            Website.AVBASE: _ResultRecordingCrawler(
-                Website.AVBASE, records, _build_result(Website.AVBASE, runtime="120")
+            Website.AVBASE: ResultRecordingCrawler(
+                Website.AVBASE, records, build_result(Website.AVBASE, runtime="120")
             ),
-            Website.JAVDB: _ResultRecordingCrawler(Website.JAVDB, records, _build_result(Website.JAVDB, runtime="55")),
+            Website.JAVDB: ResultRecordingCrawler(Website.JAVDB, records, build_result(Website.JAVDB, runtime="55")),
         }
     )
     config = Config(scrape_like="speed", website_youma=[Website.AVBASE, Website.JAVDB])
@@ -701,10 +46,10 @@ async def test_speed_mode_uses_first_successful_type_site_without_field_merge():
 @pytest.mark.asyncio
 async def test_speed_mode_falls_back_to_next_site_after_empty_result():
     records: list[Website] = []
-    provider = _ResultRecordingCrawlerProvider(
+    provider = ResultRecordingCrawlerProvider(
         {
-            Website.AVBASE: _ResultRecordingCrawler(Website.AVBASE, records, None),
-            Website.JAVDB: _ResultRecordingCrawler(Website.JAVDB, records, _build_result(Website.JAVDB, runtime="55")),
+            Website.AVBASE: ResultRecordingCrawler(Website.AVBASE, records, None),
+            Website.JAVDB: ResultRecordingCrawler(Website.JAVDB, records, build_result(Website.JAVDB, runtime="55")),
         }
     )
     config = Config(scrape_like="speed", website_youma=[Website.AVBASE, Website.JAVDB])
@@ -723,10 +68,10 @@ async def test_speed_mode_falls_back_to_next_site_after_empty_result():
 @pytest.mark.asyncio
 async def test_uncensored_fdd_task_reaches_configured_uncensored_crawler():
     records: list[Website] = []
-    provider = _ResultRecordingCrawlerProvider(
+    provider = ResultRecordingCrawlerProvider(
         {
-            Website.AVSOX: _ResultRecordingCrawler(Website.AVSOX, records, _build_result(Website.AVSOX)),
-            Website.JAVBUS: _ResultRecordingCrawler(Website.JAVBUS, records, _build_result(Website.JAVBUS)),
+            Website.AVSOX: ResultRecordingCrawler(Website.AVSOX, records, build_result(Website.AVSOX)),
+            Website.JAVBUS: ResultRecordingCrawler(Website.JAVBUS, records, build_result(Website.JAVBUS)),
         }
     )
     config = Config(scrape_like="speed", website_wuma=[Website.AVSOX, Website.JAVBUS])
@@ -745,13 +90,13 @@ async def test_uncensored_fdd_task_reaches_configured_uncensored_crawler():
 @pytest.mark.asyncio
 async def test_call_crawler_restore_number_for_mgstage():
     records: list[tuple[str, str]] = []
-    provider = _RecordingCrawlerProvider(
+    provider = RecordingCrawlerProvider(
         {
-            Website.DMM: _RecordingCrawler(Website.DMM, records),
-            Website.MGSTAGE: _RecordingCrawler(Website.MGSTAGE, records),
+            Website.DMM: RecordingCrawler(Website.DMM, records),
+            Website.MGSTAGE: RecordingCrawler(Website.MGSTAGE, records),
         }
     )
-    scraper = FileScraper(_FakeConfig(), provider)
+    scraper = FileScraper(FakeConfig(), provider)
     task_input = CrawlerInput.empty()
     task_input.number = "200GANA-3327"
     task_input.short_number = "GANA-3327"
@@ -771,12 +116,12 @@ async def test_call_crawler_restore_number_for_mgstage():
 @pytest.mark.asyncio
 async def test_call_crawler_restore_number_when_exception():
     records: list[tuple[str, str]] = []
-    provider = _RecordingCrawlerProvider(
+    provider = RecordingCrawlerProvider(
         {
-            Website.DMM: _RecordingCrawler(Website.DMM, records, should_raise=True),
+            Website.DMM: RecordingCrawler(Website.DMM, records, should_raise=True),
         }
     )
-    scraper = FileScraper(_FakeConfig(), provider)
+    scraper = FileScraper(FakeConfig(), provider)
     task_input = CrawlerInput.empty()
     task_input.number = "200GANA-3327"
     task_input.short_number = "GANA-3327"
@@ -791,8 +136,8 @@ async def test_call_crawler_restore_number_when_exception():
 @pytest.mark.asyncio
 async def test_call_specific_crawler_writes_debug_error_to_log_buffer():
     LogBuffer.error().clear()
-    provider = _FakeCrawlerProvider({Website.THEPORNDB: (None, RuntimeError("请添加 API Token 后刮削！"))})
-    scraper = FileScraper(_FakeConfig(), provider)
+    provider = FakeCrawlerProvider({Website.THEPORNDB: (None, RuntimeError("请添加 API Token 后刮削！"))})
+    scraper = FileScraper(FakeConfig(), provider)
     task_input = CrawlerInput.empty()
     task_input.number = "Nurumassage.26.02.23"
 

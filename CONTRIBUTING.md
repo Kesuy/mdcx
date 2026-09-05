@@ -55,10 +55,10 @@ value = manager.config.<key>
 修改 `.ui` 后运行：
 
 ```bash
-uv run --locked bash scripts/pyuic.sh
+uv run --locked python scripts/generate_ui.py
 ```
 
-主窗口行为按职责放在 `mdcx/controllers/main_window/` 的对应控制器 / mixin 中，不要重新把逻辑堆回 `main_window.py`。持久架构边界见 `docs/architecture-v4.md`。
+主窗口行为按职责放在 `mdcx/controllers/main_window/` 的对应控制器 / mixin 中，不要重新把逻辑堆回 `main_window.py`。持久架构边界见 `docs/architecture.md`。
 
 ## 目录概览
 
@@ -72,7 +72,7 @@ mdcx/
 │   ├── models/        # 领域与运行状态
 │   ├── utils/         # 共享工具
 │   └── views/         # Designer 源文件与生成视图
-├── scripts/           # 生成、构建、版本、发布辅助脚本
+├── scripts/           # 生成、构建、版本、发布与专项诊断脚本
 ├── tests/             # 离线回归测试
 └── .github/workflows/ # CI / Release
 ```
