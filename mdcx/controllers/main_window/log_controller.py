@@ -18,10 +18,20 @@ from mdcx.models.flags import Flags
 from mdcx.signals import signal_qt
 from mdcx.utils import add_html, add_html_plain_text, executor
 
+from .failure_center import FailureCenterDialog
 from .responsive_layout import show_responsive_overlay
 
 
 class LogControllerMixin:
+    def update_failure_count(self, text: str) -> None:
+        self.Ui.pushButton_view_failed_list.setText(text)
+        count_text = "".join(character for character in text if character.isdigit())
+        navigation_text = f"日志  • {count_text}" if count_text and count_text != "0" else "日志"
+        self.Ui.pushButton_log.setProperty("mdcxFullButtonText", navigation_text)
+        self.Ui.pushButton_log.setToolTip(f"{navigation_text} 条失败" if count_text else "")
+        if getattr(self, "_responsive_mode", "standard") != "narrow":
+            self.Ui.pushButton_log.setText(navigation_text)
+
     def show_scrape_info(self, before_info=""):
         try:
             if Flags.file_mode == FileMode.Single:
@@ -105,6 +115,9 @@ class LogControllerMixin:
             )
 
     def pushButton_show_hide_failed_list_clicked(self):
+        if Flags.failed_records:
+            self.show_failure_center()
+            return
         if self.Ui.textBrowser_log_main_3.isHidden():
             self.show_hide_failed_list(True)
         else:
@@ -113,7 +126,8 @@ class LogControllerMixin:
     def show_hide_failed_list(self, show):
         if show:
             self.Ui.textBrowser_log_main_3.show()
-            self.Ui.pushButton_scraper_failed_list.show()
+            has_retryable = not Flags.failed_records or any(record.retryable for record in Flags.failed_records)
+            self.Ui.pushButton_scraper_failed_list.setVisible(has_retryable)
             self.Ui.pushButton_save_failed_list.show()
             self.Ui.textBrowser_log_main_3.raise_()
             self.Ui.pushButton_scraper_failed_list.raise_()
@@ -127,9 +141,41 @@ class LogControllerMixin:
             self.Ui.textBrowser_log_main_3.hide()
             self.Ui.pushButton_scraper_failed_list.hide()
 
+    def show_failure_center(self) -> None:
+        dialog = getattr(self, "_failure_center", None)
+        if dialog is None:
+            dialog = FailureCenterDialog(
+                self,
+                retry_callback=self._retry_failure_records,
+                legacy_callback=lambda: self.show_hide_failed_list(True),
+            )
+            self._failure_center = dialog
+        dialog.set_records(Flags.failed_records)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _retry_failure_records(self, records) -> bool:
+        if self.Ui.pushButton_start_cap.text() != "开始":
+            return False
+        paths = list(dict.fromkeys(record.path for record in records if record.retryable))
+        if not paths:
+            return False
+        Flags.failed_records[:] = [record for record in Flags.failed_records if record not in records]
+        remaining_paths = {record.path for record in Flags.failed_records}
+        Flags.failed_list[:] = [item for item in Flags.failed_list if item[0] in remaining_paths]
+        start_new_scrape(FileMode.Default, movie_list=paths)
+        return True
+
     def pushButton_scraper_failed_list_clicked(self):
         if len(Flags.failed_list) and self.Ui.pushButton_start_cap.text() == "开始":
-            start_new_scrape(FileMode.Default, movie_list=[s[0] for s in Flags.failed_list])
+            if Flags.failed_records:
+                retry_paths = [record.path for record in Flags.failed_records if record.retryable]
+            else:
+                retry_paths = [item[0] for item in Flags.failed_list]
+            if not retry_paths:
+                return
+            start_new_scrape(FileMode.Default, movie_list=list(dict.fromkeys(retry_paths)))
             self.show_hide_failed_list(False)
 
     def pushButton_save_failed_list_clicked(self):

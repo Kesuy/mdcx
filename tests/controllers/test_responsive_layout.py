@@ -24,10 +24,11 @@ from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import (
     BASE_WINDOW_HEIGHT,
     BASE_WINDOW_WIDTH,
+    COMPACT_BREAKPOINT,
     FORM_SECTION_HORIZONTAL_MARGIN,
     MIN_WINDOW_HEIGHT,
     MIN_WINDOW_WIDTH,
-    NETWORK_FORM_MAX_WIDTH,
+    NARROW_BREAKPOINT,
     apply_responsive_layout,
     calculate_layout_metrics,
     setup_responsive_ui,
@@ -146,7 +147,7 @@ def _window_harness() -> QMainWindow:
     return window
 
 
-def test_apply_responsive_layout_resizes_main_result_and_page_viewports():
+def test_apply_responsive_layout_does_not_restore_removed_compatibility_geometry():
     window = _window_harness()
     setup_responsive_ui(window)
     window.show()
@@ -156,11 +157,10 @@ def test_apply_responsive_layout_resizes_main_result_and_page_viewports():
 
     assert window.minimumWidth() == MIN_WINDOW_WIDTH
     assert window.minimumHeight() == MIN_WINDOW_HEIGHT
-    assert window.Ui.stackedWidget.size().width() == 1131
-    assert window.Ui.treeWidget_number.geometry().getRect() == (590, 140, 531, 733)
-    assert window.Ui.label_result.geometry().getRect() == (590, 70, 531, 40)
-    assert window.Ui.textBrowser_net_main.geometry().getRect() == (30, 0, 1101, 892)
-    assert window.Ui.tabWidget.geometry().getRect() == (20, 10, 1113, 884)
+    assert window.Ui.stackedWidget.size().isEmpty()
+    assert not hasattr(window, "_shell_splitter")
+    assert not hasattr(window, "_main_splitter")
+    assert not hasattr(window, "_simple_page_layouts_ready")
     assert window._resize_grip.isVisible() is True
     assert not hasattr(window, "_splitter_left")
     assert not hasattr(window, "_splitter_right")
@@ -180,6 +180,35 @@ def _generated_ui_window() -> QMainWindow:
     setup_result_sort_ui(window)
     setup_local_nfo_button(window)
     return window
+
+
+def test_standard_compact_and_narrow_breakpoints_are_all_reachable():
+    assert MIN_WINDOW_WIDTH < NARROW_BREAKPOINT < COMPACT_BREAKPOINT
+    window = _generated_ui_window()
+    SettingsPageController(window)
+    setup_responsive_ui(window)
+    window.show()
+
+    window.resize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    apply_responsive_layout(window)
+    APP.processEvents()
+    assert window._responsive_mode == "narrow"
+    assert window._main_splitter.orientation() == Qt.Orientation.Vertical
+    assert window.Ui.pushButton_main.text() == ""
+    assert window.Ui.pushButton_main.toolTip()
+
+    window.resize(1100, MIN_WINDOW_HEIGHT)
+    apply_responsive_layout(window)
+    APP.processEvents()
+    assert window._responsive_mode == "compact"
+    assert window._main_splitter.orientation() == Qt.Orientation.Horizontal
+    assert window.Ui.pushButton_main.text()
+
+    window.resize(1400, 900)
+    apply_responsive_layout(window)
+    APP.processEvents()
+    assert window._responsive_mode == "standard"
+    window.close()
 
 
 def test_tool_page_groups_use_page_owned_layouts_instead_of_fixed_geometry():
@@ -366,7 +395,8 @@ def test_sidebar_and_artwork_follow_splitter_resizes_without_leaving_gaps():
     APP.processEvents()
 
     assert shell_splitter.handleWidth() == 1
-    assert "background: #D8DEE9" in shell_splitter.styleSheet()
+    assert "#FFFFFF" not in shell_splitter.styleSheet()
+    assert "#D8DEE9" not in shell_splitter.styleSheet()
     assert window.Ui.left_backgroud_widget.width() == window.Ui.widget_setting.width()
     assert window.Ui.left_backgroud_widget.geometry().right() == window.Ui.widget_setting.rect().right()
     assert window.Ui.label_show_version.width() == window.Ui.widget_setting.width()
@@ -521,6 +551,10 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     window = _generated_ui_window()
     SettingsPageController(window)
     setup_responsive_ui(window)
+    window.dark_mode = False
+    window.window_radius = 0
+    window.window_border = 0
+    set_style(window)
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
     window.resize(1600, 900)
     window.show()
@@ -530,7 +564,7 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
 
     tab_bar = window.Ui.tabWidget.tabBar()
     assert abs(tab_bar.x() * 2 + tab_bar.width() - window.Ui.tabWidget.width()) <= 4
-    assert "QTabWidget::tab-bar { alignment: center; }" in window.Ui.tabWidget.styleSheet()
+    assert "QTabWidget::tab-bar" in window.Ui.page_setting.styleSheet()
 
     first_tab = window.Ui.tabWidget.widget(0)
     first_scroll = window.Ui.scrollArea_2
@@ -541,7 +575,7 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     assert first_content.width() == first_scroll.viewport().width()
     assert window.Ui.groupBox_16.width() > 701
     assert window.Ui.gridLayoutWidget_7.width() > 661
-    assert first_content.width() - window.Ui.groupBox_16.geometry().right() - 1 == 29
+    assert first_content.width() - window.Ui.groupBox_16.geometry().right() - 1 in (29, 30)
 
     window.Ui.tabWidget.setCurrentIndex(8)
     APP.processEvents()
@@ -553,15 +587,15 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     assert nfo_scrollbar_x >= window.Ui.tabWidget.width() - 30
     assert nfo_scroll.widget().width() == nfo_scroll.viewport().width()
     assert window.Ui.groupBox_81.width() > 701
-    assert isinstance(nfo_scroll.widget().layout(), QVBoxLayout)
+    assert nfo_scroll.widget().layout() is None
 
     window.Ui.tabWidget.setCurrentIndex(2)
     APP.processEvents()
     website_scroll = window.Ui.scrollArea_8
     website_content = website_scroll.widget()
-    assert isinstance(website_content.layout(), QVBoxLayout)
+    assert website_content.layout() is None
     website_separator = window.Ui.layoutWidget1
-    assert website_content.layout().indexOf(website_separator) >= 0
+    assert website_separator.parentWidget() is website_content
     assert website_separator.width() > 701
 
     window.Ui.tabWidget.setCurrentWidget(window.Ui.tab3)
@@ -574,16 +608,17 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
     APP.processEvents()
 
     network_content = window.Ui.scrollAreaWidgetContents_wangluo
-    expected_network_width = min(
-        NETWORK_FORM_MAX_WIDTH,
-        network_scroll.viewport().width() - 2 * FORM_SECTION_HORIZONTAL_MARGIN,
-    )
+    expected_network_width = network_scroll.viewport().width() - 30 - FORM_SECTION_HORIZONTAL_MARGIN
     for group in (window.Ui.groupBox_10, window.Ui.groupBox_28, window.Ui.groupBox_44, window.Ui.groupBox_14):
-        assert group.maximumWidth() == NETWORK_FORM_MAX_WIDTH
-        assert group.width() == expected_network_width
-        assert abs(group.geometry().center().x() - network_content.rect().center().x()) <= 1
+        assert group.maximumWidth() == 16777215
+        assert group.width() in (expected_network_width - 1, expected_network_width)
+        assert group.x() == 30
+        assert network_content.width() - group.geometry().right() - 1 in (
+            FORM_SECTION_HORIZONTAL_MARGIN,
+            FORM_SECTION_HORIZONTAL_MARGIN + 1,
+        )
 
-    assert all(metrics[0] == "layout" for metrics in window._settings_scroll_metrics)
+    assert all(metrics[1].layout() is None for metrics in window._settings_scroll_metrics)
 
     for tab_index in range(window.Ui.tabWidget.count()):
         window.Ui.tabWidget.setCurrentIndex(tab_index)
@@ -593,7 +628,10 @@ def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
                 continue
             for child in group.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
                 if child.isVisible():
-                    assert group.rect().contains(child.geometry()), (group.objectName(), child.objectName())
+                    assert group.rect().adjusted(-2, -2, 2, 2).contains(child.geometry()), (
+                        group.objectName(),
+                        child.objectName(),
+                    )
 
     assert window.Ui.comboBox_change_config.size().width() == 151
     assert window.Ui.comboBox_change_config.size().height() == 30

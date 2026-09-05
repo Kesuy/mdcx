@@ -462,16 +462,26 @@ async def check_url(url: str, length: bool = False, real_url: bool = False):
                     return
 
 
+def extract_avsox_domain(html: str) -> str:
+    for candidate in re.findall(r'(https://[^"\s<>]+)', html):
+        parsed = urlsplit(candidate.rstrip("/"))
+        hostname = (parsed.hostname or "").lower()
+        if "api.qrserver.com" in hostname or "avsox" not in hostname:
+            continue
+        if hostname in {"avsox.com", "www.avsox.com"}:
+            continue
+        return urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+    return ""
+
+
 async def get_avsox_domain() -> str:
     issue_url = "https://tellme.pw/avsox"
     async with manager.acquire_computed() as computed:
         response, error = await computed.async_client.get_text(issue_url)
     domain = "https://avsox.click"
     if response is not None:
-        res = re.findall(r'(https://[^"]+)', response)
-        for s in res:
-            if s and "https://avsox.com" not in s or "api.qrserver.com" not in s:
-                return s
+        if discovered_domain := extract_avsox_domain(response):
+            return discovered_domain
     return domain
 
 

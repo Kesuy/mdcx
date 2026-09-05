@@ -204,7 +204,6 @@ def _style_config_line_edit(line_edit: QLineEdit, dark: bool = False) -> None:
     line_edit.setStyleSheet(
         f"""
         QLineEdit {{
-            font: "Courier";
             color: {colors["text"]};
             border: 1px solid {colors["border"]};
             border-radius: 8px;
@@ -755,7 +754,13 @@ def _open_priority_editor(window: "MyMAinWindow", scraping_type: FixedScrapingTy
 
 def _hide_legacy_field_website_group(window: "MyMAinWindow") -> None:
     window.Ui.groupBox_35.hide()
-    window.Ui.layoutWidget2.hide()
+    separator = window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.findChild(
+        QWidget,
+        "layoutWidget1",
+        Qt.FindChildOption.FindDirectChildrenOnly,
+    )
+    if separator is not None:
+        separator.hide()
     window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.setMinimumHeight(1330)
     window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.resize(
         window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.width(),

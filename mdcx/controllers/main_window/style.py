@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PyQt6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -95,6 +95,41 @@ def _tokens(dark: bool) -> dict[str, str]:
     return DARK_TOKENS if dark else LIGHT_TOKENS
 
 
+def resolve_application_font_family() -> str:
+    """Choose one installed UI font with CJK coverage without platform branches."""
+
+    app = QApplication.instance()
+    current_family = app.font().family() if app is not None else ""
+    installed = {family.casefold(): family for family in QFontDatabase.families()}
+    for candidate in (
+        "Microsoft YaHei UI",
+        "Microsoft YaHei",
+        "DengXian",
+        "PingFang SC",
+        "Noto Sans CJK SC",
+        "Noto Sans SC",
+        "Source Han Sans SC",
+        "SimHei",
+    ):
+        if family := installed.get(candidate.casefold()):
+            return family
+    return current_family
+
+
+def apply_application_font() -> str:
+    """Apply the same resolved UI font to widgets, dialogs, and popup controls."""
+
+    app = QApplication.instance()
+    if app is None:
+        return ""
+    family = resolve_application_font_family()
+    if family and app.font().family() != family:
+        font = QFont(app.font())
+        font.setFamily(family)
+        app.setFont(font)
+    return family
+
+
 def get_theme_tokens(dark: bool) -> dict[str, str]:
     return _tokens(dark)
 
@@ -127,6 +162,7 @@ def apply_application_palette(dark: bool) -> None:
     if app is None:
         return
 
+    apply_application_font()
     t = _tokens(dark)
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(t["window"]))
@@ -289,6 +325,10 @@ def build_validation_style(dark: bool) -> str:
             font-size: 11px;
             padding: 0 2px;
         }}
+        QWidget[settingsSearchHighlight="true"] {{
+            border: 2px solid {t["accent"]};
+            background: {t["selection_bg"]};
+        }}
     """
 
 
@@ -347,7 +387,7 @@ def build_code_editor_style(dark: bool) -> str:
     t = _tokens(dark)
     return (
         f"color: {t['text']}; background: {t['input_bg']}; "
-        f"border: 1px solid {t['border']}; border-radius: {t['radius_sm']}; font-family: Courier;"
+        f"border: 1px solid {t['border']}; border-radius: {t['radius_sm']};"
     )
 
 
@@ -540,8 +580,6 @@ def build_about_page_style(dark: bool) -> str:
             background: transparent;
             border: 0;
             padding: 2px;
-            font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC',
-                         'Noto Sans CJK SC', 'Segoe UI';
         }}
     """
 
@@ -609,10 +647,6 @@ def _settings_semantic_style(dark: bool) -> str:
             color: {t["text"]}; background: {t["input_bg"]};
             border: 1px solid {t["border"]}; border-radius: {t["radius_md"]};
         }}
-        QLineEdit[semanticRole="code"], QPlainTextEdit[semanticRole="code"], QTextEdit[semanticRole="code"],
-        QGroupBox[semanticRole="codeGroup"] {{
-            font-family: Consolas, 'Cascadia Mono', monospace;
-        }}
         QWidget[semanticRole="mutedContainer"] {{ color: {t["text_muted"]}; }}
         QPushButton[semanticRole="ghost"] {{
             color: {t["text"]};
@@ -625,7 +659,6 @@ def _settings_semantic_style(dark: bool) -> str:
         QPlainTextEdit[cookieEditor="true"] {{
             color: {t["text"]}; background: {t["input_bg"]};
             border: 1px solid {t["border"]}; border-radius: {t["radius_sm"]};
-            font-family: Courier;
         }}
     """
 
@@ -797,12 +830,13 @@ def set_style(self: "MyMAinWindow"):
     )
     self.Ui.page_setting.setStyleSheet(self.Ui.page_setting.styleSheet() + _settings_semantic_style(False))
     # 整个页面
+    application_font = apply_application_font()
     self.Ui.centralwidget.setStyleSheet(
         _qss_resources(
             _theme_qss(
                 f"""
         * {{
-            font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Segoe UI';
+            font-family: '{application_font}';
             font-size:13px;
             color: black;
         }}
@@ -1214,12 +1248,13 @@ def set_dark_style(self: "MyMAinWindow"):
     )
     self.Ui.page_setting.setStyleSheet(self.Ui.page_setting.styleSheet() + _settings_semantic_style(True))
     # 整个页面
+    application_font = apply_application_font()
     self.Ui.centralwidget.setStyleSheet(
         _qss_resources(
             _theme_qss(
                 f"""
         * {{
-            font-family: 'Microsoft YaHei UI', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans CJK SC', 'Segoe UI';
+            font-family: '{application_font}';
             font-size:13px;
             color: white;
         }}

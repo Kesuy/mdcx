@@ -14,6 +14,7 @@ from mdcx.config.extend import deal_url
 from mdcx.config.manager import manager
 from mdcx.core.local_nfo_loader import LocalNfoLoadError, load_local_nfo
 from mdcx.core.scraper import again_search
+from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.flags import Flags
 from mdcx.models.log_buffer import LogBuffer
 from mdcx.models.types import CrawlersResult, ShowData
@@ -24,11 +25,19 @@ from mdcx.utils.file import open_file_thread
 from .file_controller import FileOperationKind, classify_file_failure
 from .nfo_controller import NfoController
 from .responsive_layout import show_responsive_overlay
-from .result_model import RESULT_DATA_ROLE, ResultItem, ResultTreeItem, create_result_item
+from .result_model import RESULT_DATA_ROLE, RESULT_NAME_ROLE, ResultItem, ResultTreeItem, create_result_item
 from .result_sorting import ResultSortEntry, ResultSortMode, sort_result_entries
 
 
+def _result_item_name(item: ResultItem) -> str:
+    return str(item.data(0, RESULT_NAME_ROLE) or item.text(0))
+
+
 class MainPageMixin:
+    @staticmethod
+    def _result_item_name(item: ResultItem) -> str:
+        return _result_item_name(item)
+
     def pushButton_start_scrape_clicked(self):
         self._get_scrape_controller().toggle()
 
@@ -52,9 +61,27 @@ class MainPageMixin:
     def _addTreeChild(self, result, filename, show_data: ShowData | None = None):
         parent = self.item_succ if result == "succ" else self.item_fail
         node = create_result_item(parent)
-        node.setText(0, filename)
+        node.setData(0, RESULT_NAME_ROLE, filename)
+        display_text = filename
         if show_data is not None:
             node.setData(0, RESULT_DATA_ROLE, show_data)
+            number = show_data.data.number or show_data.file_info.number
+            provenance = show_data.data.get_provenance(CrawlerResultFields.TITLE)
+            source = (
+                provenance.source
+                if provenance is not None
+                else show_data.data.field_sources.get(CrawlerResultFields.TITLE, "")
+            )
+            state = "完成" if result == "succ" else "失败"
+            icon = "✓" if result == "succ" else "⚠"
+            display_text = f"{icon} {number or filename} · {source or '本地'} · {state} — {filename}"
+            node.setData(
+                0,
+                Qt.ItemDataRole.ToolTipRole,
+                f"状态：{state}\n番号/名称：{number or filename}\n来源：{source or '本地'}\n{filename}"
+                + ("\n双击打开失败中心并重试" if result == "fail" else ""),
+            )
+        node.setText(0, display_text)
         if result == "succ":
             insertion_index = getattr(self, "_result_insertion_index", 0)
             node.setData(0, Qt.ItemDataRole.UserRole, insertion_index)
@@ -73,7 +100,7 @@ class MainPageMixin:
         return self._get_single_selected_entry() is not None
 
     def _set_result_item_as_current_selection(self, item: ResultItem) -> None:
-        if item.text(0) in {"成功", "失败"}:
+        if _result_item_name(item) in {"成功", "失败"}:
             return
 
         tree = self.Ui.treeWidget_number
@@ -105,7 +132,7 @@ class MainPageMixin:
         entries: list[ResultSortEntry] = []
         item_by_insertion: dict[int, ResultItem] = {}
         for item in items:
-            show_name = item.text(0)
+            show_name = _result_item_name(item)
             show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
             insertion_index = int(item.data(0, Qt.ItemDataRole.UserRole) or 0)
             entries.append(
@@ -146,7 +173,7 @@ class MainPageMixin:
             status_visible = status in {"全部", root_status}
             for index in range(root.childCount()):
                 item = root.child(index)
-                show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(item.text(0))
+                show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(_result_item_name(item))
                 haystack = item.text(0)
                 if show_data is not None:
                     haystack += f" {show_data.data.number} {show_data.data.title} {show_data.data.actor}"
@@ -171,9 +198,9 @@ class MainPageMixin:
         """
         selected_items = []
         for item in self.Ui.treeWidget_number.selectedItems():
-            if not item or item.text(0) in {"成功", "失败"}:
+            if not item or _result_item_name(item) in {"成功", "失败"}:
                 continue
-            if item.data(0, RESULT_DATA_ROLE) is None and item.text(0) not in self.json_array:
+            if item.data(0, RESULT_DATA_ROLE) is None and _result_item_name(item) not in self.json_array:
                 continue
             selected_items.append(item)
         return selected_items
@@ -181,7 +208,7 @@ class MainPageMixin:
     def _get_selected_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:
         result = []
         for item in self._get_selected_result_items():
-            show_name = item.text(0)
+            show_name = _result_item_name(item)
             show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
             if show_data is None or not show_data.file_info.file_path:
                 continue
@@ -332,7 +359,7 @@ class MainPageMixin:
         for root_item in (self.item_succ, self.item_fail):
             for i in range(root_item.childCount()):
                 child = root_item.child(i)
-                if child.text(0) == show_name:
+                if _result_item_name(child) == show_name:
                     return child
         return None
 
@@ -365,9 +392,9 @@ class MainPageMixin:
             self._clear_main_info_panel()
 
     def _show_result_item(self, item: ResultItem | None) -> bool:
-        if item is None or item.text(0) in {"成功", "失败"}:
+        if item is None or _result_item_name(item) in {"成功", "失败"}:
             return False
-        show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(str(item.text(0)))
+        show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(_result_item_name(item))
         if show_data is None:
             return False
         self.set_main_info(show_data)
@@ -385,6 +412,12 @@ class MainPageMixin:
         except Exception:
             item_text = item.text(0) if item is not None else "未知条目"
             signal_qt.show_traceback_log(item_text + ": No info!")
+
+    def treeWidget_number_double_clicked(self, index) -> None:
+        item_from_index = getattr(self.Ui.treeWidget_number, "itemFromIndex", None)
+        item = item_from_index(index) if callable(item_from_index) else None
+        if item is not None and item.parent() is self.item_fail and hasattr(self, "show_failure_center"):
+            self.show_failure_center()
 
     def treeWidget_number_clicked(self, *_args):
         selected_items = self._get_selected_result_items()
@@ -500,10 +533,10 @@ class MainPageMixin:
         loaded_paths = {entry.file_info.file_path for entry in loaded.entries}
         for index in range(self.item_succ.childCount() - 1, -1, -1):
             item = self.item_succ.child(index)
-            existing = self.json_array.get(item.text(0))
+            existing = self.json_array.get(_result_item_name(item))
             if existing is not None and existing.file_info.file_path in loaded_paths:
                 self.item_succ.takeChild(index)
-                self.json_array.pop(item.text(0), None)
+                self.json_array.pop(_result_item_name(item), None)
 
         for entry in loaded.entries:
             self.show_list_name("succ", entry)
@@ -513,7 +546,7 @@ class MainPageMixin:
         self.set_main_info(loaded.primary)
         for index in range(self.item_succ.childCount()):
             item = self.item_succ.child(index)
-            if item.text(0) == loaded.primary.show_name:
+            if _result_item_name(item) == loaded.primary.show_name:
                 self._set_result_item_as_current_selection(item)
                 break
         signal_qt.show_log_text(f"\n 📂 已加载本地 NFO：{nfo_path}\n    关联媒体：{len(loaded.entries)} 个")

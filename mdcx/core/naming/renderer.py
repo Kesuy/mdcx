@@ -4,7 +4,7 @@ from enum import Enum
 
 from ...models.types import CrawlersResult, FileInfo
 from .fields import TRUNCATE_PRIORITY, NamingContext, build_naming_context
-from .sanitize import cleanup_rendered_text, sanitize_name
+from .sanitize import cleanup_rendered_text, sanitize_folder_segment, sanitize_name
 from .template import render_template
 
 LIST_TRUNCATE_FIELDS = {"actor", "all_actor", "director"}
@@ -71,14 +71,22 @@ def _clip_field(field_name: str, value: str, max_length: int) -> str:
     return _clip_text(value, max_length)
 
 
-def _finalize_text(text: str, target: NamingTarget) -> str:
+def _finalize_text(text: str, target: NamingTarget, *, folder_segment: bool = False) -> str:
     if target == NamingTarget.NFO_TITLE:
         return cleanup_rendered_text(text)
+    if target == NamingTarget.FOLDER and folder_segment:
+        return sanitize_folder_segment(text)
     return sanitize_name(text, allow_path_separator=target == NamingTarget.FOLDER)
 
 
-def _render_with_values(template: str, values: dict[str, str], target: NamingTarget) -> str:
-    return _finalize_text(render_template(template, values), target)
+def _render_with_values(
+    template: str,
+    values: dict[str, str],
+    target: NamingTarget,
+    *,
+    folder_segment: bool = False,
+) -> str:
+    return _finalize_text(render_template(template, values), target, folder_segment=folder_segment)
 
 
 def _smart_truncate(
@@ -86,8 +94,10 @@ def _smart_truncate(
     values: dict[str, str],
     target: NamingTarget,
     max_length: int,
+    *,
+    folder_segment: bool = False,
 ) -> tuple[str, list[str]]:
-    text = _render_with_values(template, values, target)
+    text = _render_with_values(template, values, target, folder_segment=folder_segment)
     if max_length <= 0 or len(text) <= max_length:
         return text, []
 
@@ -106,11 +116,11 @@ def _smart_truncate(
             continue
         mutable_values[field_name] = next_value
         truncated_fields.append(field_name)
-        text = _render_with_values(template, mutable_values, target)
+        text = _render_with_values(template, mutable_values, target, folder_segment=folder_segment)
 
     if len(text) > max_length:
         text = text[:max_length].rstrip(" ,，、;；:：._+-")
-        text = _finalize_text(text, target)
+        text = _finalize_text(text, target, folder_segment=folder_segment)
     return text, truncated_fields
 
 
@@ -128,12 +138,33 @@ def render_name(
     values = context.values.copy()
     values["fields"] = context.values
 
-    text, truncated_fields = _smart_truncate(
-        template,
-        values,
-        options.target,
-        int(options.max_length or 0),
-    )
+    max_length = int(options.max_length or 0)
+    if options.target == NamingTarget.FOLDER and "/" in template:
+        # A folder template may intentionally create multiple directory levels.
+        # Filesystem name limits apply to each segment, not to the combined path.
+        # Truncating the combined string can erase a short leading actor/studio
+        # segment merely because the title in a later segment is long.
+        rendered_segments: list[str] = []
+        truncated_fields = []
+        for segment_template in template.split("/"):
+            segment, segment_truncated = _smart_truncate(
+                segment_template,
+                values,
+                options.target,
+                max_length,
+                folder_segment=True,
+            )
+            if segment:
+                rendered_segments.append(segment)
+            truncated_fields.extend(field for field in segment_truncated if field not in truncated_fields)
+        text = "/".join(rendered_segments)
+    else:
+        text, truncated_fields = _smart_truncate(
+            template,
+            values,
+            options.target,
+            max_length,
+        )
     fallback = context.get("number") or context.get("title") or context.get("filename") or "MDCx"
     if not text:
         text = sanitize_name(fallback, allow_path_separator=False)

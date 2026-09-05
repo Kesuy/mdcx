@@ -47,7 +47,7 @@ class ScrapeController:
         if window.Ui.pushButton_start_cap.text() != "■ 停止":
             return
 
-        Flags.stop_requested = True
+        Flags.request_cancel()
         signal_qt.stop = True
         executor.run(save_success_list())
         Flags.rest_time_convert_ = Flags.rest_time_convert

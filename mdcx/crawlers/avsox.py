@@ -16,7 +16,9 @@ from .base import Context, CralwerException, CrawlerData, GenericBaseCrawler
 
 def normalize_avsox_number(number: str) -> str:
     """将 AVSOX 番号规范化为可稳定比较的形式。"""
-    return re.sub(r"[\s\u200b\ufeff]+", "", number).upper().replace("-PPV", "")
+    normalized = re.sub(r"[\s\u200b\ufeff]+", "", number).upper()
+    normalized = re.sub(r"[-_]?PPV$", "", normalized)
+    return re.sub(r"[^A-Z0-9]", "", normalized)
 
 
 def extract_csrf_token(html: str) -> str:

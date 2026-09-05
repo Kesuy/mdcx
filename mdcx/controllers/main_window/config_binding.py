@@ -99,9 +99,9 @@ class ConfigBinder:
         if isinstance(widget, QAbstractButton):
             widget.setChecked(bool(value))
         elif isinstance(widget, QLineEdit):
-            widget.setText(str(value or ""))
+            widget.setText("" if value is None else str(value))
         elif isinstance(widget, QPlainTextEdit | QTextEdit):
-            widget.setPlainText(str(value or ""))
+            widget.setPlainText("" if value is None else str(value))
         elif isinstance(widget, QDoubleSpinBox):
             widget.setValue(float(value))
         elif isinstance(widget, QSpinBox | QAbstractSlider):

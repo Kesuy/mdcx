@@ -47,3 +47,11 @@ def sanitize_name(text: str, *, allow_path_separator: bool) -> str:
         text = re.sub(r'[\\/:*?"<>|\r\n]+', "", text).strip()
         text = _sanitize_segment(text, strip_hyphen=True)
     return nfd2c(text)
+
+
+def sanitize_folder_segment(text: str) -> str:
+    """Sanitize one folder level without stripping intentional edge hyphens."""
+
+    text = cleanup_rendered_text(text)
+    text = re.sub(r'[\\/:*?"<>|\r\n]+', "", text)
+    return nfd2c(_sanitize_segment(text, strip_hyphen=False).rstrip("- ."))

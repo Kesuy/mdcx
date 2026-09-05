@@ -201,7 +201,7 @@ def test_actor_truncation_keeps_complete_actor_names(monkeypatch):
 
     _, folder_name = _get_folder_path(Path("D:/Media/Output"), file_info, result)
 
-    assert folder_name == "浜崎真緒/ABC-123"
+    assert folder_name == "浜崎真緒,望月彩花,黒川紗里奈/ABC-123"
 
 
 def test_actor_truncation_drops_field_when_first_actor_does_not_fit(monkeypatch):
@@ -244,7 +244,7 @@ def test_folder_segments_avoid_windows_reserved_names(monkeypatch):
     assert folder_name == "CON_/COM1_.txt"
 
 
-def test_final_hard_truncate_is_sanitized_for_folder_segments():
+def test_final_hard_truncate_is_applied_per_folder_segment():
     file_info = _build_file_info()
     result = _build_result()
     result.actor = "Actor"
@@ -257,7 +257,7 @@ def test_final_hard_truncate_is_sanitized_for_folder_segments():
         NameRenderOptions(target=NamingTarget.FOLDER, max_length=7),
     )
 
-    assert rendered.text == "abcdef"
+    assert rendered.text == "abcdef/Title"
     assert all(part and not part.endswith((".", " ")) for part in rendered.text.split("/"))
 
 

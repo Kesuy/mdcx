@@ -2,7 +2,11 @@ import threading
 from asyncio import Event
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
+
+if TYPE_CHECKING:
+    from .failure import FailureRecord
+    from .session import ScrapeSession
 
 from .enums import FileMode
 from .types import ScrapeResult
@@ -42,15 +46,15 @@ class _Flags:
     start_time: float = 0.0
     file_mode: FileMode = FileMode.Default  # 默认刮削待刮削目录
     counting_order: int = 0  # 刮削顺序
-    total_count: int = 0  # 总数
+    _total_count: int = 0  # 未绑定 session 时的兼容总数
     rest_now_begin_count: int = 0  # 本轮刮削开始统计的线程序号（实际-1）
     sleep_end: Event = field(default_factory=Event)  # 本轮休眠标识
     rest_next_begin_time: float = 0.0  # 下一轮开始时间
     scrape_starting: int = 0  # 已进入过刮削流程的数量
-    scrape_started: int = 0  # 已进入过刮削流程并开始的数量
-    scrape_done: int = 0  # 已完成刮削数量
-    succ_count: int = 0  # 成功数量
-    fail_count: int = 0  # 失败数量
+    _scrape_started: int = 0  # 未绑定 session 时的兼容计数
+    _scrape_done: int = 0
+    _succ_count: int = 0
+    _fail_count: int = 0
     # 所有文件最终输出路径的字典（如已存在，则视为重复文件，直接跳过）
     file_new_path_dic: dict[Path, list[Path]] = field(default_factory=dict)
     # 当前文件的图片最终输出路径的字典（如已存在，则最终图片文件视为已处理过）
@@ -74,18 +78,29 @@ class _Flags:
     img_path: str = ""
     # 失败文件及其错误原因
     failed_list: list[tuple[Path, str]] = field(default_factory=list)
+    failed_records: list["FailureRecord"] = field(default_factory=list)
+    session: "ScrapeSession | None" = field(default=None, repr=False)
     scrape_start_time: float = 0.0
     success_list: set[Path] = field(default_factory=set)
     stop_other: bool = True  # 非刮削线程停止标识
     stop_requested: bool = False  # 手动停止刮削请求标识
 
     def replace_remain_list(self, paths: list[Path], *, mark_dirty: bool = True) -> None:
+        if self.session is not None:
+            self.session.replace_remain_queue(paths, mark_dirty=mark_dirty)
+            self.remain_list = self.session.state.remain_queue
+            self.can_save_remain = mark_dirty
+            return
         with self._remain_lock:
             self.remain_list = list(paths)
             self._remain_version += 1
             self.can_save_remain = mark_dirty
 
     def remove_remain_path(self, path: Path) -> bool:
+        if self.session is not None:
+            removed = self.session.remove_remain_path(path)
+            self.can_save_remain = self.session.remain_snapshot()[2]
+            return removed
         with self._remain_lock:
             try:
                 self.remain_list.remove(path)
@@ -96,10 +111,16 @@ class _Flags:
             return True
 
     def remain_snapshot(self) -> tuple[list[Path], int, bool]:
+        if self.session is not None:
+            return self.session.remain_snapshot()
         with self._remain_lock:
             return list(self.remain_list), self._remain_version, self.can_save_remain
 
     def mark_remain_saved(self, version: int) -> None:
+        if self.session is not None:
+            self.session.mark_remain_saved(version)
+            self.can_save_remain = self.session.remain_snapshot()[2]
+            return
         with self._remain_lock:
             if self._remain_version == version:
                 self.can_save_remain = False
@@ -116,8 +137,61 @@ class _Flags:
     local_number_set: set[str] = field(default_factory=set)  # 本地所有番号的集合
     local_number_cnword_set: set[str] = field(default_factory=set)  # 本地所有有字幕的番号的集合
 
+    def _get_progress(self, state_name: str, legacy_name: str) -> int:
+        if self.session is not None:
+            return int(getattr(self.session.state, state_name))
+        return int(getattr(self, legacy_name))
+
+    def _set_progress(self, state_name: str, legacy_name: str, value: int) -> None:
+        normalized = int(value)
+        if self.session is not None:
+            setattr(self.session.state, state_name, normalized)
+        setattr(self, legacy_name, normalized)
+
+    @property
+    def total_count(self) -> int:
+        return self._get_progress("total_count", "_total_count")
+
+    @total_count.setter
+    def total_count(self, value: int) -> None:
+        self._set_progress("total_count", "_total_count", value)
+
+    @property
+    def scrape_started(self) -> int:
+        return self._get_progress("started_count", "_scrape_started")
+
+    @scrape_started.setter
+    def scrape_started(self, value: int) -> None:
+        self._set_progress("started_count", "_scrape_started", value)
+
+    @property
+    def scrape_done(self) -> int:
+        return self._get_progress("completed_count", "_scrape_done")
+
+    @scrape_done.setter
+    def scrape_done(self, value: int) -> None:
+        self._set_progress("completed_count", "_scrape_done", value)
+
+    @property
+    def succ_count(self) -> int:
+        return self._get_progress("success_count", "_succ_count")
+
+    @succ_count.setter
+    def succ_count(self, value: int) -> None:
+        self._set_progress("success_count", "_succ_count", value)
+
+    @property
+    def fail_count(self) -> int:
+        return self._get_progress("failure_count", "_fail_count")
+
+    @fail_count.setter
+    def fail_count(self, value: int) -> None:
+        self._set_progress("failure_count", "_fail_count", value)
+
     def reset(self) -> None:
+        self.session = None
         self.failed_list = []
+        self.failed_records = []
         self.counting_order = 0
         self.total_count = 0
         self.rest_now_begin_count = 0
@@ -139,6 +213,42 @@ class _Flags:
         self.json_data_dic = {}
         self.img_path = ""
         self.stop_requested = False
+
+    def bind_session(self, session: "ScrapeSession") -> None:
+        """Expose the active per-run state to legacy callers during migration."""
+        self.session = session
+        self.remain_list = session.state.remain_queue
+        self.failed_records = session.state.failures
+        self.json_data_dic = session.scrape_results
+        self.again_dic = session.state.retry_context
+        self.file_new_path_dic = session.cache("file_new_path_dic")
+        self.pic_catch_set = session.cache("pic_catch_set", set)
+        self.file_done_dic = session.cache("file_done_dic")
+        self.extrafanart_deal_set = session.cache("extrafanart_deal_set", set)
+        self.trailer_deal_set = session.cache("trailer_deal_set", set)
+        self.theme_videos_deal_set = session.cache("theme_videos_deal_set", set)
+        self.nfo_deal_set = session.cache("nfo_deal_set", set)
+        self.json_get_set = session.cache("json_get_set", set)
+        self.json_get_status = session.cache("json_get_status")
+        self.sync_progress_from_session()
+
+    def sync_progress_from_session(self) -> None:
+        """Mirror session-owned counters for legacy UI and helper readers."""
+        if self.session is None:
+            return
+        state = self.session.state
+        self.file_mode = state.file_mode
+        self._total_count = state.total_count
+        self._scrape_started = state.started_count
+        self._scrape_done = state.completed_count
+        self._succ_count = state.success_count
+        self._fail_count = state.failure_count
+
+    def request_cancel(self) -> None:
+        """Cancel the active session and mirror the request for legacy workers."""
+        if self.session is not None:
+            self.session.request_cancel()
+        self.stop_requested = True
 
 
 Flags = _Flags()

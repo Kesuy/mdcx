@@ -1,21 +1,31 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import timedelta
+from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from PyQt6.QtCore import QLocale, QRegularExpression, Qt
+from PyQt6.QtCore import QLocale, QRegularExpression, Qt, QTimer
 from PyQt6.QtGui import QDoubleValidator, QIcon, QIntValidator, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
+    QAbstractButton,
+    QAbstractSlider,
     QCheckBox,
+    QComboBox,
     QFileDialog,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPlainTextEdit,
     QScrollArea,
     QSizePolicy,
+    QTextEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -30,6 +40,15 @@ from mdcx.gen.field_enums import CrawlerResultFields
 
 from .config_binding import ChoiceBinding, ConfigBinder, FieldOptionBinding, MultiChoiceBinding, SettingBinding
 from .settings_composites import build_settings_composites
+from .style import set_semantic_property
+
+
+@dataclass(frozen=True)
+class SettingIndexEntry:
+    title: str
+    tab_index: int
+    target: QWidget
+    keywords: str
 
 
 def parse_duration(value: str) -> timedelta:
@@ -82,10 +101,15 @@ class SettingsPageController:
         self.ui = window.Ui
         self._advanced_widgets: list[QWidget] = []
         self._validation_messages: dict[QLineEdit, QLabel] = {}
+        self._setting_index: list[SettingIndexEntry] = []
+        self._dirty_widgets: set[str] = set()
+        self._tracked_widgets: dict[str, QWidget] = {}
+        self._clean_widget_state: dict[str, object] = {}
         self._setup_network_security()
         self._setup_secret_fields()
         self._setup_website_help_layout()
         self._setup_nfo_help_layout()
+        self._repair_legacy_frame_layouts()
         self._setup_numeric_validation()
         self.binder = ConfigBinder(
             self.ui,
@@ -479,6 +503,85 @@ class SettingsPageController:
             ],
             composites=build_settings_composites(),
         )
+        self._setup_dirty_tracking()
+
+    def _repair_legacy_frame_layouts(self) -> None:
+        """Keep a few Designer frames from clipping their layout-holder children."""
+
+        for frame in self.ui.page_setting.findChildren(QFrame):
+            if frame in (self.ui.frame_8, self.ui.frame_9) or frame.layout() is not None:
+                continue
+            children = sorted(
+                frame.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly),
+                key=lambda child: (child.x(), child.y()),
+            )
+            if not children or not any(child.layout() is not None for child in children):
+                continue
+            layout = QHBoxLayout(frame)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(6)
+            for child in children:
+                layout.addWidget(child)
+
+        # These duplicated range controls are not connected to config or any
+        # action. Their fixed geometry extends outside a one-column frame and
+        # clips the real database controls beside them.
+        self.ui.layoutWidget_30.hide()
+        actor_db_label_layout = QHBoxLayout(self.ui.frame_8)
+        actor_db_label_layout.setContentsMargins(0, 0, 0, 0)
+        actor_db_label_layout.addWidget(self.ui.label_431)
+        self.ui.frame_9.hide()
+
+        def stack_group(group: QGroupBox, sections: tuple[QWidget, ...], actions: tuple[QWidget, ...]) -> None:
+            layout = group.layout()
+            while layout.count():
+                layout.takeAt(0)
+            for row in range(layout.rowCount()):
+                layout.setRowMinimumHeight(row, 0)
+                layout.setRowStretch(row, 0)
+            for column in range(layout.columnCount()):
+                layout.setColumnMinimumWidth(column, 0)
+                layout.setColumnStretch(column, 0)
+            layout.setContentsMargins(20, 24, 20, 18)
+            layout.setHorizontalSpacing(8)
+            layout.setVerticalSpacing(10)
+            layout.setColumnStretch(0, 1)
+            for row, section in enumerate(sections):
+                section.setMinimumWidth(0)
+                section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+                layout.addWidget(section, row, 0)
+            action_row = QWidget(group)
+            action_layout = QHBoxLayout(action_row)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(18)
+            action_layout.addStretch(1)
+            for action in actions:
+                action_layout.addWidget(action)
+            action_layout.addStretch(1)
+            layout.addWidget(action_row, len(sections), 0)
+
+        # These three actor-tool groups used overlapping grid spans that only
+        # worked with the old fixed row heights. Stack their existing sections
+        # in visual order so compact rows cannot paint on top of one another.
+        stack_group(
+            self.ui.groupBox_41,
+            (self.ui.label_297, self.ui.layoutWidget_8, self.ui.frame_2),
+            (self.ui.pushButton_add_actor_pic, self.ui.checkBox_actor_photo_auto),
+        )
+        stack_group(
+            self.ui.groupBox_64,
+            (self.ui.label_295, self.ui.gridLayoutWidget_14, self.ui.frame_4),
+            (self.ui.pushButton_add_actor_info, self.ui.checkBox_actor_info_photo),
+        )
+        stack_group(
+            self.ui.groupBox_68,
+            (self.ui.label_414, self.ui.frame_7),
+            (
+                self.ui.pushButton_add_actor_pic_kodi,
+                self.ui.checkBox_actor_photo_kodi,
+                self.ui.pushButton_del_actor_folder,
+            ),
+        )
 
     def _setup_network_security(self) -> None:
         parent = self.ui.gridLayoutWidget_9
@@ -571,6 +674,7 @@ class SettingsPageController:
         self.ui.widget_scrape_help_row = QWidget(self.ui.layoutWidget1)
         row_widget = self.ui.widget_scrape_help_row
         row_widget.setObjectName("widget_scrape_help_row")
+        row_widget.setMinimumHeight(button.minimumHeight())
         row = QHBoxLayout(row_widget)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
@@ -762,20 +866,40 @@ class SettingsPageController:
         if hasattr(self.ui, "lineEdit_settings_search"):
             return
         bar = QWidget(self.ui.page_setting)
-        row = QHBoxLayout(bar)
+        outer = QVBoxLayout(bar)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(4)
+        row = QHBoxLayout()
         row.setContentsMargins(8, 4, 8, 4)
         self.ui.lineEdit_settings_search = QLineEdit(bar)
         self.ui.lineEdit_settings_search.setPlaceholderText("搜索设置，例如：代理、命名、NFO")
         self.ui.toolButton_advanced_settings = QToolButton(bar)
         self.ui.toolButton_advanced_settings.setText("显示高级设置")
         self.ui.toolButton_advanced_settings.setCheckable(True)
+        self.ui.label_settings_match_count = QLabel(bar)
+        self.ui.label_settings_dirty = QLabel("已保存", bar)
+        self.ui.toolButton_restore_settings = QToolButton(bar)
+        self.ui.toolButton_restore_settings.setText("撤销更改")
+        self.ui.toolButton_restore_settings.setEnabled(False)
         row.addWidget(self.ui.lineEdit_settings_search, 1)
+        row.addWidget(self.ui.label_settings_match_count)
+        row.addWidget(self.ui.label_settings_dirty)
+        row.addWidget(self.ui.toolButton_restore_settings)
         row.addWidget(self.ui.toolButton_advanced_settings)
+        outer.addLayout(row)
+        self.ui.listWidget_settings_search_results = QListWidget(bar)
+        self.ui.listWidget_settings_search_results.setMaximumHeight(180)
+        self.ui.listWidget_settings_search_results.hide()
+        outer.addWidget(self.ui.listWidget_settings_search_results)
         layout.insertWidget(0, bar)
         self.ui.lineEdit_settings_search.textChanged.connect(self._search)
+        self.ui.listWidget_settings_search_results.itemClicked.connect(self._activate_search_result)
+        self.ui.toolButton_restore_settings.clicked.connect(self.restore_current_config)
         self.ui.toolButton_advanced_settings.toggled.connect(self._toggle_advanced)
         self.ui.toolButton_advanced_settings.toggled.connect(self._persist_advanced_visibility)
         self._toggle_advanced(False)
+        self._build_setting_index()
+        self._update_dirty_ui()
 
     def _toggle_advanced(self, visible: bool) -> None:
         self.ui.toolButton_advanced_settings.setText("隐藏高级设置" if visible else "显示高级设置")
@@ -791,19 +915,149 @@ class SettingsPageController:
 
     def _search(self, query: str) -> None:
         query = query.strip().casefold()
+        results = getattr(self.ui, "listWidget_settings_search_results", None)
         if not query:
             self._toggle_advanced(self.ui.toolButton_advanced_settings.isChecked())
+            if results is not None:
+                results.clear()
+                results.hide()
+            if hasattr(self.ui, "label_settings_match_count"):
+                self.ui.label_settings_match_count.clear()
             return
-
-        for tab_index in range(self.ui.tabWidget.count()):
-            tab = self.ui.tabWidget.widget(tab_index)
-            text_parts = [self.ui.tabWidget.tabText(tab_index)]
-            for label in tab.findChildren(QLabel):
-                text_parts.append(label.text())
-            for group in tab.findChildren(QGroupBox):
-                text_parts.append(group.title())
-            if query in " ".join(text_parts).casefold():
-                self.ui.tabWidget.setCurrentIndex(tab_index)
-                break
+        matches = [entry for entry in self._setting_index if query in entry.keywords]
+        if results is not None:
+            results.clear()
+            for entry in matches[:50]:
+                item = QListWidgetItem(f"{self.ui.tabWidget.tabText(entry.tab_index)}  ›  {entry.title}")
+                item.setData(Qt.ItemDataRole.UserRole, entry)
+                results.addItem(item)
+            results.setVisible(bool(matches))
+        if hasattr(self.ui, "label_settings_match_count"):
+            self.ui.label_settings_match_count.setText(f"{len(matches)} 项")
         for widget in self._advanced_widgets:
             widget.setVisible(True)
+
+    def _build_setting_index(self) -> None:
+        entries: list[SettingIndexEntry] = []
+        seen: set[tuple[int, str, str]] = set()
+        for tab_index in range(self.ui.tabWidget.count()):
+            tab = self.ui.tabWidget.widget(tab_index)
+            tab_name = self.ui.tabWidget.tabText(tab_index)
+            candidates: list[tuple[str, QWidget]] = []
+            for group in tab.findChildren(QGroupBox):
+                if group.title().strip():
+                    candidates.append((group.title().strip(), group))
+            for label in tab.findChildren(QLabel):
+                text = re.sub(r"<[^>]+>", " ", label.text()).strip()
+                if text:
+                    candidates.append((text, label))
+            for widget in tab.findChildren(QWidget):
+                if not isinstance(widget, (QLineEdit, QComboBox, QAbstractButton, QAbstractSlider)):
+                    continue
+                tooltip_lines = widget.toolTip().splitlines()
+                title = (
+                    widget.accessibleName()
+                    or (tooltip_lines[0] if tooltip_lines else "")
+                    or getattr(widget, "placeholderText", lambda: "")()
+                    or widget.objectName()
+                ).strip()
+                if title:
+                    candidates.append((title, widget))
+            for title, target in candidates:
+                normalized_title = " ".join(title.split())
+                key = (tab_index, target.objectName(), normalized_title)
+                if key in seen:
+                    continue
+                seen.add(key)
+                keywords = f"{tab_name} {normalized_title} {target.objectName()}".casefold()
+                entries.append(SettingIndexEntry(normalized_title, tab_index, target, keywords))
+        self._setting_index = entries
+
+    def _activate_search_result(self, item: QListWidgetItem) -> None:
+        entry = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(entry, SettingIndexEntry):
+            return
+        self.ui.tabWidget.setCurrentIndex(entry.tab_index)
+        for scroll_area in self.ui.tabWidget.widget(entry.tab_index).findChildren(QScrollArea):
+            content = scroll_area.widget()
+            if content is not None and (content is entry.target or content.isAncestorOf(entry.target)):
+                scroll_area.ensureWidgetVisible(entry.target, 24, 48)
+                break
+        set_semantic_property(entry.target, "settingsSearchHighlight", True)
+        QTimer.singleShot(
+            1600, lambda target=entry.target: set_semantic_property(target, "settingsSearchHighlight", False)
+        )
+        entry.target.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _setup_dirty_tracking(self) -> None:
+        for widget in self.ui.page_setting.findChildren(QWidget):
+            if widget in (
+                getattr(self.ui, "toolButton_advanced_settings", None),
+                getattr(self.ui, "plainTextEdit_name_template_preview", None),
+            ):
+                continue
+            callback = partial(self._mark_dirty, widget.objectName())
+            if isinstance(widget, QAbstractButton):
+                widget.toggled.connect(callback)
+            elif isinstance(widget, QLineEdit):
+                widget.textChanged.connect(callback)
+            elif isinstance(widget, QComboBox):
+                widget.currentIndexChanged.connect(callback)
+            elif isinstance(widget, QAbstractSlider):
+                widget.valueChanged.connect(callback)
+            elif isinstance(widget, (QPlainTextEdit, QTextEdit)):
+                widget.textChanged.connect(callback)
+            else:
+                continue
+            if widget.objectName():
+                self._tracked_widgets[widget.objectName()] = widget
+
+    @staticmethod
+    def _widget_state(widget: QWidget) -> object:
+        if isinstance(widget, QAbstractButton):
+            return widget.isChecked()
+        if isinstance(widget, QLineEdit):
+            return widget.text()
+        if isinstance(widget, QComboBox):
+            return widget.currentIndex(), widget.currentText(), widget.currentData()
+        if isinstance(widget, QAbstractSlider):
+            return widget.value()
+        if isinstance(widget, (QPlainTextEdit, QTextEdit)):
+            return widget.toPlainText()
+        return None
+
+    def _mark_dirty(self, object_name: str, *_args) -> None:
+        if not object_name or object_name.startswith("lineEdit_settings_search"):
+            return
+        widget = self._tracked_widgets.get(object_name)
+        if widget is None or object_name not in self._clean_widget_state:
+            self._dirty_widgets.add(object_name)
+        elif self._widget_state(widget) == self._clean_widget_state[object_name]:
+            self._dirty_widgets.discard(object_name)
+        else:
+            self._dirty_widgets.add(object_name)
+        self._update_dirty_ui()
+
+    def _update_dirty_ui(self) -> None:
+        count = len(self._dirty_widgets)
+        save_button = getattr(self.ui, "pushButton_save_config", None)
+        if save_button is not None:
+            save_button.setEnabled(count > 0)
+            save_button.setText(f"保存配置（{count} 项未保存）" if count else "保存配置")
+        if hasattr(self.ui, "label_settings_dirty"):
+            self.ui.label_settings_dirty.setText(f"有 {count} 项未保存" if count else "已保存")
+        if hasattr(self.ui, "toolButton_restore_settings"):
+            self.ui.toolButton_restore_settings.setEnabled(count > 0)
+
+    def mark_clean(self) -> None:
+        self._clean_widget_state = {name: self._widget_state(widget) for name, widget in self._tracked_widgets.items()}
+        self._dirty_widgets.clear()
+        self._update_dirty_ui()
+
+    def restore_current_config(self) -> None:
+        loader = getattr(self.window, "load_config", None)
+        if callable(loader):
+            loader()
+        else:
+            self.binder.load(manager.config)
+        self.mark_clean()

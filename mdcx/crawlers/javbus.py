@@ -127,6 +127,8 @@ async def get_real_url(client, ctx: Context, number, url_type, javbus_url, heade
         url_search = javbus_url + "/uncensored/search/" + number + "&type=0&parent=uc"
 
     ctx.debug(f"搜索地址: {url_search}")
+    if ctx.debug_info.search_urls is None:
+        ctx.debug_info.search_urls = []
     ctx.debug_info.search_urls.append(url_search)
     html_search, error = await client.get_text(url_search, headers=headers)
     if html_search is None:
@@ -172,6 +174,17 @@ class JavbusCrawler(BaseCrawler):
             if "." in number or re.search(r"[-_]\d{2}[-_]\d{2}[-_]\d{2}", number):
                 number = number.replace("-", ".").replace("_", ".")
                 real_url = await get_real_url(self.async_client, ctx, number, "us", self.base_url, headers)
+            elif is_plain_uncensored_mosaic(mosaic):
+                # JavBus keeps uncensored titles in a separate search namespace.
+                # Searching first also handles IDs whose detail slug uses different separators.
+                real_url = await get_real_url(
+                    self.async_client,
+                    ctx,
+                    number,
+                    "uncensored",
+                    self.base_url,
+                    headers,
+                )
             else:
                 real_url = self.base_url + "/" + number
                 if number.upper().startswith(("CWP", "LAF")):

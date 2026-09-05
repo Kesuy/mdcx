@@ -2,6 +2,23 @@
 import platform
 import sys
 
+_QT_TRANSLATOR = None
+
+
+def install_qt_translations(app) -> bool:
+    """Load Qt's Chinese strings for standard menus and dialogs."""
+
+    global _QT_TRANSLATOR
+    from PyQt6.QtCore import QLibraryInfo, QTranslator
+
+    translator = QTranslator(app)
+    translations_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if not translator.load("qtbase_zh_CN", translations_path):
+        return False
+    app.installTranslator(translator)
+    _QT_TRANSLATOR = translator
+    return True
+
 
 def show_constants():
     """显示所有运行时常量"""
@@ -32,6 +49,7 @@ def run(argv: list[str] | None = None) -> int:
 
     effective_argv = sys.argv if argv is None else argv
     app = QApplication(effective_argv)
+    install_qt_translations(app)
     app.setStyle("Fusion")
     if platform.system() != "Windows":
         app.setWindowIcon(QIcon("resources/Img/MDCx.ico"))  # 设置任务栏图标

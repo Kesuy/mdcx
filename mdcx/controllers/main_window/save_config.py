@@ -254,6 +254,7 @@ def save_config(self: "MyMAinWindow"):
         )
     except Exception:
         signal_qt.show_traceback_log(traceback.format_exc())
+    self.settings_controller.mark_clean()
     try:
         self._windows_auto_adjust()  # 界面自动调整
     except Exception:

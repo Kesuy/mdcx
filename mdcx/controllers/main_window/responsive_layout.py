@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
-    QLayout,
     QScrollArea,
     QSizeGrip,
     QSizePolicy,
@@ -27,9 +26,10 @@ if TYPE_CHECKING:
 
 BASE_WINDOW_WIDTH = 1089
 BASE_WINDOW_HEIGHT = 700
-MIN_WINDOW_WIDTH = 1089
+MIN_WINDOW_WIDTH = 880
 MIN_WINDOW_HEIGHT = 700
-NARROW_BREAKPOINT = 1020
+NARROW_BREAKPOINT = 980
+COMPACT_BREAKPOINT = 1240
 STACKED_LEFT = 210
 STACKED_TOP = 6
 STACKED_RIGHT_MARGIN = 59
@@ -45,8 +45,8 @@ POSTER_ASPECT_WIDTH = 156
 THUMB_ASPECT_WIDTH = 328
 IMAGE_ASPECT_HEIGHT = 220
 PAGE_BOTTOM_MARGIN = 8
-NETWORK_FORM_MAX_WIDTH = 860
 FORM_SECTION_HORIZONTAL_MARGIN = 29
+SETTINGS_SECTION_SPACING = 19
 
 
 @dataclass(frozen=True)
@@ -67,7 +67,9 @@ class LayoutMetrics:
 
 
 def calculate_layout_metrics(window_width: int, window_height: int) -> LayoutMetrics:
-    width = max(MIN_WINDOW_WIDTH, window_width)
+    # Metrics only describe the original designer canvas used by legacy overlay
+    # sizing; real page layout below is owned by Qt layouts and splitters.
+    width = max(BASE_WINDOW_WIDTH, window_width)
     height = max(MIN_WINDOW_HEIGHT, window_height)
     stacked_width = width - STACKED_LEFT - STACKED_RIGHT_MARGIN
     stacked_height = height - STACKED_TOP - STACKED_BOTTOM_MARGIN
@@ -184,10 +186,6 @@ def _setup_shell_splitter(window: "MyMAinWindow") -> None:
     splitter.setObjectName("window_shell_splitter")
     splitter.setChildrenCollapsible(False)
     splitter.setHandleWidth(1)
-    splitter.setStyleSheet(
-        "QSplitter#window_shell_splitter { background: #FFFFFF; border: 0; }"
-        "QSplitter#window_shell_splitter::handle:horizontal { background: #D8DEE9; }"
-    )
     splitter.addWidget(ui.widget_setting)
     splitter.addWidget(ui.stackedWidget)
     ui.widget_setting.setMinimumWidth(64)
@@ -258,6 +256,9 @@ def _sync_main_image_sizes(window: "MyMAinWindow") -> None:
     restore_source_tooltip = getattr(window, "_restore_number_source_tooltip", None)
     if restore_source_tooltip is not None:
         restore_source_tooltip()
+    restore_provenance_tooltips = getattr(window, "_restore_layout_managed_provenance_tooltips", None)
+    if restore_provenance_tooltips is not None:
+        restore_provenance_tooltips()
 
 
 def _setup_main_page_layout(window: "MyMAinWindow") -> None:
@@ -389,16 +390,19 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
 
 
 def _apply_breakpoint(window: "MyMAinWindow", width: int) -> None:
-    narrow = width < NARROW_BREAKPOINT
-    if getattr(window, "_narrow_layout", None) == narrow:
+    mode = "narrow" if width < NARROW_BREAKPOINT else "compact" if width < COMPACT_BREAKPOINT else "standard"
+    if getattr(window, "_responsive_mode", None) == mode:
         return
-    window._narrow_layout = narrow
+    window._responsive_mode = mode
+    narrow = mode == "narrow"
+    compact = mode == "compact"
     ui = window.Ui
     shell = getattr(window, "_shell_splitter", None)
     main = getattr(window, "_main_splitter", None)
     if shell is not None:
-        ui.widget_setting.setMaximumWidth(72 if narrow else 280)
-        shell.setSizes([72 if narrow else STACKED_LEFT, max(1, shell.width() - (72 if narrow else STACKED_LEFT))])
+        sidebar_width = 72 if narrow else 168 if compact else STACKED_LEFT
+        ui.widget_setting.setMaximumWidth(72 if narrow else 210 if compact else 280)
+        shell.setSizes([sidebar_width, max(1, shell.width() - sidebar_width)])
         ui.label_show_version.setVisible(not narrow)
     for button_name in (
         "pushButton_main",
@@ -417,10 +421,10 @@ def _apply_breakpoint(window: "MyMAinWindow", width: int) -> None:
         button.setToolTip(button.property("mdcxFullButtonText") if narrow else "")
     if main is not None:
         main.setOrientation(Qt.Orientation.Vertical if narrow else Qt.Orientation.Horizontal)
-        window._main_detail_pane.setMinimumWidth(0 if narrow else 520)
-        window._main_result_pane.setMinimumWidth(0 if narrow else RESULT_PANE_MIN_WIDTH)
+        window._main_detail_pane.setMinimumWidth(0 if narrow else 460 if compact else 520)
+        window._main_result_pane.setMinimumWidth(0 if narrow else 220 if compact else RESULT_PANE_MIN_WIDTH)
         window._main_result_pane.setMinimumHeight(150 if narrow else 0)
-        main.setSizes([420, 180] if narrow else [570, 240])
+        main.setSizes([420, 180] if narrow else [520, 220] if compact else [570, 240])
 
 
 def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
@@ -453,9 +457,28 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
             options=Qt.FindChildOption.FindDirectChildrenOnly,
         )
         groups = [widget for widget in direct_widgets if isinstance(widget, QGroupBox)]
+        section_metrics = []
         holder_metrics = []
+        for section in direct_widgets:
+            # Designer pages consistently start sections at x=30, while a few
+            # generated widths accidentally extend beyond their 760/796px
+            # content canvas. Mirror the real left inset instead of preserving
+            # those invalid negative/right margins.
+            section_right_margin = max(FORM_SECTION_HORIZONTAL_MARGIN, section.x())
+            geometry = section.geometry()
+            section_metrics.append(
+                (
+                    section,
+                    geometry.x(),
+                    geometry.y(),
+                    geometry.height(),
+                    section_right_margin,
+                )
+            )
         for group in groups:
             group.setMaximumWidth(16777215)
+            if group.layout() is not None:
+                continue
             for holder in group.findChildren(
                 QWidget,
                 options=Qt.FindChildOption.FindDirectChildrenOnly,
@@ -465,55 +488,13 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
                 holder_right_margin = group.width() - holder.geometry().right() - 1
                 holder_metrics.append((group, holder, holder_right_margin))
 
-        # Settings tabs consist of top-level groups and, in a few places,
-        # layout-backed separators. Move every such section into a real
-        # vertical layout so y/width geometry does not need resize-time fixes.
-        layout_sections = [
-            widget for widget in direct_widgets if isinstance(widget, QGroupBox) or widget.layout() is not None
-        ]
-        if groups and len(layout_sections) == len(direct_widgets):
-            layout_sections.sort(key=lambda widget: widget.y())
-            content_layout = QVBoxLayout(content)
-            content_layout.setContentsMargins(
-                FORM_SECTION_HORIZONTAL_MARGIN,
-                14,
-                FORM_SECTION_HORIZONTAL_MARGIN,
-                14,
-            )
-            content_layout.setSpacing(16)
-            content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
-            for section in layout_sections:
-                section.setMinimumHeight(section.height())
-                is_network_section = content is ui.scrollAreaWidgetContents_wangluo
-                section.setMaximumWidth(NETWORK_FORM_MAX_WIDTH if is_network_section else 16777215)
-                section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                if is_network_section:
-                    content_layout.addWidget(section, 0, Qt.AlignmentFlag.AlignHCenter)
-                else:
-                    content_layout.addWidget(section)
-            content_layout.addStretch(1)
-            scroll_area.setWidgetResizable(True)
-            scroll_metrics.append(
-                (
-                    "layout",
-                    scroll_area,
-                    content,
-                    groups,
-                    holder_metrics,
-                    content is ui.scrollAreaWidgetContents_wangluo,
-                )
-            )
-        else:
-            group_metrics = []
-            for group in groups:
-                group_right_margin = content_width - group.geometry().right() - 1
-                group_holders = [
-                    (holder, holder_right_margin)
-                    for metric_group, holder, holder_right_margin in holder_metrics
-                    if metric_group is group
-                ]
-                group_metrics.append((group, group_right_margin, group_holders))
-            scroll_metrics.append(("legacy", scroll_area, content, content_width, content_height, group_metrics))
+        # The Settings .ui still relies on its original vertical coordinates
+        # and group heights. Keep that geometry as the compatibility source and
+        # only widen the page/sections with the viewport. Converting these
+        # pages to one generic QVBoxLayout collapses some groups and lets large
+        # size hints push other pages outside the visible area.
+        scroll_area.setWidgetResizable(False)
+        scroll_metrics.append((scroll_area, content, content_width, content_height, section_metrics, holder_metrics))
 
     window._settings_scroll_metrics = scroll_metrics
     ui.tabWidget.currentChanged.connect(lambda *_: _schedule_content_pane_sync(window))
@@ -521,46 +502,60 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
 
 def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
     for metrics in getattr(window, "_settings_scroll_metrics", ()):
-        if metrics[0] == "layout":
-            _, scroll_area, content, groups, holder_metrics, is_network_content = metrics
-            if is_network_content:
-                available_width = max(
-                    1,
-                    min(
-                        NETWORK_FORM_MAX_WIDTH,
-                        scroll_area.viewport().width() - 2 * FORM_SECTION_HORIZONTAL_MARGIN,
-                    ),
-                )
-                for group in groups:
-                    group.setMinimumWidth(available_width)
-                    group.setMaximumWidth(NETWORK_FORM_MAX_WIDTH)
-                if content.layout() is not None:
-                    content.layout().activate()
-            for group, holder, holder_right_margin in holder_metrics:
-                holder.resize(
-                    max(1, group.width() - holder.x() - holder_right_margin),
-                    holder.height(),
-                )
-            continue
-
-        _, scroll_area, content, base_width, base_height, group_metrics = metrics
-        content_width = max(base_width, scroll_area.viewport().width())
-        content.resize(content_width, base_height)
-        for group, group_right_margin, holder_metrics in group_metrics:
-            group.resize(
-                max(1, content_width - group.x() - group_right_margin),
-                group.height(),
+        scroll_area, content, base_width, base_height, section_metrics, holder_metrics = metrics
+        content_width = max(1, scroll_area.viewport().width())
+        height_delta = 0
+        visible_bottom = 0
+        previous_section_end = 0
+        for section, section_x, section_y, base_section_height, section_right_margin in sorted(
+            section_metrics,
+            key=lambda metric: metric[2],
+        ):
+            if section.isHidden():
+                continue
+            section_width = max(1, content_width - section_x - section_right_margin)
+            target_y = section_y + height_delta
+            if previous_section_end:
+                adjusted_y = max(target_y, previous_section_end + SETTINGS_SECTION_SPACING)
+                height_delta += adjusted_y - target_y
+                target_y = adjusted_y
+            section.setGeometry(section_x, target_y, section_width, base_section_height)
+            section_layout = section.layout()
+            required_height = base_section_height
+            if section_layout is not None:
+                section_layout.activate()
+                layout_height = section_layout.minimumSize().height()
+                if isinstance(section, QGroupBox):
+                    layout_height += max(0, section.height() - section.contentsRect().height())
+                required_height = max(required_height, layout_height)
+                if section_layout.hasHeightForWidth():
+                    required_height = max(required_height, section_layout.heightForWidth(section_width))
+            if required_height != base_section_height:
+                section.resize(section_width, required_height)
+                height_delta += required_height - base_section_height
+            previous_section_end = target_y + required_height
+            visible_bottom = max(visible_bottom, target_y + required_height)
+        content.resize(content_width, max(base_height + height_delta, visible_bottom + FORM_SECTION_HORIZONTAL_MARGIN))
+        for group, holder, holder_right_margin in holder_metrics:
+            holder.resize(
+                max(1, group.width() - holder.x() - holder_right_margin),
+                holder.height(),
             )
-            for holder, holder_right_margin in holder_metrics:
-                holder.resize(
-                    max(1, group.width() - holder.x() - holder_right_margin),
-                    holder.height(),
-                )
 
 
 def _setup_tool_scroll_area(window: "MyMAinWindow") -> None:
-    install_tool_page_layout(window.Ui)
-    scroll_area = window.Ui.scrollArea_10
+    ui = window.Ui
+    scroll_area = ui.scrollArea_10
+    tool_content = scroll_area.widget()
+    tool_ui = next(
+        (
+            page_ui
+            for page_ui in getattr(ui, "_page_views", ())
+            if getattr(page_ui, "scrollAreaWidgetContents_gongju", None) is tool_content
+        ),
+        ui,
+    )
+    install_tool_page_layout(tool_ui)
     scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     scroll_area.setWidgetResizable(True)
     scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -780,7 +775,6 @@ def _setup_simple_page_layouts(window: "MyMAinWindow") -> None:
 
 def setup_responsive_ui(window: "MyMAinWindow") -> None:
     window.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    window.resize(max(window.width(), MIN_WINDOW_WIDTH), max(window.height(), MIN_WINDOW_HEIGHT))
     window.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     tree = window.Ui.treeWidget_number
@@ -818,59 +812,13 @@ def apply_responsive_layout(window: "MyMAinWindow") -> None:
     if hasattr(window, "_shell_splitter"):
         _set_geometry(window._shell_splitter, 0, 0, central.width(), central.height())
         _sync_shell_sidebar(window)
-    else:
-        _set_geometry(
-            ui.stackedWidget,
-            STACKED_LEFT,
-            STACKED_TOP,
-            metrics.stacked_width,
-            metrics.stacked_height,
-        )
-        _set_geometry(ui.widget_setting, 0, 0, STACKED_LEFT, metrics.window_height)
-        _set_geometry(ui.left_backgroud_widget, 0, 0, STACKED_LEFT, metrics.window_height)
-        _set_geometry(ui.label_show_version, 0, 489 + metrics.height_delta, STACKED_LEFT, 201)
-        _set_geometry(ui.label_local_number, 0, 680 + metrics.height_delta, 21, 21)
-        _set_geometry(ui.progressBar_scrape, STACKED_LEFT, 0, metrics.stacked_width, 5)
-
-    if not hasattr(window, "_main_splitter"):
-        _set_geometry(ui.label_file_path, 30, 10, metrics.path_width, 50)
-        _set_geometry(ui.line_14, 30, 60, metrics.line_width, 20)
-        _set_geometry(ui.pushButton_select_media_folder, 565 + metrics.width_delta, 13, 101, 40)
-        _set_geometry(ui.pushButton_start_cap, 680 + metrics.width_delta, 13, 120, 40)
-        _set_geometry(ui.label_result, metrics.result_x, 70, metrics.result_width, 40)
-        _set_geometry(ui.treeWidget_number, metrics.result_x, 140, metrics.result_width, metrics.result_height)
-        _set_geometry(ui.pushButton_tree_clear, metrics.stacked_width - 60, 110, 20, 20)
-
-        result_sort_combo = getattr(window, "result_sort_combo", None)
-        if result_sort_combo is not None:
-            _set_geometry(result_sort_combo, metrics.result_x, 110, 130, 26)
-        result_sort_order_button = getattr(window, "result_sort_order_button", None)
-        if result_sort_order_button is not None:
-            _set_geometry(result_sort_order_button, metrics.result_x + 134, 110, 34, 26)
-
-    if not hasattr(window, "_simple_page_layouts_ready"):
-        _set_geometry(ui.textBrowser_log_main, 28, 0, metrics.viewport_width, 421)
-        _set_geometry(
-            ui.textBrowser_log_main_2,
-            28,
-            421,
-            metrics.viewport_width,
-            271 + metrics.height_delta,
-        )
-        _set_geometry(ui.pushButton_start_cap2, 680 + metrics.width_delta, 13, 120, 40)
-        _set_geometry(ui.textBrowser_net_main, 30, 0, metrics.viewport_width, metrics.viewport_height)
-        _set_geometry(ui.pushButton_check_net, 680 + metrics.width_delta, 13, 120, 40)
-        _set_geometry(ui.scrollArea_10, 20, 0, metrics.stacked_width - 24, metrics.stacked_height - 3)
-        _set_geometry(ui.textBrowser_about, 30, 0, metrics.viewport_width, metrics.stacked_height - 3)
 
     _set_geometry(ui.textBrowser_log_main_3, 0, 0, metrics.stacked_width - 130, metrics.stacked_height)
     if hasattr(ui, "pushButton_scraper_failed_list"):
         _set_geometry(ui.pushButton_scraper_failed_list, 20, 13, metrics.stacked_width - 289, 40)
     if hasattr(ui, "pushButton_save_failed_list"):
         _set_geometry(ui.pushButton_save_failed_list, 0, metrics.stacked_height - 42, 40, 40)
-    if not hasattr(window, "_settings_page_layout_ready"):
-        _set_geometry(ui.tabWidget, 20, 10, metrics.stacked_width - 18, metrics.stacked_height - 8)
-    else:
+    if hasattr(window, "_settings_page_layout_ready"):
         _sync_settings_scroll_areas(window)
 
     _sync_main_image_sizes(window)

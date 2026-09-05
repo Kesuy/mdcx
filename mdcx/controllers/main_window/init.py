@@ -234,7 +234,7 @@ def Init_Singal(self: "MyMAinWindow"):
     signal_qt.set_label_file_path.connect(self.Ui.label_file_path.setText)
     signal_qt.view_success_file_settext.connect(self.Ui.pushButton_view_success_file.setText)
     signal_qt.exec_set_processbar.connect(self.set_processbar)
-    signal_qt.view_failed_list_settext.connect(self.Ui.pushButton_view_failed_list.setText)
+    signal_qt.view_failed_list_settext.connect(self.update_failure_count)
     signal_qt.exec_show_list_name.connect(self.show_list_name)
     signal_qt.exec_exit_app.connect(self.exit_app)
     signal_qt.logs_failed_show.connect(self.Ui.textBrowser_log_main_3.append)
@@ -244,6 +244,7 @@ def Init_Singal(self: "MyMAinWindow"):
     # Mouse clicks carry an exact proxy index. Resolve that node directly so a
     # model reset/sort cannot make the details lag behind the highlighted row.
     self.Ui.treeWidget_number.clicked.connect(self.treeWidget_number_index_clicked)
+    self.Ui.treeWidget_number.doubleClicked.connect(self.treeWidget_number_double_clicked)
     self.Ui.treeWidget_number.selectionModel().selectionChanged.connect(self.treeWidget_number_clicked)
     self.Ui.treeWidget_number.customContextMenuRequested.connect(self._tree_result_context_menu)
     self.Ui.pushButton_close.clicked.connect(self.pushButton_close_clicked)

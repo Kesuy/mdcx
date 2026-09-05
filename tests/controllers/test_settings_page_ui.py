@@ -4,6 +4,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QGroupBox, QMainWindow, QVBoxLayout
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, Switch, TagInclude
@@ -201,3 +202,65 @@ def test_composite_settings_schema_round_trips_nfo_emby_watermark_and_switches()
     assert config.mark_pos_hd == "bottom_left"
     assert Switch.HIDE_NONE in config.switch_on
     assert Switch.SHOW_LOGS not in config.switch_on
+
+
+def test_settings_search_indexes_and_reveals_a_specific_control():
+    window, controller = _controller()
+    controller.install_search_bar(QVBoxLayout())
+
+    controller._search("PEM")
+
+    results = window.Ui.listWidget_settings_search_results
+    assert results.count() >= 1
+    target_item = next(
+        results.item(index)
+        for index in range(results.count())
+        if results.item(index).data(Qt.ItemDataRole.UserRole).target is window.Ui.lineEdit_ca_bundle
+    )
+    controller._activate_search_result(target_item)
+    entry = target_item.data(Qt.ItemDataRole.UserRole)
+    assert window.Ui.tabWidget.currentIndex() == entry.tab_index
+    assert window.Ui.lineEdit_ca_bundle.property("settingsSearchHighlight") is True
+
+
+def test_settings_dirty_count_save_enablement_and_restore():
+    window, controller = _controller()
+    controller.install_search_bar(QVBoxLayout())
+    controller.binder.load(manager.config)
+    controller.mark_clean()
+    original = window.Ui.lineEdit_movie_type.text()
+
+    window.Ui.lineEdit_movie_type.setText(original + "|dirty")
+
+    assert window.Ui.pushButton_save_config.isEnabled()
+    assert "1 项未保存" in window.Ui.label_settings_dirty.text()
+    controller.restore_current_config()
+    assert window.Ui.lineEdit_movie_type.text() == original
+    assert not window.Ui.pushButton_save_config.isEnabled()
+
+
+def test_settings_dirty_state_clears_when_value_returns_to_clean_snapshot():
+    window, controller = _controller()
+    controller.install_search_bar(QVBoxLayout())
+    controller.binder.load(manager.config)
+    controller.mark_clean()
+    original = window.Ui.lineEdit_movie_type.text()
+
+    window.Ui.lineEdit_movie_type.setText(original + "|dirty")
+    window.Ui.lineEdit_movie_type.setText(original)
+
+    assert not window.Ui.pushButton_save_config.isEnabled()
+    assert window.Ui.label_settings_dirty.text() == "已保存"
+
+
+def test_config_binder_preserves_zero_numeric_text_values():
+    window, controller = _controller()
+    controller.install_search_bar(QVBoxLayout())
+    config = manager.config.model_copy(deep=True)
+    config.file_size = 0
+
+    controller.binder.load(config)
+
+    assert float(window.Ui.lineEdit_escape_size.text()) == 0
+    controller.binder.save(config)
+    assert config.file_size == 0

@@ -242,6 +242,8 @@ def test_is_suren_number_matches_current_scrape_branch(file_number: str, short_n
         ("ABF-135", "無碼流出", "", FixedScrapingType.YOUMA, {Website.DMM}),
         ("ABF-136", "无码流出", "", FixedScrapingType.YOUMA, {Website.DMM}),
         ("HEYZO-3843", "", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
+        ("FDD-2007", "", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
+        ("FZ65", "", "", FixedScrapingType.WUMA, {Website.JAVBUS}),
         ("MD-1234", "", "", FixedScrapingType.GUOCHAN, {Website.MDTV}),
         ("DANDY-732", "", "", FixedScrapingType.YOUMA, {Website.DMM}),
         ("SSNI00321", "", "", FixedScrapingType.YOUMA, {Website.DMM}),
@@ -382,6 +384,10 @@ async def test_call_crawlers_runtime_skip_zero(monkeypatch: pytest.MonkeyPatch):
     assert result is not None
     assert result.runtime == "55"
     assert result.field_sources[CrawlerResultFields.RUNTIME] == Website.JAVDB.value
+    provenance = result.get_provenance(CrawlerResultFields.RUNTIME)
+    assert provenance is not None
+    assert provenance.source == Website.JAVDB.value
+    assert provenance.priority_chain == (Website.AVBASE.value, Website.JAVDB.value)
 
 
 @pytest.mark.asyncio
@@ -485,6 +491,8 @@ async def test_call_crawlers_collects_all_image_candidates_when_enabled(monkeypa
     assert result is not None
     assert result.poster == "https://example.test/avbase-poster.jpg"
     assert result.poster_from == Website.AVBASE.value
+    assert result.get_provenance(CrawlerResultFields.POSTER).source == Website.AVBASE.value
+    assert result.get_provenance("fanart").source == Website.AVBASE.value
     assert result.poster_list == [
         (Website.AVBASE.value, "https://example.test/avbase-poster.jpg", False),
         (Website.JAVDB.value, "https://example.test/javdb-poster.jpg", True),
@@ -710,6 +718,28 @@ async def test_speed_mode_falls_back_to_next_site_after_empty_result():
     assert result.runtime == "55"
     assert result.field_sources[CrawlerResultFields.TITLE] == Website.JAVDB.value
     assert records == [Website.AVBASE, Website.JAVDB]
+
+
+@pytest.mark.asyncio
+async def test_uncensored_fdd_task_reaches_configured_uncensored_crawler():
+    records: list[Website] = []
+    provider = _ResultRecordingCrawlerProvider(
+        {
+            Website.AVSOX: _ResultRecordingCrawler(Website.AVSOX, records, _build_result(Website.AVSOX)),
+            Website.JAVBUS: _ResultRecordingCrawler(Website.JAVBUS, records, _build_result(Website.JAVBUS)),
+        }
+    )
+    config = Config(scrape_like="speed", website_wuma=[Website.AVSOX, Website.JAVBUS])
+    scraper = FileScraper(config, provider)
+    task_input = CrawlTask.empty()
+    task_input.number = "FDD-2007"
+
+    result = await scraper.run(task_input, FileMode.Default)
+
+    assert result is not None
+    assert result.scraping_type == FixedScrapingType.WUMA
+    assert result.mosaic == "无码"
+    assert records == [Website.AVSOX]
 
 
 @pytest.mark.asyncio

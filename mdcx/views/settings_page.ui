@@ -6421,7 +6421,7 @@
                       <item row="3" column="1">
                         <widget class="QLabel" name="label_315">
                           <property name="sizePolicy">
-                            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                               <horstretch>0</horstretch>
                               <verstretch>0</verstretch>
                             </sizepolicy>
@@ -6433,7 +6433,7 @@
                             </size>
                           </property>
                           <property name="layoutDirection">
-                            <enum>Qt::RightToLeft</enum>
+                            <enum>Qt::LeftToRight</enum>
                           </property>
                           <property name="frameShape">
                             <enum>QFrame::NoFrame</enum>
@@ -7136,19 +7136,19 @@
                 <item row="5" column="0" rowspan="2">
                   <widget class="QLabel" name="label_310">
                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                         <horstretch>0</horstretch>
                         <verstretch>0</verstretch>
                       </sizepolicy>
                     </property>
                     <property name="minimumSize">
                       <size>
-                        <width>130</width>
+                        <width>0</width>
                         <height>0</height>
                       </size>
                     </property>
                     <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
+                      <enum>Qt::LeftToRight</enum>
                     </property>
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -7160,7 +7160,7 @@
                       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                     </property>
                     <property name="wordWrap">
-                      <bool>true</bool>
+                      <bool>false</bool>
                     </property>
                     <property name="semanticRole" stdset="0">
                       <string>danger</string>

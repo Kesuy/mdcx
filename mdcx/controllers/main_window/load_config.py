@@ -437,6 +437,7 @@ def load_config(self: "MyMAinWindow"):
             self.set_label_file_path.emit(f"🎈 当前刮削路径: \n {movie_path_text}")
         except Exception:
             signal_qt.show_traceback_log(traceback.format_exc())
+        self.settings_controller.mark_clean()
     else:  # ini不存在，重新创建
         signal_qt.show_log_text(f"Create config file: {config_path} ")
         self.pushButton_init_config_clicked()

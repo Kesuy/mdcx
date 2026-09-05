@@ -40,6 +40,7 @@ def is_uncensored(number: str) -> bool:
     if (
         re.match(r"n\d{4}", number)
         or re.search(r"[^.]+\.\d{2}\.\d{2}\.\d{2}", number)
+        or re.fullmatch(r"(?:FDD-?\d{3,}|FZ-?\d{2,})", number, re.IGNORECASE)
         or normalize_uncensored_digit_number(number)
     ):
         return True
@@ -249,6 +250,13 @@ def get_file_number(filepath: str, escape_string_list: list[str]) -> str:
 
     elif r := re.search(r"TH101-\d{3,}-\d{5,}", filename):  # 提取th101-140-112594
         file_number = r.group().lower()
+
+    elif r := re.search(r"(?:FDD-?\d{3,}|FZ-?\d{2,})", filename):
+        # FDD/FZ 无码番号经常不带连字符，且文件名后会附带演员或“无码”等说明。
+        # 必须在通用规则前截取纯番号，避免把整段文件名交给网站搜索。
+        file_number = r.group()
+        if file_number.startswith("FDD") and not file_number.startswith("FDD-"):
+            file_number = file_number.replace("FDD", "FDD-", 1)
 
     elif r := re.search(r"([A-Z]{2,})00(\d{3})", filename):  # 提取ssni00644为ssni-644
         file_number = r[1] + "-" + r[2]

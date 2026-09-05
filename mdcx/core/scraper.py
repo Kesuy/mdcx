@@ -1,4 +1,5 @@
 import asyncio
+import copy as copy_module
 import time
 import traceback
 from pathlib import Path
@@ -26,10 +27,14 @@ from ..config.extend import get_movie_path_setting, parse_media_paths
 from ..config.manager import manager
 from ..config.resources import resources
 from ..crawler import CrawlerProvider
+from ..gen.field_enums import CrawlerResultFields
 from ..models.enums import FileMode
+from ..models.failure import classify_failure
 from ..models.flags import FileDoneDict, Flags
 from ..models.log_buffer import LogBuffer
+from ..models.session import ScrapeSession
 from ..models.types import CrawlersResult, FileInfo, OtherInfo, ScrapeResult, ShowData
+from ..runtime import ApplicationServices
 from ..signals import signal
 from ..tools.emby_actor_image import update_emby_actor_photo
 from ..tools.emby_actor_info import creat_kodi_actors
@@ -69,6 +74,39 @@ class StopScrape(Exception): ...
 
 
 class UnexpectedScrapeCancellation(Exception): ...
+
+
+_POSTPROCESS_PROVENANCE_FIELDS = (
+    CrawlerResultFields.TITLE,
+    CrawlerResultFields.ORIGINALTITLE,
+    CrawlerResultFields.OUTLINE,
+    CrawlerResultFields.ACTORS,
+    CrawlerResultFields.ALL_ACTORS,
+    CrawlerResultFields.DIRECTORS,
+    CrawlerResultFields.TAGS,
+    CrawlerResultFields.SERIES,
+    CrawlerResultFields.STUDIO,
+    CrawlerResultFields.PUBLISHER,
+)
+
+
+def _refresh_postprocessed_provenance(
+    result: CrawlersResult,
+    before: dict[CrawlerResultFields, object],
+) -> None:
+    for field, original in before.items():
+        current = getattr(result, field.value, None)
+        provenance = result.get_provenance(field)
+        if provenance is None or not current:
+            continue
+        translated = provenance.translated or (current != original and manager.config.get_field_config(field).translate)
+        result.record_provenance(
+            field,
+            copy_module.deepcopy(current),
+            provenance.source,
+            translated=translated,
+            priority_chain=provenance.priority_chain,
+        )
 
 
 async def prepare_primary_images(
@@ -129,8 +167,15 @@ async def prepare_primary_images(
 
 
 class Scraper:
-    def __init__(self, crawler_provider: "CrawlerProviderProtocol"):
+    def __init__(
+        self,
+        crawler_provider: "CrawlerProviderProtocol",
+        session: ScrapeSession | None = None,
+        services: ApplicationServices | None = None,
+    ):
         self.crawler_provider = crawler_provider
+        self.session = session or ScrapeSession()
+        self.services = services or ApplicationServices.from_globals()
 
     async def _run_tasks_with_limit(self, movie_list: list[Path], task_count: int, thread_number: int) -> None:
         task_iter = iter(enumerate(movie_list, 1))
@@ -163,14 +208,14 @@ class Scraper:
                     try:
                         done_task.result()
                     except StopScrape:
-                        if signal.stop or Flags.stop_requested:
+                        if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
                             stop_requested = True
                         elif fatal_error is None:
                             fatal_error = UnexpectedScrapeCancellation(
                                 f"刮削任务异常停止：{done_task.get_name()}，但未检测到手动停止标识"
                             )
                     except asyncio.CancelledError:
-                        if signal.stop or Flags.stop_requested:
+                        if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
                             stop_requested = True
                         elif fatal_error is None:
                             fatal_error = UnexpectedScrapeCancellation(
@@ -206,6 +251,10 @@ class Scraper:
 
     async def _run(self, file_mode: FileMode, movie_list: list[Path] | None) -> None:
         Flags.reset()
+        self.session.reset(file_mode)
+        self.session.state.appointment_url = Flags.appoint_url
+        self.session.state.specified_site = Flags.website_name
+        Flags.bind_session(self.session)
         if movie_list is None:
             movie_list = []
         Flags.scrape_start_time = time.time()  # 开始刮削时间
@@ -257,10 +306,13 @@ class Scraper:
                 movie_list.extend(await get_movie_list(file_mode, scan_path, scan_ignore_dirs))
         else:
             signal.show_log_text("\n ⏰ Start time: " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-        Flags.replace_remain_list(movie_list)
+        self.session.replace_remain_queue(movie_list)
+        Flags.remain_list = self.session.state.remain_queue
+        Flags.can_save_remain = True
 
         task_count = len(movie_list)
-        Flags.total_count = task_count
+        self.session.sync_progress(total=task_count)
+        Flags.sync_progress_from_session()
 
         if task_count:
             Flags.count_claw += 1
@@ -282,14 +334,17 @@ class Scraper:
 
             # 异步并发（按并发数渐进投喂任务，避免大列表一次性创建海量协程）
             await self._run_tasks_with_limit(movie_list, task_count, thread_number)
-            if Flags.scrape_done < task_count and not (signal.stop or Flags.stop_requested):
-                message = f"刮削异常提前结束：已完成 {Flags.scrape_done}/{task_count}，剩余 {task_count - Flags.scrape_done} 个任务未执行"
+            completed_count = self.session.state.completed_count
+            if completed_count < task_count and not (
+                signal.stop or Flags.stop_requested or self.session.cancellation_requested
+            ):
+                message = f"刮削异常提前结束：已完成 {completed_count}/{task_count}，剩余 {task_count - completed_count} 个任务未执行"
                 signal.show_traceback_log(message)
                 signal.show_log_text(f" 🔴 {message}")
                 raise UnexpectedScrapeCancellation(message)
             signal.label_result.emit(f" 刮削中：0 成功：{Flags.succ_count} 失败：{Flags.fail_count}")
             await save_success_list()  # 保存成功列表
-            if signal.stop or Flags.stop_requested:
+            if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
                 return
 
         signal.show_log_text("================================================================================")
@@ -393,9 +448,10 @@ class Scraper:
                 self._check_stop(show_name)
                 await asyncio.sleep(1)
 
-        Flags.scrape_started += 1
+        started_count = self.session.increment_progress("started_count")
+        Flags.sync_progress_from_session()
         if count > 1 and thread_time != 0:
-            signal.show_log_text(f" 🕷 {get_current_time()} 开始刮削：{Flags.scrape_started}/{count_all} {show_name}")
+            signal.show_log_text(f" 🕷 {get_current_time()} 开始刮削：{started_count}/{count_all} {show_name}")
 
         start_time = time.time()
         file_mode = Flags.file_mode
@@ -432,6 +488,8 @@ class Scraper:
         # 获取刮削数据
         json_data = None
         other = None
+        failure_debug_detail = ""
+        failure_exception: BaseException | None = None
         try:
             json_data, other = await self._process_one_file(file_info, file_mode)
             if json_data and other:
@@ -444,13 +502,15 @@ class Scraper:
             elif origin_number in Flags.json_get_status and Flags.json_get_status[origin_number] is None:
                 Flags.json_get_status[origin_number] = False
         except Exception as e:
+            failure_exception = e
             if origin_number in Flags.json_get_status and Flags.json_get_status[origin_number] is None:
                 Flags.json_get_status[origin_number] = False
             self._check_stop(show_name)
-            signal.show_traceback_log(traceback.format_exc())
-            signal.show_log_text(traceback.format_exc())
+            failure_debug_detail = traceback.format_exc()
+            signal.show_traceback_log(failure_debug_detail)
+            signal.show_log_text(failure_debug_detail)
             LogBuffer.error().write("scrape file error: " + str(e))
-            LogBuffer.log().write("\n" + traceback.format_exc())
+            LogBuffer.log().write("\n" + failure_debug_detail)
 
         # 显示刮削数据
         try:
@@ -459,11 +519,13 @@ class Scraper:
             if json_data and other:
                 show_data.data = json_data
                 show_data.other = other
-                Flags.succ_count += 1
+                success_count = self.session.increment_progress("success_count")
+                self.session.record_success(file_path)
+                Flags.sync_progress_from_session()
                 show_data.show_name = (
                     str(Flags.count_claw)
                     + "-"
-                    + str(Flags.succ_count)
+                    + str(success_count)
                     + "."
                     + file_show_name.replace(number, file_info.number)
                     + ("-" if file_info.definition else "")
@@ -471,11 +533,12 @@ class Scraper:
                 )
                 signal.show_list_name("succ", show_data, number)
             else:
-                Flags.fail_count += 1
+                failure_count = self.session.increment_progress("failure_count")
+                Flags.sync_progress_from_session()
                 show_data.show_name = (
                     str(Flags.count_claw)
                     + "-"
-                    + str(Flags.fail_count)
+                    + str(failure_count)
                     + "."
                     + file_show_name.replace(number, file_info.number)
                     + ("-" if file_info.definition else "")
@@ -490,9 +553,19 @@ class Scraper:
                         )
                 failed_folder = get_movie_path_setting(file_path).failed_folder
                 fail_file_path = await move_file_to_failed_folder(failed_folder, file_path, folder_old_path)
-                Flags.failed_list.append((fail_file_path, LogBuffer.error().get()))
-                await self._failed_file_info_show(str(Flags.fail_count), fail_file_path, LogBuffer.error().get())
-                signal.view_failed_list_settext.emit(f"失败 {Flags.fail_count}")
+                failure_message = LogBuffer.error().get()
+                failure = classify_failure(
+                    fail_file_path,
+                    failure_message,
+                    stage="scrape",
+                    debug_detail=failure_debug_detail,
+                    context={"number": number, "show_name": show_data.show_name},
+                    exception=failure_exception,
+                )
+                self.session.record_failure(failure)
+                Flags.failed_list.append(failure.legacy_tuple())
+                await self._failed_file_info_show(str(failure_count), fail_file_path, failure.message)
+                signal.view_failed_list_settext.emit(f"失败 {failure_count}")
         except Exception as e:
             self._check_stop(show_name)
             signal.show_traceback_log(traceback.format_exc())
@@ -501,8 +574,8 @@ class Scraper:
 
         # 显示刮削结果
         try:
-            Flags.scrape_done += 1
-            count = Flags.scrape_done
+            count = self.session.increment_progress("completed_count")
+            Flags.sync_progress_from_session()
             progress_value = count / count_all * 100
             progress_percentage = f"{progress_value:.2f}%"
             used_time = get_used_time(start_time)
@@ -533,8 +606,9 @@ class Scraper:
         # 更新剩余任务
         try:
             try:
-                if not Flags.remove_remain_path(file_path):
+                if not self.session.remove_remain_path(file_path):
                     raise ValueError(f"remaining task not found: {file_path}")
+                Flags.can_save_remain = self.session.remain_snapshot()[2]
             except Exception as e1:
                 signal.show_log_text(f"remove:  {file_path}\n {str(e1)}\n {traceback.format_exc()}")
         except Exception as e:
@@ -755,6 +829,9 @@ class Scraper:
         # 映射或翻译
         # 当不存在已刮削数据，或者读取模式允许更新nfo时才进行映射翻译
         if not pre_data and update_nfo:
+            provenance_before = {
+                field: copy_module.deepcopy(getattr(res, field.value, None)) for field in _POSTPROCESS_PROVENANCE_FIELDS
+            }
             deal_some_field(res)  # 处理字段
             replace_special_word(res)  # 替换特殊字符
             await translate_title_outline(res, file_info.cd_part, movie_number)  # 翻译json_data（标题/介绍）
@@ -762,11 +839,14 @@ class Scraper:
             await translate_actor(res)  # 映射输出演员名/信息
             translate_info(res, file_info.has_sub)  # 映射输出标签等信息
             replace_word(res)
+            _refresh_postprocessed_provenance(res, provenance_before)
 
         # 更新视频分辨率
         definition, codec = await get_video_size(file_path, file_info.number)
         file_info.definition, file_info.codec = definition, codec
         add_definition_tag(res, definition, codec)
+        if not pre_data and update_nfo:
+            _refresh_postprocessed_provenance(res, provenance_before)
 
         # 显示json_data内容
         show_movie_info(file_info, res)
@@ -952,7 +1032,7 @@ class Scraper:
         return res, other
 
     def _check_stop(self, show_name: str) -> None:
-        if signal.stop or Flags.stop_requested:
+        if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
             Flags.now_kill += 1
             signal.show_log_text(
                 f" 🕷 {get_current_time()} 已停止刮削：{Flags.now_kill}/{Flags.total_kills} {show_name}"
@@ -980,7 +1060,9 @@ def start_new_scrape(file_mode: FileMode, movie_list: list[Path] | None = None) 
             crawler_provider = CrawlerProvider(
                 manager.config, computed.async_client, config_getter=lambda: manager.config
             )
-        scraper = Scraper(crawler_provider)
+        services = ApplicationServices.from_globals()
+        services.network_services["crawler_provider"] = crawler_provider
+        scraper = Scraper(crawler_provider, services=services)
         executor.submit(scraper.run(file_mode, movie_list), group=SCRAPE_TASK_GROUP)
     except Exception:
         signal.show_traceback_log(traceback.format_exc())

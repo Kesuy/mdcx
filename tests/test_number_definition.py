@@ -36,6 +36,25 @@ def test_get_file_number_normalizes_uncensored_digit_numbers(raw_number: str, ex
 @pytest.mark.parametrize(
     ("raw_number", "expected_number"),
     [
+        (r"D:/test/FDD2002_BTB_01_Matsumoto Kimiko.mp4", "FDD-2002"),
+        (r"D:/test/FDD-2045.mp4", "FDD-2045"),
+        (r"D:/test/FZ65.mp4", "FZ65"),
+        (r"D:/test/FZ-65.mp4", "FZ-65"),
+        (r"D:/test/FZ65 无码.mp4", "FZ65"),
+        (r"D:/test/FZ88 无码.mp4", "FZ88"),
+    ],
+)
+def test_uncensored_fdd_and_fz_numbers_are_classified_before_site_selection(
+    raw_number: str,
+    expected_number: str,
+):
+    assert get_file_number(raw_number, []) == expected_number
+    assert is_uncensored(expected_number) is True
+
+
+@pytest.mark.parametrize(
+    ("raw_number", "expected_number"),
+    [
         (r"D:/test/LUXU-1488.mp4", "259LUXU-1488"),
         (r"D:/test/SCUTE-953.mp4", "229SCUTE-953"),
         (r"D:/test/MAAN-673.mp4", "300MAAN-673"),
@@ -126,6 +145,27 @@ async def test_get_video_size_path_strips_noise_and_number_tokens(
     ],
 )
 async def test_get_file_info_marks_uncensored_digit_numbers(file_path: Path, expected_number: str):
+    old_file_mode = Flags.file_mode
+    Flags.file_mode = FileMode.Default
+    try:
+        file_info = await get_file_info_v2(file_path, copy_sub=False)
+    finally:
+        Flags.file_mode = old_file_mode
+
+    assert file_info.number == expected_number
+    assert file_info.mosaic == "无码"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("file_path", "expected_number"),
+    [
+        (Path("D:/test/FZ65 无码.mp4"), "FZ65"),
+        (Path("D:/test/FZ88 无码.mp4"), "FZ88"),
+        (Path("D:/test/FDD2007_BTB_02_Actor.mp4"), "FDD-2007"),
+    ],
+)
+async def test_get_file_info_strips_descriptive_text_from_fdd_and_fz_numbers(file_path: Path, expected_number: str):
     old_file_mode = Flags.file_mode
     Flags.file_mode = FileMode.Default
     try:

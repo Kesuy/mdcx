@@ -421,7 +421,9 @@ class NfoController:
             json_data = show_data.data
             original_current_data = copy.deepcopy(json_data)
             patch = {field_name: self.read_field(field_name) for field_name in NFO_EDITOR_WIDGETS}
-            if not self.confirm_changes(build_nfo_changes(json_data, patch)):
+            changes = build_nfo_changes(json_data, patch)
+            if not changes:
+                self.window.Ui.label_save_tips.setText(f"没有检测到内容变化! {get_current_time()}")
                 return False
             self.apply_patch(json_data, patch)
             saved, _affected_entries = self.save_entry(show_data, original_current_data)

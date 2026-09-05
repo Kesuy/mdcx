@@ -434,6 +434,20 @@ class FileScraper:
                 # 保存数据
                 if is_primary_field_value:
                     setattr(reduced, field.value, field_value)
+                    reduced.record_provenance(
+                        field,
+                        field_value,
+                        site.value,
+                        priority_chain=tuple(candidate.value for candidate in f_sites),
+                    )
+                    if field == CrawlerResultFields.THUMB:
+                        # fanart is derived from the selected thumb in the current image pipeline.
+                        reduced.record_provenance(
+                            "fanart",
+                            field_value,
+                            site.value,
+                            priority_chain=tuple(candidate.value for candidate in f_sites),
+                        )
                     reduced.field_log += f"\n    🟢 {site}\n     ↳{getattr(reduced, field.value)}"
                 elif try_all_images and field in image_fields:
                     reduced.field_log += f"\n    🟢 {site} (候选)\n     ↳{field_value}"
@@ -533,6 +547,12 @@ class FileScraper:
 
             # 加入来源信息
             res.field_sources = dict.fromkeys(CrawlerResultFields, website.value)
+            for field in CrawlerResultFields:
+                value = getattr(res, field.value, None)
+                if value:
+                    res.record_provenance(field, value, website.value, priority_chain=(website.value,))
+            if res.thumb:
+                res.record_provenance("fanart", res.thumb, website.value, priority_chain=(website.value,))
 
             # external_id
             res.external_ids[website] = web_data_json.external_id

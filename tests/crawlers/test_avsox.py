@@ -3,7 +3,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from mdcx.crawlers.avsox import AvsoxCrawler, movie_to_crawler_data, select_search_movie
+from mdcx.crawlers.avsox import (
+    AvsoxCrawler,
+    movie_to_crawler_data,
+    normalize_avsox_number,
+    select_search_movie,
+)
 from mdcx.models.types import CrawlerInput
 
 
@@ -39,6 +44,23 @@ def test_select_search_movie_matches_case_insensitively():
     ]
 
     assert select_search_movie(movies, "H4610-ORI696")["movieId"] == "nrzebvn"
+
+
+@pytest.mark.parametrize(
+    ("site_number", "input_number"),
+    [
+        ("FDD2007", "FDD-2007"),
+        ("FDD_2007", "FDD-2007"),
+        ("FZ-65", "FZ65"),
+        ("H4610-ori696", "H4610_ORI696"),
+    ],
+)
+def test_avsox_number_matching_ignores_separator_variants(site_number: str, input_number: str):
+    assert normalize_avsox_number(site_number) == normalize_avsox_number(input_number)
+    assert select_search_movie([{"movieId": "matched", "movieFanHao": site_number}], input_number) == {
+        "movieId": "matched",
+        "movieFanHao": site_number,
+    }
 
 
 def test_movie_to_crawler_data_maps_new_avsox_api_fields(h4610_movie: dict):
@@ -115,6 +137,43 @@ async def test_avsox_crawler_uses_spa_api_for_search_and_detail(h4610_movie: dic
             ["nrzebvn", "cn"],
         ),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("requested_number", "site_number"),
+    [
+        ("FZ65", "FZ-65"),
+        ("FZ-65", "FZ65"),
+        ("FDD2007", "FDD-2007"),
+        ("FDD-2007", "FDD2007"),
+    ],
+)
+async def test_avsox_crawler_accepts_separator_variant_from_search_api(
+    h4610_movie: dict, requested_number: str, site_number: str
+):
+    movie = {**h4610_movie, "movieId": "variant-id", "movieFanHao": site_number}
+    client = FakeAvsoxClient(movie)
+    crawler = AvsoxCrawler(client=client, base_url="https://avsox.click")
+    crawler_input = CrawlerInput.empty()
+    crawler_input.number = requested_number
+
+    response = await crawler.run(crawler_input)
+
+    assert response.debug_info.error is None
+    assert response.data is not None
+    assert response.data.number == requested_number
+    assert response.data.external_id == "https://avsox.click/cn/movies/variant-id"
+    assert client.calls[1] == (
+        "POST",
+        "https://avsox.click/javu/data/api/search",
+        [{"search": requested_number, "lang": "cn"}, 60, 1],
+    )
+    assert client.calls[2] == (
+        "POST",
+        "https://avsox.click/javu/data/api/getMovie",
+        ["variant-id", "cn"],
+    )
 
 
 @pytest.mark.asyncio

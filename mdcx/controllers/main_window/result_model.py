@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QAbstractItemView, QTreeView, QTreeWidget, QTreeWidg
 
 _INVALID_INDEX = QModelIndex()
 RESULT_DATA_ROLE = Qt.ItemDataRole.UserRole.value + 1
+RESULT_NAME_ROLE = Qt.ItemDataRole.UserRole.value + 2
 
 
 def _role_value(role: int | Qt.ItemDataRole) -> int:

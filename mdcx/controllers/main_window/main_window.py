@@ -18,6 +18,7 @@ from mdcx.config.resources import resources
 from mdcx.consts import LOCAL_VERSION
 from mdcx.image import PreviewImageLoader
 from mdcx.models.types import CrawlersResult, ShowData
+from mdcx.runtime import ApplicationServices
 from mdcx.signals import signal_qt
 from mdcx.task_manager import QtTaskManager
 from mdcx.views.MDCx import Ui_MDCx
@@ -93,6 +94,7 @@ class MyMAinWindow(
     def __init__(self, parent=None):
         super().__init__(parent)
         self.task_manager = QtTaskManager(self)
+        self.services = ApplicationServices.from_globals(task_manager=self.task_manager)
 
         # region 初始化需要的变量
         self.localversion = LOCAL_VERSION  # 当前版本号

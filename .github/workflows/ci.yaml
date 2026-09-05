@@ -43,9 +43,45 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y fonts-noto-cjk
+          fc-cache -f
+          fc-match "Noto Sans CJK SC"
       - name: Install Qt runtime libraries
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libegl1
+        run: sudo apt-get install --no-install-recommends -y libegl1
       - name: Install locked dependencies
         run: uv sync --locked --all-extras --dev
       - name: Run tests
-        run: uv run --locked pytest tests -q
+        run: uv run --locked pytest tests -q -rs
+
+  windows-smoke:
+    name: Windows smoke and debug build
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MDCX_OFFLINE: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --dev
+      - name: Run core and controller tests
+        run: >-
+          uv run --locked pytest tests/core tests/controllers
+          tests/test_file_crawler_runtime.py tests/test_scrape_session.py
+          tests/test_failure_model.py tests/test_provenance.py -q -rs
+      - name: Construct main window offscreen
+        run: uv run --locked python scripts/smoke_main_window.py
+      - name: Build Windows executable
+        run: uv run --locked scripts/build.py --debug
+      - name: Smoke test frozen executable
+        run: .\dist\MDCx.exe --smoke-test

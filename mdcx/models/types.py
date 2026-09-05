@@ -7,6 +7,20 @@ from ..config.enums import FixedScrapingType, Language, Website
 from ..gen.field_enums import CrawlerResultFields
 
 
+@dataclass(frozen=True)
+class FieldProvenance:
+    value: object
+    source: str
+    translated: bool = False
+    priority_chain: tuple[str, ...] = ()
+
+    def describe(self) -> str:
+        source = self.source or "未知来源"
+        translated = "，已翻译/映射" if self.translated else ""
+        chain = f"\n优先级：{' → '.join(self.priority_chain)}" if self.priority_chain else ""
+        return f"来源：{source}{translated}{chain}"
+
+
 @dataclass
 class FileInfo:
     """
@@ -354,6 +368,8 @@ class CrawlersResult(BaseCrawlerResult):
 
     # 字段来源
     field_sources: dict[CrawlerResultFields, str]
+    # 结构化字段来源。键使用字段持久值，避免改变现有 field_sources API。
+    provenance: dict[str, FieldProvenance]
     # 各来源的 externalId
     external_ids: dict[Website, str]
 
@@ -381,8 +397,77 @@ class CrawlersResult(BaseCrawlerResult):
             site_log="",
             field_log="",
             field_sources=dict.fromkeys(CrawlerResultFields, ""),
+            provenance={},
             external_ids={},
             letters="",
+        )
+
+    def record_provenance(
+        self,
+        field: CrawlerResultFields | str,
+        value: object,
+        source: str,
+        *,
+        translated: bool = False,
+        priority_chain: tuple[str, ...] = (),
+    ) -> None:
+        key = field.value if isinstance(field, CrawlerResultFields) else str(field)
+        self.provenance[key] = FieldProvenance(
+            value=value,
+            source=str(source or ""),
+            translated=translated,
+            priority_chain=tuple(priority_chain),
+        )
+
+    def get_provenance(self, field: CrawlerResultFields | str) -> FieldProvenance | None:
+        key = field.value if isinstance(field, CrawlerResultFields) else str(field)
+        item = self.provenance.get(key)
+        if isinstance(item, FieldProvenance):
+            return item
+        if isinstance(item, dict):
+            return FieldProvenance(
+                value=item.get("value"),
+                source=str(item.get("source", "")),
+                translated=bool(item.get("translated", False)),
+                priority_chain=tuple(item.get("priority_chain", ())),
+            )
+        return None
+
+    def mark_provenance_translated(self, field: CrawlerResultFields | str, value: object) -> None:
+        current = self.get_provenance(field)
+        if current is None:
+            source = ""
+            if isinstance(field, CrawlerResultFields):
+                source = self.field_sources.get(field, "")
+            self.record_provenance(field, value, source, translated=True)
+            return
+        self.record_provenance(
+            field,
+            value,
+            current.source,
+            translated=True,
+            priority_chain=current.priority_chain,
+        )
+
+    def refresh_provenance_source(
+        self,
+        field: CrawlerResultFields | str,
+        value: object,
+        source: str,
+    ) -> None:
+        """Keep provenance aligned when an image fallback changes the winner."""
+        if not value:
+            return
+        current = self.get_provenance(field)
+        chain = current.priority_chain if current is not None else ()
+        if source and source not in chain:
+            chain = (source, *chain)
+        self.record_provenance(
+            field,
+            value,
+            source,
+            translated=current.translated if current is not None else False,
+            priority_chain=chain,
         )
 
     # 以下为向后兼容
@@ -409,6 +494,7 @@ class CrawlersResult(BaseCrawlerResult):
     @poster_from.setter
     def poster_from(self, value: str):
         self.field_sources[CrawlerResultFields.POSTER] = value
+        self.refresh_provenance_source(CrawlerResultFields.POSTER, self.poster, value)
 
     @property
     def thumb_from(self) -> str:
@@ -417,6 +503,8 @@ class CrawlersResult(BaseCrawlerResult):
     @thumb_from.setter
     def thumb_from(self, value: str):
         self.field_sources[CrawlerResultFields.THUMB] = value
+        self.refresh_provenance_source(CrawlerResultFields.THUMB, self.thumb, value)
+        self.refresh_provenance_source("fanart", self.thumb, value)
 
     @property
     def trailer_from(self) -> str:
