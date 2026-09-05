@@ -46,6 +46,12 @@ jobs:
               '<sizepolicy hsizetype="Expanding" vsizetype="Preferred">',
               1,
           ).replace('<enum>Qt::RightToLeft</enum>', '<enum>Qt::LeftToRight</enum>', 1)
+          if '<property name="wordWrap">' not in new_block:
+              new_block = new_block.replace(
+                  '</widget>',
+                  '  <property name="wordWrap">\n   <bool>true</bool>\n  </property>\n</widget>',
+                  1,
+              )
           if new_block == block:
               raise SystemExit('label_300 source block did not change')
           ui_path.write_text(ui_text[:start] + new_block + ui_text[end:], encoding='utf-8')
@@ -67,11 +73,6 @@ jobs:
               '''    def eventFilter(self, a0, a1):\n        # Settings combo boxes must be focused before the wheel can change their value.\n        if (\n            isinstance(a0, QComboBox)\n            and a0.property("wheelRequiresFocus")\n            and a1.type() == QEvent.Type.Wheel\n            and not a0.hasFocus()\n        ):\n            a1.ignore()\n            return True\n\n        # print(event.type())\n\n''',
           )
 
-          replace_once(
-              'mdcx/controllers/main_window/result_model.py',
-              '''from PyQt6.QtCore import (\n''',
-              '''from PyQt6.QtCore import (\n''',
-          )
           result_model = Path('mdcx/controllers/main_window/result_model.py')
           model_text = result_model.read_text(encoding='utf-8')
           gui_import = 'from PyQt6.QtGui import QKeySequence\n'
