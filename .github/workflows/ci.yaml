@@ -88,6 +88,8 @@ jobs:
       - name: Run core and controller tests
         run: >-
           uv run --locked pytest tests/core tests/controllers
+          tests/test_file_crawler_classification.py
+          tests/test_file_crawler_field_priority.py
           tests/test_file_crawler_runtime.py tests/test_scrape_session.py
           tests/test_failure_model.py tests/test_provenance.py -q -rs
       - name: Construct main window offscreen
