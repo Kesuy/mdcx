@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'D:\AI Agent\MDCx\mdcx\views\settings_page.ui'
+# Form implementation generated from reading ui file '/home/runner/work/mdcx/mdcx/mdcx/views/settings_page.ui'
 #
 # Created by: PyQt6 UI code generator 6.11.0
 #
@@ -748,15 +748,15 @@ class Ui_SettingsPage(object):
         self.checkBox_auto_clean.setObjectName("checkBox_auto_clean")
         self.groupBox_61_responsive_layout.addWidget(self.checkBox_auto_clean, 5, 4, 2, 2)
         self.label_271 = QtWidgets.QLabel(parent=self.groupBox_61)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_271.sizePolicy().hasHeightForWidth())
         self.label_271.setSizePolicy(sizePolicy)
         self.label_271.setMinimumSize(QtCore.QSize(130, 0))
-        self.label_271.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.label_271.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.label_271.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        self.label_271.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.label_271.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeading|QtCore.Qt.AlignmentFlag.AlignLeft|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.label_271.setWordWrap(True)
         self.label_271.setObjectName("label_271")
         self.groupBox_61_responsive_layout.addWidget(self.label_271, 8, 1, 1, 4)
