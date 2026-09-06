@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file '/home/runner/work/mdcx/mdcx/mdcx/views/settings_page.ui'
+# Form implementation generated from reading ui file 'D:\a\mdcx\mdcx\mdcx\views\settings_page.ui'
 #
 # Created by: PyQt6 UI code generator 6.11.0
 #
@@ -2090,11 +2090,12 @@ class Ui_SettingsPage(object):
         self.label_149.setObjectName("label_149")
         self.gridLayout_36.addWidget(self.label_149, 8, 0, 1, 1)
         self.label_155 = QtWidgets.QLabel(parent=self.layoutWidget_6)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_155.sizePolicy().hasHeightForWidth())
         self.label_155.setSizePolicy(sizePolicy)
+        self.label_155.setWordWrap(True)
         self.label_155.setObjectName("label_155")
         self.gridLayout_36.addWidget(self.label_155, 3, 1, 1, 1)
         self.label_318 = QtWidgets.QLabel(parent=self.layoutWidget_6)
@@ -8211,13 +8212,14 @@ class Ui_SettingsPage(object):
         self.gridLayout_9 = QtWidgets.QGridLayout(self.gridLayoutWidget_9)
         self.gridLayout_9.setObjectName("gridLayout_9")
         self.label_103 = QtWidgets.QLabel(parent=self.gridLayoutWidget_9)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_103.sizePolicy().hasHeightForWidth())
         self.label_103.setSizePolicy(sizePolicy)
         self.label_103.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.ArrowCursor))
         self.label_103.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.NoTextInteraction)
+        self.label_103.setWordWrap(True)
         self.label_103.setObjectName("label_103")
         self.gridLayout_9.addWidget(self.label_103, 6, 1, 1, 1)
         self.horizontalLayout_17 = QtWidgets.QHBoxLayout()

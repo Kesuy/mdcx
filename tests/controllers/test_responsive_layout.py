@@ -296,3 +296,22 @@ def test_failed_log_overlay_stays_above_layout_managed_log_widgets():
         child = child.parentWidget()
     assert child is window.Ui.textBrowser_log_main_3
     window.close()
+
+
+def test_failed_log_overlay_reserves_text_space_for_actions():
+    window = generated_ui_window()
+    setup_responsive_ui(window)
+    window.resize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    window.show()
+    APP.processEvents()
+    apply_responsive_layout(window)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_log)
+
+    MyMAinWindow.show_hide_failed_list(window, True)
+    APP.processEvents()
+
+    browser = window.Ui.textBrowser_log_main_3
+    viewport = browser.viewport()
+    assert viewport.y() >= 58
+    assert browser.height() - viewport.geometry().bottom() - 1 >= 50
+    window.close()

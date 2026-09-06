@@ -287,3 +287,12 @@ def test_settings_combo_boxes_ignore_wheel_until_focused():
     assert combo_box.property("wheelRequiresFocus") is True
     assert combo_box.focusPolicy() == Qt.FocusPolicy.StrongFocus
     assert WindowLifecycleMixin.eventFilter(window, combo_box, QEvent(QEvent.Type.Wheel)) is True
+
+
+def test_narrow_long_help_labels_can_wrap():
+    window, _controller_instance = _controller()
+
+    for label in (window.Ui.label_155, window.Ui.label_103):
+        assert label.sizePolicy().horizontalPolicy() == label.sizePolicy().Policy.Expanding
+        assert label.sizePolicy().verticalPolicy() == label.sizePolicy().Policy.Preferred
+        assert label.wordWrap()
