@@ -1,0 +1,1365 @@
+{
+  "platform": "nt",
+  "qt_platform": "offscreen",
+  "qt_scale_factor": "default",
+  "sizes": {
+    "880x700": {
+      "shots": [
+        {
+          "state": "page_main",
+          "file": "880x700-page_main.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_log",
+          "file": "880x700-page_log.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_net",
+          "file": "880x700-page_net.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_tool",
+          "file": "880x700-page_tool.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削目录",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削模式",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削网站",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__下载",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__命名",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__翻译",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__字幕",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__水印",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__NFO",
+          "file": "880x700-page_setting__tabWidget__NFO.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__演员",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__网络",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__高级",
+          "file": "880x700-page_setting__tabWidget.jpg",
+          "size": [
+            880,
+            700
+          ]
+        },
+        {
+          "state": "page_about",
+          "file": "880x700-page_about.jpg",
+          "size": [
+            880,
+            700
+          ]
+        }
+      ],
+      "contact": "contact-880x700.jpg"
+    },
+    "1100x760": {
+      "shots": [
+        {
+          "state": "page_main",
+          "file": "1100x760-page_main.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_log",
+          "file": "1100x760-page_log.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_net",
+          "file": "1100x760-page_net.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_tool",
+          "file": "1100x760-page_tool.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削目录",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削模式",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削网站",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__下载",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__命名",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__翻译",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__字幕",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__水印",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__NFO",
+          "file": "1100x760-page_setting__tabWidget__NFO.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__演员",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__网络",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__高级",
+          "file": "1100x760-page_setting__tabWidget.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        },
+        {
+          "state": "page_about",
+          "file": "1100x760-page_about.jpg",
+          "size": [
+            1100,
+            760
+          ]
+        }
+      ],
+      "contact": "contact-1100x760.jpg"
+    },
+    "1400x900": {
+      "shots": [
+        {
+          "state": "page_main",
+          "file": "1400x900-page_main.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_log",
+          "file": "1400x900-page_log.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_net",
+          "file": "1400x900-page_net.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_tool",
+          "file": "1400x900-page_tool.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削目录",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削模式",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削网站",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__下载",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__命名",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__翻译",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__字幕",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__水印",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__NFO",
+          "file": "1400x900-page_setting__tabWidget__NFO.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__演员",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__网络",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__高级",
+          "file": "1400x900-page_setting__tabWidget.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "page_about",
+          "file": "1400x900-page_about.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "overlay-widget_show_success",
+          "file": "1400x900-overlay-widget_show_success.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "overlay-widget_show_tips",
+          "file": "1400x900-overlay-widget_show_tips.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "overlay-widget_nfo",
+          "file": "1400x900-overlay-widget_nfo.jpg",
+          "size": [
+            1400,
+            900
+          ]
+        },
+        {
+          "state": "failure-center",
+          "file": "dialog-failure-center.jpg",
+          "size": [
+            920,
+            600
+          ]
+        }
+      ],
+      "contact": "contact-1400x900.jpg"
+    },
+    "1920x1080": {
+      "shots": [
+        {
+          "state": "page_main",
+          "file": "1920x1080-page_main.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_log",
+          "file": "1920x1080-page_log.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_net",
+          "file": "1920x1080-page_net.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_tool",
+          "file": "1920x1080-page_tool.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削目录",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削模式",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__刮削网站",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__下载",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__命名",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__翻译",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__字幕",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__水印",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__NFO",
+          "file": "1920x1080-page_setting__tabWidget__NFO.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__演员",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__网络",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_setting__tabWidget__高级",
+          "file": "1920x1080-page_setting__tabWidget.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "state": "page_about",
+          "file": "1920x1080-page_about.jpg",
+          "size": [
+            1920,
+            1080
+          ]
+        }
+      ],
+      "contact": "contact-1920x1080.jpg"
+    }
+  },
+  "scroll_captures": [
+    "scroll-page_tool-scrollArea_10.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_2.jpg",
+    "scroll-page_setting__tabWidget-scrollArea.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_8.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_6.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_7.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_11.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_9.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_4.jpg",
+    "scroll-page_setting__tabWidget__NFO-scrollArea_13.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_12.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_3.jpg",
+    "scroll-page_setting__tabWidget-scrollArea_5.jpg"
+  ],
+  "issue_count": 60,
+  "issues": [
+    {
+      "state": "880x700:page_main",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_main",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_log",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_log",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_net",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_net",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_tool",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_tool",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削目录",
+      "kind": "possible-text-clipping",
+      "widget": "label_383",
+      "class": "QLabel",
+      "width": 515,
+      "text_width": 1057,
+      "text": "如果创建软链接时要复制图片和NFO，请到「工具」-「软链接助手」勾选即可1，软链接路径支持命名字段：end_folder_name （指待刮削目录上最后的文件夹名）2，成功/失败输出目录支持命名字段："
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削目录",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削目录",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_softlink",
+      "class": "QLabel",
+      "width": 380,
+      "text_width": 462,
+      "text": "适合网盘用户。刮削资料存本地，Emby 加载快，网盘读写少。注意：Windows 用户，成功后的输出目录必须选择本地磁盘（系统限制）"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_hardlink",
+      "class": "QLabel",
+      "width": 380,
+      "text_width": 448,
+      "text": "适合 PT 用户。刮削资料同盘单独存放，不影响分享率。注意：Mac 用户，请选择创建软连接，输出目录同盘即可（硬链接有权限问题）"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削模式",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削模式",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削网站",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__刮削网站",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__下载",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__下载",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__命名",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__命名",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__翻译",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__翻译",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__字幕",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__字幕",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__水印",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__水印",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__NFO",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__NFO",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__演员",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__演员",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__网络",
+      "kind": "possible-text-clipping",
+      "widget": "label_103",
+      "class": "QLabel",
+      "width": 515,
+      "text_width": 1883,
+      "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__网络",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__网络",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__高级",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__高级",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_about",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_about",
+      "kind": "outside-parent",
+      "widget": "close_widget",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        0,
+        101,
+        41
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_main",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_log",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_net",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_tool",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__刮削目录",
+      "kind": "possible-text-clipping",
+      "widget": "label_383",
+      "class": "QLabel",
+      "width": 639,
+      "text_width": 1057,
+      "text": "如果创建软链接时要复制图片和NFO，请到「工具」-「软链接助手」勾选即可1，软链接路径支持命名字段：end_folder_name （指待刮削目录上最后的文件夹名）2，成功/失败输出目录支持命名字段："
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__刮削目录",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__刮削模式",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__刮削网站",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__下载",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__命名",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__翻译",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__字幕",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__水印",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__NFO",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__演员",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__网络",
+      "kind": "possible-text-clipping",
+      "widget": "label_103",
+      "class": "QLabel",
+      "width": 639,
+      "text_width": 1883,
+      "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__网络",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__高级",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_about",
+      "kind": "outside-parent",
+      "widget": "widget_buttons",
+      "class": "QWidget",
+      "geometry": [
+        0,
+        50,
+        210,
+        341
+      ],
+      "parent": "widget_setting"
+    },
+    {
+      "state": "1400x900:page_setting__tabWidget__刮削目录",
+      "kind": "possible-text-clipping",
+      "widget": "label_383",
+      "class": "QLabel",
+      "width": 897,
+      "text_width": 1057,
+      "text": "如果创建软链接时要复制图片和NFO，请到「工具」-「软链接助手」勾选即可1，软链接路径支持命名字段：end_folder_name （指待刮削目录上最后的文件夹名）2，成功/失败输出目录支持命名字段："
+    },
+    {
+      "state": "1400x900:page_setting__tabWidget__网络",
+      "kind": "possible-text-clipping",
+      "widget": "label_103",
+      "class": "QLabel",
+      "width": 897,
+      "text_width": 1883,
+      "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
+    },
+    {
+      "state": "1920x1080:page_setting__tabWidget__网络",
+      "kind": "possible-text-clipping",
+      "widget": "label_103",
+      "class": "QLabel",
+      "width": 1417,
+      "text_width": 1883,
+      "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
+    }
+  ]
+}
