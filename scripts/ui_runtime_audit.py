@@ -11,7 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MDCX_OFFLINE", "1")
 
 from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QImage, QPainter
+from PyQt6.QtGui import QFont, QFontDatabase, QFontInfo, QImage, QPainter
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
@@ -30,7 +30,9 @@ import mdcx.controllers.main_window.main_window as main_window_module
 from mdcx.controllers.main_window.failure_center import FailureCenterDialog
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import apply_responsive_layout, show_responsive_overlay
+from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.failure import FailureCategory, FailureRecord
+from mdcx.models.types import ShowData
 
 
 WINDOW_SIZES = ((880, 700), (1100, 760), (1400, 900), (1920, 1080))
@@ -48,6 +50,56 @@ def _patch_runtime_side_effects() -> None:
     main_window_module.save_remain_list = lambda: None
     main_window_module.show_netstatus = lambda: None
     MyMAinWindow.auto_start = lambda self: None
+
+
+def _configure_cjk_font(app: QApplication) -> dict[str, object]:
+    candidates = (
+        ("Microsoft YaHei UI", Path(r"C:\Windows\Fonts\msyh.ttc")),
+        ("Microsoft YaHei", Path(r"C:\Windows\Fonts\msyh.ttc")),
+        ("Microsoft JhengHei UI", Path(r"C:\Windows\Fonts\msjh.ttc")),
+        ("SimSun", Path(r"C:\Windows\Fonts\simsun.ttc")),
+    )
+    loaded_path = ""
+    requested_family = ""
+    for family, path in candidates:
+        if not path.exists():
+            continue
+        QFontDatabase.addApplicationFont(str(path))
+        requested_family = family
+        loaded_path = str(path)
+        app.setFont(QFont(family, 9))
+        break
+    info = QFontInfo(app.font())
+    return {
+        "requested_family": requested_family or app.font().family(),
+        "resolved_family": info.family(),
+        "exact_match": info.exactMatch(),
+        "font_file": loaded_path,
+    }
+
+
+def _populate_runtime_results(window: MyMAinWindow) -> None:
+    samples = (
+        ("succ", "ABC-123", "javdb", r"D:\Media\ABC-123 很长的示例文件名 1080p.mkv"),
+        ("succ", "XYZ-987", "本地", r"D:\Media\XYZ-987.mp4"),
+        ("succ", "IPZZ-941", "dmm", r"D:\Media\IPZZ-941 example filename with extra suffix.mp4"),
+        ("fail", "TEST-001", "javbus", r"D:\Media\TEST-001 failed sample.mp4"),
+        ("fail", "FC2-PPV-1234567", "fc2", r"D:\Media\FC2-PPV-1234567 long failed filename.mp4"),
+    )
+    for status, number, source, file_path in samples:
+        show_data = ShowData.empty()
+        show_data.show_name = number
+        show_data.data.number = number
+        show_data.data.title = f"{number} 示例标题"
+        show_data.data.field_sources[CrawlerResultFields.TITLE] = source
+        show_data.file_info.number = number
+        show_data.file_info.file_name = Path(file_path).name
+        show_data.file_info.file_path = Path(file_path)
+        window._addTreeChild(status, number, show_data)
+        window.json_array[number] = show_data
+    window.item_succ.setText(0, f"成功 ({window.item_succ.childCount()})")
+    window.item_fail.setText(0, f"失败 ({window.item_fail.childCount()})")
+    window.Ui.treeWidget_number.expandAll()
 
 
 def _render_widget(widget: QWidget, path: Path, quality: int = 80) -> tuple[int, int]:
@@ -110,7 +162,7 @@ def _scan_runtime_geometry(window: QWidget, state: str) -> list[dict[str, object
         if not isinstance(widget, CONTROL_TYPES):
             continue
         text = _plain_text(widget)
-        if not text or "\n" in text:
+        if not text or "\n" in text or "<p>" in text.lower() or "<br" in text.lower():
             continue
         if isinstance(widget, QLabel) and widget.wordWrap():
             continue
@@ -224,11 +276,13 @@ def run(output: Path, full_scroll: bool) -> None:
     output.mkdir(parents=True, exist_ok=True)
     _patch_runtime_side_effects()
     app = QApplication.instance() or QApplication([])
+    font_info = _configure_cjk_font(app)
     window = MyMAinWindow()
     window.show()
     app.processEvents()
     if not getattr(window, "_startup_finished", False):
         window._finish_startup()
+    _populate_runtime_results(window)
     app.processEvents()
 
     all_issues: list[dict[str, object]] = []
@@ -236,6 +290,7 @@ def run(output: Path, full_scroll: bool) -> None:
         "platform": os.name,
         "qt_platform": os.environ.get("QT_QPA_PLATFORM"),
         "qt_scale_factor": os.environ.get("QT_SCALE_FACTOR", "default"),
+        "font": font_info,
         "sizes": {},
         "scroll_captures": [],
     }
@@ -278,6 +333,9 @@ def run(output: Path, full_scroll: bool) -> None:
                     manifest["scroll_captures"].extend(_capture_scroll_contents(page, output, state))
 
         if (width, height) == (1400, 900):
+            stack.setCurrentWidget(window.Ui.page_main)
+            apply_responsive_layout(window)
+            app.processEvents()
             for overlay_name in ("widget_show_success", "widget_show_tips", "widget_nfo"):
                 overlay = getattr(window.Ui, overlay_name, None)
                 if overlay is None:
@@ -308,6 +366,7 @@ def run(output: Path, full_scroll: bool) -> None:
         f"Runtime UI audit: {len(issues)} heuristic warnings",
         f"QT_QPA_PLATFORM={os.environ.get('QT_QPA_PLATFORM')}",
         f"QT_SCALE_FACTOR={os.environ.get('QT_SCALE_FACTOR', 'default')}",
+        f"FONT={json.dumps(font_info, ensure_ascii=False)}",
         "",
     ]
     for issue in issues:
