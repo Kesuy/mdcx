@@ -58,6 +58,11 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           MDCX_OFFLINE: '1'
         run: uv run --locked python scripts/ui_runtime_dialog_audit.py
+      - name: Exercise scrape result and failure surfaces
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MDCX_OFFLINE: '1'
+        run: uv run --locked python scripts/ui_runtime_result_audit.py
       - name: Upload runtime screenshots
         uses: actions/upload-artifact@v4
         with:
