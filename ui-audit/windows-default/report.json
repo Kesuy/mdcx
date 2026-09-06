@@ -2,6 +2,12 @@
   "platform": "nt",
   "qt_platform": "offscreen",
   "qt_scale_factor": "default",
+  "font": {
+    "requested_family": "Microsoft YaHei UI",
+    "resolved_family": "Microsoft YaHei UI",
+    "exact_match": true,
+    "font_file": "C:\\Windows\\Fonts\\msyh.ttc"
+  },
   "sizes": {
     "880x700": {
       "shots": [
@@ -615,7 +621,7 @@
     "scroll-page_setting__tabWidget__10-scrollArea_3.jpg",
     "scroll-page_setting__tabWidget__11-scrollArea_5.jpg"
   ],
-  "issue_count": 60,
+  "issue_count": 68,
   "issues": [
     {
       "state": "880x700:page_main",
@@ -727,7 +733,7 @@
       "widget": "label_383",
       "class": "QLabel",
       "width": 515,
-      "text_width": 1057,
+      "text_width": 1616,
       "text": "如果创建软链接时要复制图片和NFO，请到「工具」-「软链接助手」勾选即可1，软链接路径支持命名字段：end_folder_name （指待刮削目录上最后的文件夹名）2，成功/失败输出目录支持命名字段："
     },
     {
@@ -759,10 +765,28 @@
     {
       "state": "880x700:page_setting__tabWidget__01__刮削模式",
       "kind": "possible-text-clipping",
+      "widget": "label_37",
+      "class": "QLabel",
+      "width": 374,
+      "text_width": 657,
+      "text": "将按 下方「Emby视频标题」、「设置」-「翻译」、「设置」-「NFO」等的设置项，利用本地 nfo 更新 nfo 信息"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__01__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_link_off",
+      "class": "QLabel",
+      "width": 416,
+      "text_width": 738,
+      "text": "适合 NAS 和硬盘用户。本地党可随心所欲整理文件。注意：选择此项，下面的「成功后移动文件」「失败后移动文件」才会生效"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__01__刮削模式",
+      "kind": "possible-text-clipping",
       "widget": "label_softlink",
       "class": "QLabel",
       "width": 380,
-      "text_width": 462,
+      "text_width": 787,
       "text": "适合网盘用户。刮削资料存本地，Emby 加载快，网盘读写少。注意：Windows 用户，成功后的输出目录必须选择本地磁盘（系统限制）"
     },
     {
@@ -771,7 +795,7 @@
       "widget": "label_hardlink",
       "class": "QLabel",
       "width": 380,
-      "text_width": 448,
+      "text_width": 782,
       "text": "适合 PT 用户。刮削资料同盘单独存放，不影响分享率。注意：Mac 用户，请选择创建软连接，输出目录同盘即可（硬链接有权限问题）"
     },
     {
@@ -802,6 +826,15 @@
     },
     {
       "state": "880x700:page_setting__tabWidget__02__刮削网站",
+      "kind": "possible-text-clipping",
+      "widget": "label_155",
+      "class": "QLabel",
+      "width": 360,
+      "text_width": 430,
+      "text": "比如：111111-111，111111_111，n1111，HEYZO-1111，SMD-111"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__02__刮削网站",
       "kind": "outside-parent",
       "widget": "widget_buttons",
       "class": "QWidget",
@@ -981,6 +1014,15 @@
         41
       ],
       "parent": "widget_setting"
+    },
+    {
+      "state": "880x700:page_setting__tabWidget__09__演员",
+      "kind": "possible-text-clipping",
+      "widget": "label_123",
+      "class": "QLabel",
+      "width": 515,
+      "text_width": 742,
+      "text": "支持优先使用 Graphis.ne.jp 的图片作为演员头像和演员背景；Graphis.ne.jp 提供了演员不同时期的图片，默认请求早期的图片。"
     },
     {
       "state": "880x700:page_setting__tabWidget__09__演员",
@@ -1014,7 +1056,7 @@
       "widget": "label_103",
       "class": "QLabel",
       "width": 515,
-      "text_width": 1883,
+      "text_width": 2208,
       "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
     },
     {
@@ -1153,7 +1195,7 @@
       "widget": "label_383",
       "class": "QLabel",
       "width": 639,
-      "text_width": 1057,
+      "text_width": 1616,
       "text": "如果创建软链接时要复制图片和NFO，请到「工具」-「软链接助手」勾选即可1，软链接路径支持命名字段：end_folder_name （指待刮削目录上最后的文件夹名）2，成功/失败输出目录支持命名字段："
     },
     {
@@ -1168,6 +1210,42 @@
         341
       ],
       "parent": "widget_setting"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__01__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_37",
+      "class": "QLabel",
+      "width": 498,
+      "text_width": 657,
+      "text": "将按 下方「Emby视频标题」、「设置」-「翻译」、「设置」-「NFO」等的设置项，利用本地 nfo 更新 nfo 信息"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__01__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_link_off",
+      "class": "QLabel",
+      "width": 536,
+      "text_width": 738,
+      "text": "适合 NAS 和硬盘用户。本地党可随心所欲整理文件。注意：选择此项，下面的「成功后移动文件」「失败后移动文件」才会生效"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__01__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_softlink",
+      "class": "QLabel",
+      "width": 500,
+      "text_width": 787,
+      "text": "适合网盘用户。刮削资料存本地，Emby 加载快，网盘读写少。注意：Windows 用户，成功后的输出目录必须选择本地磁盘（系统限制）"
+    },
+    {
+      "state": "1100x760:page_setting__tabWidget__01__刮削模式",
+      "kind": "possible-text-clipping",
+      "widget": "label_hardlink",
+      "class": "QLabel",
+      "width": 500,
+      "text_width": 782,
+      "text": "适合 PT 用户。刮削资料同盘单独存放，不影响分享率。注意：Mac 用户，请选择创建软连接，输出目录同盘即可（硬链接有权限问题）"
     },
     {
       "state": "1100x760:page_setting__tabWidget__01__刮削模式",
@@ -1292,7 +1370,7 @@
       "widget": "label_103",
       "class": "QLabel",
       "width": 639,
-      "text_width": 1883,
+      "text_width": 2208,
       "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
     },
     {
@@ -1340,7 +1418,7 @@
       "widget": "label_383",
       "class": "QLabel",
       "width": 897,
-      "text_width": 1057,
+      "text_width": 1616,
       "text": "如果创建软链接时要复制图片和NFO，请到「工具」-「软链接助手」勾选即可1，软链接路径支持命名字段：end_folder_name （指待刮削目录上最后的文件夹名）2，成功/失败输出目录支持命名字段："
     },
     {
@@ -1349,7 +1427,7 @@
       "widget": "label_103",
       "class": "QLabel",
       "width": 897,
-      "text_width": 1883,
+      "text_width": 2208,
       "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
     },
     {
@@ -1358,7 +1436,7 @@
       "widget": "label_103",
       "class": "QLabel",
       "width": 1417,
-      "text_width": 1883,
+      "text_width": 2208,
       "text": "支持 http(s), socks5(h) 代理. 示例: http://127.0.0.1:7897需要用户名和密码时格式为: schema://username:password@host:por"
     }
   ]
