@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -218,6 +219,8 @@ def _capture_failure_center(output: Path) -> dict[str, object]:
 
 
 def run(output: Path, full_scroll: bool) -> None:
+    if output.exists():
+        shutil.rmtree(output)
     output.mkdir(parents=True, exist_ok=True)
     _patch_runtime_side_effects()
     app = QApplication.instance() or QApplication([])
@@ -259,7 +262,10 @@ def run(output: Path, full_scroll: bool) -> None:
                 if primary_tab is not None and tab_index is not None:
                     primary_tab.setCurrentIndex(tab_index)
                     app.processEvents()
-                    state = f"{page_name}__{primary_tab.objectName()}__{_tab_title(primary_tab, tab_index)}"
+                    state = (
+                        f"{page_name}__{primary_tab.objectName()}__{tab_index:02d}__"
+                        f"{_tab_title(primary_tab, tab_index)}"
+                    )
                 else:
                     state = page_name
                 apply_responsive_layout(window)
@@ -290,7 +296,6 @@ def run(output: Path, full_scroll: bool) -> None:
         contact = _make_contact_sheet(output, size_key, shots)
         manifest["sizes"][size_key] = {"shots": shots, "contact": contact}
 
-    # De-duplicate identical diagnostics produced on multiple repeated states.
     unique: dict[tuple[object, ...], dict[str, object]] = {}
     for issue in all_issues:
         key = (issue.get("state"), issue.get("kind"), issue.get("widget"), issue.get("text"))
