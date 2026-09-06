@@ -1,0 +1,40 @@
+name: Runtime result surfaces audit
+
+on:
+  push:
+    branches:
+      - codex/ui-runtime-audit-4.0.12
+    paths:
+      - scripts/ui_runtime_result_audit.py
+      - .github/workflows/ui-runtime-results.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows-results:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/ui-runtime-audit-4.0.12
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --dev
+      - name: Exercise scrape result and failure surfaces
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MDCX_OFFLINE: '1'
+          PYTHONFAULTHANDLER: '1'
+        run: uv run --locked python -u scripts/ui_runtime_result_audit.py
+      - name: Upload result-surface screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdcx-runtime-result-surfaces
+          path: ui-audit/windows-results
+          if-no-files-found: warn
+          retention-days: 1
