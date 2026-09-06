@@ -1,0 +1,59 @@
+name: Runtime UI audit
+
+on:
+  push:
+    branches:
+      - codex/ui-runtime-audit-4.0.12
+
+permissions:
+  contents: write
+
+jobs:
+  windows-runtime-ui:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/ui-runtime-audit-4.0.12
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --dev
+      - name: Run existing layout regression tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MDCX_OFFLINE: '1'
+        run: >-
+          uv run --locked pytest
+          tests/controllers/test_responsive_layout.py
+          tests/controllers/test_main_page_layout.py
+          tests/controllers/test_settings_layout.py
+          tests/controllers/test_tool_page_layout.py
+          tests/controllers/test_ui_accessibility.py
+          tests/controllers/test_settings_page_ui.py
+          tests/controllers/test_failure_center.py
+          -q
+      - name: Render real main window at normal scale
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MDCX_OFFLINE: '1'
+        run: uv run --locked python scripts/ui_runtime_audit.py --output ui-audit/windows-default --full-scroll
+      - name: Render real main window at 150 percent scale
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_SCALE_FACTOR: '1.5'
+          MDCX_OFFLINE: '1'
+        run: uv run --locked python scripts/ui_runtime_audit.py --output ui-audit/windows-scale150
+      - name: Commit audit screenshots and reports
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ui-audit
+          git diff --cached --check
+          git commit -m "test: capture Windows runtime UI audit"
+          git push origin HEAD:codex/ui-runtime-audit-4.0.12
