@@ -48,6 +48,13 @@ jobs:
           QT_SCALE_FACTOR: '1.5'
           MDCX_OFFLINE: '1'
         run: uv run --locked python scripts/ui_runtime_audit.py --output ui-audit/windows-scale150
+      - name: Upload runtime screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdcx-runtime-ui-audit
+          path: ui-audit
+          if-no-files-found: error
+          retention-days: 1
       - name: Commit audit screenshots and reports
         shell: pwsh
         run: |
@@ -55,5 +62,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ui-audit
           git diff --cached --check
+          if (git diff --cached --quiet) {
+            Write-Host "Audit screenshots unchanged"
+            exit 0
+          }
           git commit -m "test: capture Windows runtime UI audit"
           git push origin HEAD:codex/ui-runtime-audit-4.0.12
