@@ -114,7 +114,6 @@ def _populate_success_history(window: MyMAinWindow) -> int:
         Path(rf"D:\Media\Library\分类目录-{index:02d}\TEST-{index:04d} 这是用于滚动和长路径测试的已刮削成功文件名 2160p.mkv")
         for index in range(1, 31)
     }
-    window.pushButton_view_success_file_clicked()
     return len(Flags.success_list)
 
 
@@ -140,12 +139,36 @@ def _populate_failed_log(window: MyMAinWindow) -> int:
     return len(rows)
 
 
-def _capture(window: MyMAinWindow, app: QApplication, output: Path, name: str, width: int, height: int) -> dict[str, object]:
+def _prepare_size(window: MyMAinWindow, app: QApplication, width: int, height: int) -> None:
     window.resize(width, height)
     apply_responsive_layout(window)
     app.processEvents()
+
+
+def _capture(window: MyMAinWindow, app: QApplication, output: Path, name: str, width: int, height: int) -> dict[str, object]:
+    _prepare_size(window, app, width, height)
     size = _render_widget(window, output / f"{width}x{height}-{name}.jpg", quality=84)
     return {"name": name, "window": [width, height], "image": list(size)}
+
+
+def _capture_success_history(
+    window: MyMAinWindow,
+    app: QApplication,
+    output: Path,
+    width: int,
+    height: int,
+) -> dict[str, object]:
+    _prepare_size(window, app, width, height)
+    window.pushButton_view_success_file_clicked()
+    app.processEvents()
+    assert window.Ui.widget_show_success.isVisibleTo(window)
+    size = _render_widget(window, output / f"{width}x{height}-success-history.jpg", quality=84)
+    window.Ui.widget_show_success.hide()
+    return {"name": "success-history", "window": [width, height], "image": list(size)}
+
+
+def _write_report(output: Path, report: dict[str, object]) -> None:
+    (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main() -> None:
@@ -172,18 +195,19 @@ def main() -> None:
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
     for width, height in SIZES:
         report["captures"].append(_capture(window, app, output, "result-tree", width, height))
+    _prepare_size(window, app, 880, 700)
+    window.Ui.treeWidget_number.scrollToBottom()
+    app.processEvents()
+    _render_widget(window, output / "880x700-result-tree-failures.jpg", quality=84)
 
     success_history_count = _populate_success_history(window)
-    app.processEvents()
     report["checks"]["success_history_count"] = success_history_count
+    for width, height in SIZES:
+        report["captures"].append(_capture_success_history(window, app, output, width, height))
     report["checks"]["success_history_text_lines"] = len(window.Ui.textBrowser_show_success_list.toPlainText().splitlines())
+    report["checks"]["success_history_scroll_max"] = window.Ui.textBrowser_show_success_list.verticalScrollBar().maximum()
     assert report["checks"]["success_history_text_lines"] == success_history_count
-    for width, height in ((880, 700), (1100, 760), (1400, 900)):
-        report["captures"].append(_capture(window, app, output, "success-history", width, height))
-    success_scroll = window.Ui.textBrowser_show_success_list.verticalScrollBar()
-    report["checks"]["success_history_scroll_max"] = success_scroll.maximum()
-    assert success_scroll.maximum() > 0
-    window.Ui.widget_show_success.hide()
+    assert report["checks"]["success_history_scroll_max"] > 0
 
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_log)
     failed_log_count = _populate_failed_log(window)
@@ -201,8 +225,6 @@ def main() -> None:
     for width, height in SIZES:
         report["captures"].append(_capture(window, app, output, "failed-log", width, height))
 
-    # Structured failures should switch the same user action from the legacy failed-log panel
-    # to the real Failure Center dialog.
     window.show_hide_failed_list(False)
     Flags.failed_records = _failure_records()
     Flags.failed_list = [record.legacy_tuple() for record in Flags.failed_records]
@@ -221,7 +243,6 @@ def main() -> None:
     app.processEvents()
     _render_widget(dialog, output / "failure-center-920x600.jpg", quality=84)
 
-    # Select a non-retryable record, then a retryable record with debug detail.
     dialog.tree.setCurrentItem(dialog.tree.topLevelItem(1))
     app.processEvents()
     report["checks"]["non_retryable_button_enabled"] = dialog.retry_one.isEnabled()
@@ -250,7 +271,6 @@ def main() -> None:
     assert dialog.tree.topLevelItemCount() == before_rows - 1
     _render_widget(dialog, output / "failure-center-after-retry.jpg", quality=84)
 
-    # Also exercise the ordinary main log with realistic failure messages and a long URL/path.
     dialog.hide()
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_log)
     window.Ui.textBrowser_log_main.clear()
@@ -269,8 +289,16 @@ def main() -> None:
     for width, height in ((880, 700), (1100, 760)):
         report["captures"].append(_capture(window, app, output, "main-failure-log", width, height))
 
-    (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    window.close()
+    _write_report(output, report)
+
+    for timer_name in ("timer", "timer_scrape", "timer_update", "timer_remain_task"):
+        timer = getattr(window, timer_name, None)
+        if timer is not None:
+            timer.stop()
+    dialog.hide()
+    dialog.deleteLater()
+    window.hide()
+    window.deleteLater()
     app.processEvents()
 
 
