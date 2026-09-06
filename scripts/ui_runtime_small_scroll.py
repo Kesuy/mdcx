@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication, QScrollArea
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import apply_responsive_layout
-from scripts.ui_runtime_audit import _configure_cjk_font, _patch_runtime_side_effects, _render_widget
+from ui_runtime_audit import _configure_cjk_font, _patch_runtime_side_effects, _render_widget
 
 
 def main() -> None:
