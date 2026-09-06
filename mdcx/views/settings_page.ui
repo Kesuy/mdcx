@@ -4700,7 +4700,7 @@
                       <item row="3" column="1">
                         <widget class="QLabel" name="label_155">
                           <property name="sizePolicy">
-                            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                               <horstretch>0</horstretch>
                               <verstretch>0</verstretch>
                             </sizepolicy>
@@ -4711,7 +4711,10 @@
                           <property name="semanticRole" stdset="0">
                             <string>help</string>
                           </property>
-                        </widget>
+                          <property name="wordWrap">
+    <bool>true</bool>
+  </property>
+</widget>
                       </item>
                       <item row="12" column="1">
                         <widget class="QLabel" name="label_318">
@@ -18451,7 +18454,7 @@
                       <item row="6" column="1">
                         <widget class="QLabel" name="label_103">
                           <property name="sizePolicy">
-                            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                               <horstretch>0</horstretch>
                               <verstretch>0</verstretch>
                             </sizepolicy>
@@ -18468,7 +18471,10 @@
                           <property name="semanticRole" stdset="0">
                             <string>help</string>
                           </property>
-                        </widget>
+                          <property name="wordWrap">
+    <bool>true</bool>
+  </property>
+</widget>
                       </item>
                       <item row="0" column="1">
                         <layout class="QHBoxLayout" name="horizontalLayout_17">

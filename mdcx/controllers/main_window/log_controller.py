@@ -123,6 +123,9 @@ class LogControllerMixin:
 
     def show_hide_failed_list(self, show):
         if show:
+            # The legacy failed-list actions are intentionally drawn over this panel.
+            # Reserve viewport space so long failure text never sits underneath them.
+            self.Ui.textBrowser_log_main_3.setViewportMargins(0, 58, 0, 50)
             self.Ui.textBrowser_log_main_3.show()
             has_retryable = not Flags.failed_records or any(record.retryable for record in Flags.failed_records)
             self.Ui.pushButton_scraper_failed_list.setVisible(has_retryable)
