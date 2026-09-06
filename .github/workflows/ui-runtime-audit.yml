@@ -6,17 +6,15 @@ on:
       - codex/ui-runtime-audit-4.0.12
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows-runtime-ui:
-    if: github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
         with:
           ref: codex/ui-runtime-audit-4.0.12
-          fetch-depth: 0
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
       - uses: actions/setup-python@v6
         with:
@@ -36,6 +34,8 @@ jobs:
           tests/controllers/test_ui_accessibility.py
           tests/controllers/test_settings_page_ui.py
           tests/controllers/test_failure_center.py
+          tests/controllers/test_site_priority_dialog_ui.py
+          tests/controllers/test_cut_window.py
           -q
       - name: Render real main window at normal scale
         env:
@@ -53,6 +53,11 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           MDCX_OFFLINE: '1'
         run: uv run --locked python scripts/ui_runtime_small_scroll.py
+      - name: Capture standalone dialogs and crop window
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MDCX_OFFLINE: '1'
+        run: uv run --locked python scripts/ui_runtime_dialog_audit.py
       - name: Upload runtime screenshots
         uses: actions/upload-artifact@v4
         with:
@@ -60,16 +65,3 @@ jobs:
           path: ui-audit
           if-no-files-found: error
           retention-days: 1
-      - name: Commit audit screenshots and reports
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ui-audit
-          git diff --cached --check
-          if (git diff --cached --quiet) {
-            Write-Host "Audit screenshots unchanged"
-            exit 0
-          }
-          git commit -m "test: capture Windows runtime UI audit"
-          git push origin HEAD:codex/ui-runtime-audit-4.0.12
