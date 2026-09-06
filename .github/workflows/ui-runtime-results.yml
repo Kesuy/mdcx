@@ -6,6 +6,7 @@ on:
       - codex/ui-runtime-audit-4.0.12
     paths:
       - scripts/ui_runtime_result_audit.py
+      - scripts/ui_runtime_result_audit_runner.py
       - .github/workflows/ui-runtime-results.yml
 
 permissions:
@@ -29,7 +30,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           MDCX_OFFLINE: '1'
           PYTHONFAULTHANDLER: '1'
-        run: uv run --locked python -u scripts/ui_runtime_result_audit.py
+        run: uv run --locked python -u scripts/ui_runtime_result_audit_runner.py
       - name: Upload result-surface screenshots
         if: always()
         uses: actions/upload-artifact@v4
