@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QPushButton,
     QStyle,
+    QStyledItemDelegate,
     QStyleOptionViewItem,
     QTreeWidget,
     QTreeWidgetItem,
@@ -39,6 +40,10 @@ def test_completed_numbers_fit_real_result_pane_without_losing_task_identity(mon
     window.dark_mode = False
     set_style(window)
     tree = window.Ui.treeWidget_number
+    # Python owns this delegate so protected Qt methods are available on every platform.
+    delegate = QStyledItemDelegate(tree)
+    tree.setItemDelegate(delegate)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
     try:
         for order, number in enumerate(("FC2-3164695", "FC2-4747857", "FC2-4757405"), 1):
             data = CrawlersResult.empty()
@@ -59,7 +64,7 @@ def test_completed_numbers_fit_real_result_pane_without_losing_task_identity(mon
                 index = tree.indexFromItem(item)
                 option = QStyleOptionViewItem()
                 option.initFrom(tree)
-                tree.itemDelegate().initStyleOption(option, index)
+                delegate.initStyleOption(option, index)
                 option.rect = tree.visualRect(index)
                 text_rect = tree.style().subElementRect(QStyle.SubElement.SE_ItemViewItemText, option, tree)
                 assert option.fontMetrics.horizontalAdvance(item.text(0)) + 4 <= text_rect.width(), (
