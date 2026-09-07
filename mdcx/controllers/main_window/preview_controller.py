@@ -31,6 +31,8 @@ class PreviewControllerMixin:
             return
         data = show_data.data
         for label, field in (
+            (self.Ui.label_title, CrawlerResultFields.TITLE),
+            (self.Ui.label_actor, CrawlerResultFields.ACTORS),
             (self.Ui.label_outline, CrawlerResultFields.OUTLINE),
             (self.Ui.label_tag, CrawlerResultFields.TAGS),
             (self.Ui.label_director, CrawlerResultFields.DIRECTORS),
@@ -48,6 +50,7 @@ class PreviewControllerMixin:
             other = show_data.other
             self.show_name = show_data.show_name
         else:
+            self.show_data = None
             file_info = FileInfo.empty()
             data = CrawlersResult.empty()
             other = OtherInfo.empty()
@@ -59,19 +62,13 @@ class PreviewControllerMixin:
             actor = str(data.actor)
             if data.all_actor and NfoInclude.ACTOR_ALL in manager.config.nfo_include_new:
                 actor = str(data.all_actor)
-            self.Ui.label_actor.setToolTip(self._provenance_tooltip(data, CrawlerResultFields.ACTORS, actor))
             if number and not actor:
                 actor = manager.config.actor_no_name
-            if len(actor) > 10:
-                actor = actor[:9] + "……"
-            self.Ui.label_actor.setText(actor)
+            set_elided_label_text(self.Ui.label_actor, actor, mode=Qt.TextElideMode.ElideRight)
             self.file_main_open_path = file_info.file_path  # 文件路径
 
             title = data.title.split("\n")[0].strip(" :")
-            self.Ui.label_title.setToolTip(self._provenance_tooltip(data, CrawlerResultFields.TITLE, title))
-            if len(title) > 27:
-                title = title[:25] + "……"
-            self.Ui.label_title.setText(title)
+            set_elided_label_text(self.Ui.label_title, title, mode=Qt.TextElideMode.ElideRight)
             outline = str(data.outline)
             set_elided_label_text(self.Ui.label_outline, outline, mode=Qt.TextElideMode.ElideRight)
             self.Ui.label_outline.setToolTip(
@@ -95,6 +92,19 @@ class PreviewControllerMixin:
             set_elided_label_text(self.Ui.label_series, str(data.series), mode=Qt.TextElideMode.ElideRight)
             set_elided_label_text(self.Ui.label_studio, data.studio, mode=Qt.TextElideMode.ElideRight)
             set_elided_label_text(self.Ui.label_publish, data.publisher, mode=Qt.TextElideMode.ElideRight)
+            if show_data is not None:
+                for label in (
+                    self.Ui.label_outline,
+                    self.Ui.label_tag,
+                    self.Ui.label_release,
+                    self.Ui.label_runtime,
+                    self.Ui.label_director,
+                    self.Ui.label_series,
+                    self.Ui.label_studio,
+                    self.Ui.label_publish,
+                ):
+                    if not label.property("mdcxFullText"):
+                        set_elided_label_text(label, "暂无", mode=Qt.TextElideMode.ElideRight)
             for label, field in (
                 (self.Ui.label_director, CrawlerResultFields.DIRECTORS),
                 (self.Ui.label_studio, CrawlerResultFields.STUDIO),

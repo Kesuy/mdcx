@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QLayout,
     QScrollArea,
     QSizeGrip,
     QSizePolicy,
@@ -36,7 +37,7 @@ STACKED_RIGHT_MARGIN = 59
 STACKED_BOTTOM_MARGIN = 2
 RESULT_LEFT = 590
 RESULT_RIGHT_MARGIN = 10
-DETAIL_FIELD_ROW_HEIGHT = 50
+DETAIL_FIELD_ROW_HEIGHT = 36
 MAIN_SUMMARY_HEIGHT = 80
 IMAGE_FOOTER_HEIGHT = 30
 IMAGE_MIN_HEIGHT = 160
@@ -112,7 +113,7 @@ def _set_fixed_size(widget: QWidget, width: int, height: int) -> None:
     widget.setMaximumSize(width, height)
 
 
-def _add_underlined_field(
+def _add_detail_field(
     layout: QGridLayout,
     parent: QWidget,
     caption: QWidget,
@@ -121,19 +122,19 @@ def _add_underlined_field(
     row: int,
     column: int,
 ) -> None:
-    field, field_layout = _make_container(parent, f"{value.objectName()}_field")
+    field, field_layout = _make_container(parent, f"{value.objectName()}_field", QGridLayout)
     field_layout.setSpacing(0)
     field.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
     caption.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
+    caption.setFixedWidth(50)
     caption.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     value.setWordWrap(False)
-    value.setMinimumHeight(30)
-    value.setMaximumHeight(32)
-    line.setMinimumHeight(18)
-    line.setMaximumHeight(18)
-    field_layout.addWidget(value, 1)
-    field_layout.addWidget(line)
+    value.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT)
+    field_layout.addWidget(value, 0, 0)
+    line.setFixedHeight(2)
+    line.show()
+    field_layout.addWidget(line, 0, 0, Qt.AlignmentFlag.AlignBottom)
     caption.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
     value.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     layout.setRowMinimumHeight(row, DETAIL_FIELD_ROW_HEIGHT)
@@ -236,11 +237,34 @@ def _sync_main_image_sizes(window: "MyMAinWindow") -> None:
     _set_fixed_size(ui.label_poster_size, poster_width, IMAGE_FOOTER_HEIGHT)
     _set_fixed_size(window._main_image_info, thumb_width, IMAGE_FOOTER_HEIGHT)
     window._main_image_row.setFixedHeight(image_height + IMAGE_FOOTER_HEIGHT)
+    # Share spare height across the information rows instead of leaving it all
+    # below the last row. Keep tall windows from producing oversized fields.
+    row_height = max(
+        DETAIL_FIELD_ROW_HEIGHT,
+        min(64, (detail_pane.height() - MAIN_SUMMARY_HEIGHT - image_height - IMAGE_FOOTER_HEIGHT - 24) // 5),
+    )
+    for caption, value in (
+        (ui.label_18, ui.label_outline),
+        (ui.label_33, ui.label_tag),
+        (ui.label_13, ui.label_release),
+        (ui.label_22, ui.label_runtime),
+        (ui.label_23, ui.label_director),
+        (ui.label_31, ui.label_series),
+        (ui.label_30, ui.label_studio),
+        (ui.label_24, ui.label_publish),
+    ):
+        caption.setFixedHeight(row_height)
+        value.setFixedHeight(row_height)
+        value.parentWidget().setFixedHeight(row_height)
+    window._main_text_detail_panel.setFixedHeight(row_height * 2)
+    window._main_metadata_panel.setFixedHeight(row_height * 3)
     refresh_preview_pixmaps = getattr(window, "refresh_preview_pixmaps", None)
     if refresh_preview_pixmaps is not None:
         refresh_preview_pixmaps()
     for label in (
         ui.label_number,
+        ui.label_title,
+        ui.label_actor,
         ui.label_outline,
         ui.label_tag,
         ui.label_release,
@@ -298,6 +322,8 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     summary_layout.setRowMinimumHeight(1, 40)
     summary_layout.setColumnStretch(1, 2)
     summary_layout.setColumnStretch(3, 2)
+    for caption in (ui.label_number1, ui.label_actor1, ui.label_title1, ui.label_poster1):
+        caption.setFixedWidth(50)
     summary_layout.addWidget(ui.label_number1, 0, 0)
     summary_layout.addWidget(ui.label_number, 0, 1)
     summary_layout.addWidget(ui.label_actor1, 0, 2)
@@ -341,27 +367,32 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
     detail_pane_layout.addWidget(image_row)
 
     detail_panel, detail_layout = _make_container(window._main_detail_pane, "main_text_detail_panel", QGridLayout)
+    window._main_text_detail_panel = detail_panel
     detail_panel.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT * 2)
     detail_layout.setSpacing(0)
+    detail_layout.setHorizontalSpacing(6)
     detail_layout.setColumnStretch(1, 1)
     ui.label_outline.setWordWrap(False)
     ui.label_tag.setWordWrap(False)
-    _add_underlined_field(detail_layout, detail_panel, ui.label_18, ui.label_outline, ui.line_6, 0, 0)
-    _add_underlined_field(detail_layout, detail_panel, ui.label_33, ui.label_tag, ui.line_7, 1, 0)
+    _add_detail_field(detail_layout, detail_panel, ui.label_18, ui.label_outline, ui.line_6, 0, 0)
+    _add_detail_field(detail_layout, detail_panel, ui.label_33, ui.label_tag, ui.line_7, 1, 0)
     detail_pane_layout.addWidget(detail_panel)
 
     metadata_panel, metadata_layout = _make_container(window._main_detail_pane, "main_metadata_panel", QGridLayout)
+    window._main_metadata_panel = metadata_panel
     metadata_panel.setFixedHeight(DETAIL_FIELD_ROW_HEIGHT * 3)
     metadata_layout.setSpacing(0)
+    metadata_layout.setHorizontalSpacing(6)
     metadata_layout.setColumnStretch(1, 1)
-    metadata_layout.setColumnStretch(3, 1)
+    metadata_layout.setColumnMinimumWidth(2, 20)
+    metadata_layout.setColumnStretch(4, 1)
     for row, left_field, right_field in (
         (0, (ui.label_13, ui.label_release, ui.line_8), (ui.label_22, ui.label_runtime, ui.line_9)),
         (1, (ui.label_23, ui.label_director, ui.line_12), (ui.label_31, ui.label_series, ui.line_10)),
         (2, (ui.label_30, ui.label_studio, ui.line_13), (ui.label_24, ui.label_publish, ui.line_11)),
     ):
-        _add_underlined_field(metadata_layout, metadata_panel, *left_field, row, 0)
-        _add_underlined_field(metadata_layout, metadata_panel, *right_field, row, 2)
+        _add_detail_field(metadata_layout, metadata_panel, *left_field, row, 0)
+        _add_detail_field(metadata_layout, metadata_panel, *right_field, row, 3)
     detail_pane_layout.addWidget(metadata_panel)
     detail_pane_layout.addStretch(1)
 
@@ -429,6 +460,10 @@ def _apply_breakpoint(window: "MyMAinWindow", width: int) -> None:
 
 def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
     ui = window.Ui
+    # Legacy sections retain their Designer heights. Keep surplus space below
+    # the form instead of letting a wrapping help row absorb all of it.
+    for layout in ui.tabWidget.findChildren(QLayout):
+        layout.setAlignment(layout.alignment() | Qt.AlignmentFlag.AlignTop)
     ui.tabWidget.tabBar().setExpanding(False)
     ui.tabWidget.setStyleSheet(f"{ui.tabWidget.styleSheet()}\nQTabWidget::tab-bar {{ alignment: center; }}")
 
@@ -478,6 +513,12 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
         for group in groups:
             group.setMaximumWidth(16777215)
             if group.layout() is not None:
+                group.setMinimumHeight(0)
+                layout = group.layout()
+                # Single-holder wrappers were generated from absolute pixel
+                # geometry; their old row height is not a content constraint.
+                if isinstance(layout, QGridLayout) and layout.rowCount() == 1:
+                    layout.setRowMinimumHeight(0, 0)
                 continue
             for holder in group.findChildren(
                 QWidget,
@@ -488,11 +529,9 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
                 holder_right_margin = group.width() - holder.geometry().right() - 1
                 holder_metrics.append((group, holder, holder_right_margin))
 
-        # The Settings .ui still relies on its original vertical coordinates
-        # and group heights. Keep that geometry as the compatibility source and
-        # only widen the page/sections with the viewport. Converting these
-        # pages to one generic QVBoxLayout collapses some groups and lets large
-        # size hints push other pages outside the visible area.
+        # Keep Designer section order and horizontal insets. Layout-backed
+        # sections derive their height from content; unconverted holders still
+        # need the original geometry as a compatibility fallback.
         scroll_area.setWidgetResizable(False)
         scroll_metrics.append((scroll_area, content, content_width, content_height, section_metrics, holder_metrics))
 
@@ -516,7 +555,7 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
             section_width = max(1, content_width - section_x - section_right_margin)
             target_y = section_y + height_delta
             if previous_section_end:
-                adjusted_y = max(target_y, previous_section_end + SETTINGS_SECTION_SPACING)
+                adjusted_y = previous_section_end + SETTINGS_SECTION_SPACING
                 height_delta += adjusted_y - target_y
                 target_y = adjusted_y
             section.setGeometry(section_x, target_y, section_width, base_section_height)
@@ -527,7 +566,7 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
                 layout_height = section_layout.minimumSize().height()
                 if isinstance(section, QGroupBox):
                     layout_height += max(0, section.height() - section.contentsRect().height())
-                required_height = max(required_height, layout_height)
+                required_height = layout_height
                 if section_layout.hasHeightForWidth():
                     required_height = max(required_height, section_layout.heightForWidth(section_width))
             if required_height != base_section_height:
@@ -535,7 +574,9 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
                 height_delta += required_height - base_section_height
             previous_section_end = target_y + required_height
             visible_bottom = max(visible_bottom, target_y + required_height)
-        content.resize(content_width, max(base_height + height_delta, visible_bottom + FORM_SECTION_HORIZONTAL_MARGIN))
+        content.resize(
+            content_width, max(scroll_area.viewport().height(), visible_bottom + FORM_SECTION_HORIZONTAL_MARGIN)
+        )
         for group, holder, holder_right_margin in holder_metrics:
             holder.resize(
                 max(1, group.width() - holder.x() - holder_right_margin),

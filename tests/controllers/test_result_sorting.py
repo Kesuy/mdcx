@@ -1,20 +1,79 @@
 # ruff: noqa: E402, I001
 
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QComboBox, QPushButton, QTreeWidget, QTreeWidgetItem
+from PyQt6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QPushButton,
+    QStyle,
+    QStyleOptionViewItem,
+    QTreeWidget,
+    QTreeWidgetItem,
+)
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
-from mdcx.controllers.main_window.result_model import RESULT_DATA_ROLE, ResultTreeItem, ResultTreeView
+from mdcx.controllers.main_window.result_model import RESULT_DATA_ROLE, RESULT_NAME_ROLE, ResultTreeItem, ResultTreeView
 from mdcx.controllers.main_window.result_sorting import ResultSortEntry, sort_result_entries
+from mdcx.controllers.main_window.responsive_layout import apply_responsive_layout
+from mdcx.controllers.main_window.style import set_style
+from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 
 APP = QApplication.instance() or QApplication([])
+
+
+def test_completed_numbers_fit_real_result_pane_without_losing_task_identity(monkeypatch):
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    font_path = Path("C:/Windows/Fonts/msyh.ttc")
+    font_id = QFontDatabase.addApplicationFont(str(font_path)) if font_path.exists() else -1
+    window = MyMAinWindow()
+    window.dark_mode = False
+    set_style(window)
+    tree = window.Ui.treeWidget_number
+    try:
+        for order, number in enumerate(("FC2-3164695", "FC2-4747857", "FC2-4757405"), 1):
+            data = CrawlersResult.empty()
+            data.number = number
+            data.field_sources[CrawlerResultFields.TITLE] = "fc2ppvdb"
+            name = f"1-{order}.{number}"
+            show_data = ShowData(FileInfo.empty(), data, OtherInfo.empty(), name)
+            window._addTreeChild("succ", name, show_data)
+        window.show()
+        tree.expandAll()
+        for width in (880, 1089, 1600):
+            window.resize(width, 700)
+            for _ in range(4):
+                APP.processEvents()
+                apply_responsive_layout(window)
+            for row in range(window.item_succ.childCount()):
+                item = window.item_succ.child(row)
+                index = tree.indexFromItem(item)
+                option = QStyleOptionViewItem()
+                option.initFrom(tree)
+                tree.itemDelegate().initStyleOption(option, index)
+                option.rect = tree.visualRect(index)
+                text_rect = tree.style().subElementRect(QStyle.SubElement.SE_ItemViewItemText, option, tree)
+                assert option.fontMetrics.horizontalAdvance(item.text(0)) + 4 <= text_rect.width(), (
+                    width,
+                    item.text(0),
+                )
+                assert item.data(0, RESULT_NAME_ROLE) in item.data(0, Qt.ItemDataRole.ToolTipRole)
+                assert item.data(0, RESULT_DATA_ROLE).data.number in item.text(0)
+    finally:
+        window.hide()
+        window.deleteLater()
+        APP.processEvents()
+        if font_id >= 0:
+            QFontDatabase.removeApplicationFont(font_id)
 
 
 def _entries() -> list[ResultSortEntry]:

@@ -75,8 +75,9 @@ class MainPageMixin:
             state = "完成" if result == "succ" else "失败"
             icon = "✓" if result == "succ" else "⚠"
             primary = number or filename
-            filename_suffix = f" — {filename}" if filename != primary else ""
-            display_text = f"{icon} {primary} · {source or '本地'}{filename_suffix}"
+            # The task name usually repeats the number with an order prefix.
+            # Keep it in the tooltip and identity role, not in the narrow row.
+            display_text = f"{icon} {primary} · {source or '本地'}"
             node.setData(
                 0,
                 Qt.ItemDataRole.ToolTipRole,

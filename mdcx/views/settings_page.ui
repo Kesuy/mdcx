@@ -4839,7 +4839,7 @@
                           </property>
                           <property name="minimumSize">
                             <size>
-                              <width>120</width>
+                              <width>130</width>
                               <height>30</height>
                             </size>
                           </property>
@@ -7320,7 +7320,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_51_responsive_layout" columnminimumwidth="90,161,29,181,160,20" columnstretch="90,161,29,181,160,20" rowminimumheight="31,9,70,1,39">
+              <layout class="QGridLayout" name="groupBox_51_responsive_layout">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -7337,9 +7337,9 @@
                   <number>0</number>
                 </property>
                 <property name="verticalSpacing">
-                  <number>0</number>
+                  <number>10</number>
                 </property>
-                <item row="0" column="0" colspan="5">
+                <item row="0" column="0" rowspan="1" colspan="2">
                   <widget class="QWidget" name="horizontalLayoutWidget_20">
                     <layout class="QHBoxLayout" name="horizontalLayout_25">
                       <item>
@@ -7352,7 +7352,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="2" colspan="6">
+                <item row="1" column="0" rowspan="1" colspan="2">
                   <widget class="QLabel" name="label_87">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -7379,14 +7379,14 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="1" rowspan="2">
+                <item row="2" column="0" rowspan="1" colspan="1">
                   <widget class="QPushButton" name="pushButton_add_all_theme_videos">
                     <property name="text">
                       <string>添加所有主题视频</string>
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="3" rowspan="2">
+                <item row="2" column="1" rowspan="1" colspan="1">
                   <widget class="QPushButton" name="pushButton_del_all_theme_videos">
                     <property name="text">
                       <string>删除所有主题视频</string>
@@ -7539,7 +7539,7 @@
               <property name="title">
                 <string>下载高清图</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_52_responsive_layout" columnminimumwidth="20,20,581,20" columnstretch="20,20,581,20" rowminimumheight="30,1,29,1,30,4,41">
+              <layout class="QGridLayout" name="groupBox_52_responsive_layout">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -7556,9 +7556,9 @@
                   <number>0</number>
                 </property>
                 <property name="verticalSpacing">
-                  <number>0</number>
+                  <number>10</number>
                 </property>
-                <item row="0" column="1" rowspan="2" colspan="2">
+                <item row="0" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="horizontalLayoutWidget_24">
                     <layout class="QHBoxLayout" name="horizontalLayout_38">
                       <item>
@@ -7593,7 +7593,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="2" rowspan="3">
+                <item row="1" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="horizontalLayoutWidget_70">
                     <layout class="QHBoxLayout" name="horizontalLayout_158">
                       <property name="spacing">
@@ -7643,7 +7643,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="3" column="2" rowspan="2">
+                <item row="2" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="horizontalLayoutWidget_25">
                     <layout class="QHBoxLayout" name="horizontalLayout_39">
                       <item>
@@ -7678,7 +7678,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="6" column="0" colspan="4">
+                <item row="3" column="0" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_92">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8643,7 +8643,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_77_responsive_layout" columnminimumwidth="24,106,6,211,253,57,2" columnstretch="24,106,6,211,253,57,2" rowminimumheight="16,14,11,5,30,5,11,7,16,7,11,5,30,5,11,7,16,7,11,7,16,7,11,30,38,30">
+              <layout class="QGridLayout" name="groupBox_77_responsive_layout">
                 <property name="leftMargin">
                   <number>21</number>
                 </property>
@@ -8660,9 +8660,9 @@
                   <number>0</number>
                 </property>
                 <property name="verticalSpacing">
-                  <number>0</number>
+                  <number>10</number>
                 </property>
-                <item row="0" column="0" colspan="2">
+                <item row="0" column="0" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_171">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
@@ -8687,7 +8687,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="0" column="3" rowspan="2" colspan="3">
+                <item row="0" column="1" rowspan="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_folder_name_max">
                     <property name="minimumSize">
                       <size>
@@ -8703,7 +8703,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="3" rowspan="3" colspan="4">
+                <item row="1" column="1" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_169">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8727,32 +8727,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="4" column="0" colspan="2">
-                  <widget class="QLabel" name="label_287">
-                    <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                      </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                      <size>
-                        <width>130</width>
-                        <height>30</height>
-                      </size>
-                    </property>
-                    <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
-                    </property>
-                    <property name="text">
-                      <string />
-                    </property>
-                    <property name="alignment">
-                      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                  </widget>
-                </item>
-                <item row="7" column="3" rowspan="3" colspan="3">
+                <item row="2" column="1" rowspan="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_file_name_max">
                     <property name="minimumSize">
                       <size>
@@ -8765,7 +8740,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="8" column="1">
+                <item row="2" column="0" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_170">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -8790,7 +8765,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="11" column="3" rowspan="3" colspan="4">
+                <item row="3" column="1" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_172">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8814,32 +8789,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="12" column="0" colspan="2">
-                  <widget class="QLabel" name="label_289">
-                    <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                      </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                      <size>
-                        <width>130</width>
-                        <height>30</height>
-                      </size>
-                    </property>
-                    <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
-                    </property>
-                    <property name="text">
-                      <string />
-                    </property>
-                    <property name="alignment">
-                      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                  </widget>
-                </item>
-                <item row="15" column="3" rowspan="3" colspan="3">
+                <item row="4" column="1" rowspan="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_actor_name_max">
                     <property name="minimumSize">
                       <size>
@@ -8852,7 +8802,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="16" column="1">
+                <item row="4" column="0" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_167">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -8877,32 +8827,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="19" column="0" rowspan="3" colspan="2">
-                  <widget class="QLabel" name="label_290">
-                    <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                      </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                      <size>
-                        <width>130</width>
-                        <height>30</height>
-                      </size>
-                    </property>
-                    <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
-                    </property>
-                    <property name="text">
-                      <string />
-                    </property>
-                    <property name="alignment">
-                      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                  </widget>
-                </item>
-                <item row="20" column="3" colspan="2">
+                <item row="5" column="1" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_168">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8918,7 +8843,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="23" column="3">
+                <item row="6" column="1" rowspan="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_actor_name_more">
                     <property name="minimumSize">
                       <size>
@@ -8928,31 +8853,6 @@
                     </property>
                     <property name="semanticRole" stdset="0">
                       <string>code</string>
-                    </property>
-                  </widget>
-                </item>
-                <item row="25" column="0" colspan="2">
-                  <widget class="QLabel" name="label_288">
-                    <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                      </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                      <size>
-                        <width>130</width>
-                        <height>30</height>
-                      </size>
-                    </property>
-                    <property name="layoutDirection">
-                      <enum>Qt::RightToLeft</enum>
-                    </property>
-                    <property name="text">
-                      <string />
-                    </property>
-                    <property name="alignment">
-                      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                     </property>
                   </widget>
                 </item>
@@ -10057,7 +9957,7 @@
               <property name="title">
                 <string>画质命名规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_65_responsive_layout" columnminimumwidth="1,29,101,6,3,100,150,206,52,3,10" columnstretch="1,29,101,6,3,100,150,206,52,3,10" rowminimumheight="77,13,40,1,50,7,3,27,3,9,16">
+              <layout class="QGridLayout" name="groupBox_65_responsive_layout">
                 <property name="leftMargin">
                   <number>30</number>
                 </property>
@@ -10074,9 +9974,9 @@
                   <number>0</number>
                 </property>
                 <property name="verticalSpacing">
-                  <number>0</number>
+                  <number>10</number>
                 </property>
-                <item row="0" column="2" colspan="8">
+                <item row="0" column="0" rowspan="1" colspan="3">
                   <widget class="QWidget" name="gridLayoutWidget_35">
                     <layout class="QGridLayout" name="gridLayout_43">
                       <item row="0" column="0">
@@ -10155,7 +10055,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="2" column="2" rowspan="2" colspan="8">
+                <item row="1" column="0" rowspan="1" colspan="3">
                   <widget class="QLabel" name="label_331">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -10174,7 +10074,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="0" rowspan="2" colspan="11">
+                <item row="2" column="0" rowspan="1" colspan="3">
                   <widget class="QFrame" name="frame_6">
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -10260,7 +10160,7 @@
                     </widget>
                   </widget>
                 </item>
-                <item row="6" column="1" rowspan="2" colspan="2">
+                <item row="3" column="0" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_357">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -10285,7 +10185,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="7" column="5" rowspan="2">
+                <item row="3" column="1" rowspan="1" colspan="1">
                   <widget class="QCheckBox" name="checkBox_foldername_4k">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -10304,7 +10204,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="7" column="7" rowspan="2">
+                <item row="3" column="2" rowspan="1" colspan="1">
                   <widget class="QCheckBox" name="checkBox_filename_4k">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -10323,7 +10223,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="10" column="4" colspan="5">
+                <item row="4" column="0" rowspan="1" colspan="3">
                   <widget class="QLabel" name="label_358">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -10769,47 +10669,6 @@
                           </property>
                           <property name="alignment">
                             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                          </property>
-                        </widget>
-                      </item>
-                      <item row="0" column="0">
-                        <widget class="QLabel" name="label_81">
-                          <property name="sizePolicy">
-                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                              <horstretch>0</horstretch>
-                              <verstretch>0</verstretch>
-                            </sizepolicy>
-                          </property>
-                          <property name="minimumSize">
-                            <size>
-                              <width>130</width>
-                              <height>30</height>
-                            </size>
-                          </property>
-                          <property name="layoutDirection">
-                            <enum>Qt::LeftToRight</enum>
-                          </property>
-                          <property name="text">
-                            <string>翻译引擎：</string>
-                          </property>
-                          <property name="alignment">
-                            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                          </property>
-                        </widget>
-                      </item>
-                      <item row="4" column="1">
-                        <widget class="QLabel" name="label_60">
-                          <property name="sizePolicy">
-                            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                              <horstretch>0</horstretch>
-                              <verstretch>0</verstretch>
-                            </sizepolicy>
-                          </property>
-                          <property name="text">
-                            <string>DeepL 与 DeepLX 为独立选项；分别填写对应配置后即可使用。</string>
-                          </property>
-                          <property name="semanticRole" stdset="0">
-                            <string>help</string>
                           </property>
                         </widget>
                       </item>
@@ -12448,7 +12307,7 @@
                             <enum>Qt::LeftToRight</enum>
                           </property>
                           <property name="text">
-                            <string>发行商语言：</string>
+                            <string>导演语言：</string>
                           </property>
                           <property name="alignment">
                             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -14051,7 +13910,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_42_responsive_layout" columnminimumwidth="664" columnstretch="664" rowminimumheight="50,9,31,11,48">
+              <layout class="QGridLayout" name="groupBox_42_responsive_layout">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -14068,9 +13927,9 @@
                   <number>0</number>
                 </property>
                 <property name="verticalSpacing">
-                  <number>0</number>
+                  <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="2">
+                <item row="0" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_31">
                     <layout class="QGridLayout" name="gridLayout_31">
                       <item row="0" column="1">
@@ -14181,7 +14040,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="3">
+                <item row="1" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_29">
                     <layout class="QGridLayout" name="gridLayout_29">
                       <item row="0" column="1">
@@ -14292,7 +14151,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="3" column="0" rowspan="2">
+                <item row="2" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_32">
                     <layout class="QGridLayout" name="gridLayout_39">
                       <item row="0" column="1">
@@ -19077,7 +18936,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_14_responsive_layout" columnminimumwidth="100,40,441,80" columnstretch="100,40,441,80" rowminimumheight="51,9,40,1,42">
+              <layout class="QGridLayout" name="groupBox_14_responsive_layout">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -19094,9 +18953,9 @@
                   <number>0</number>
                 </property>
                 <property name="verticalSpacing">
-                  <number>0</number>
+                  <number>10</number>
                 </property>
-                <item row="0" column="0" colspan="4">
+                <item row="0" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_11">
                     <layout class="QGridLayout" name="gridLayout_65">
                       <item row="0" column="0">
@@ -19146,7 +19005,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="2" column="1" rowspan="2" colspan="3">
+                <item row="1" column="0" rowspan="1" colspan="1">
                   <widget class="QLabel" name="label_356">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -19182,7 +19041,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="2" rowspan="2">
+                <item row="2" column="0" rowspan="1" colspan="1">
                   <widget class="QWidget" name="layoutWidget">
                     <layout class="QHBoxLayout" name="horizontalLayout_150">
                       <item>

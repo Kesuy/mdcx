@@ -1,5 +1,8 @@
+from pathlib import Path
+
+import pytest
 from PyQt6.QtCore import QPoint, Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QFontDatabase, QPixmap
 from PyQt6.QtWidgets import QSplitter, QWidget
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
@@ -11,8 +14,64 @@ from mdcx.controllers.main_window.responsive_layout import (
     apply_responsive_layout,
     setup_responsive_ui,
 )
-from mdcx.controllers.main_window.style import set_style
+from mdcx.controllers.main_window.style import set_dark_style, set_style
+from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 from tests.layout_test_support import APP, generated_ui_window
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_real_preview_resizes_without_losing_full_text_or_field_alignment(monkeypatch, dark):
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    font_path = Path("C:/Windows/Fonts/msyh.ttc")
+    font_id = QFontDatabase.addApplicationFont(str(font_path)) if font_path.exists() else -1
+    window = MyMAinWindow()
+    try:
+        window.dark_mode = dark
+        (set_dark_style if dark else set_style)(window)
+        window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
+        data = CrawlersResult.empty()
+        data.number = "DEMO-001"
+        data.title = "A long preview title that expands as the window grows " * 3
+        data.release = "2026-07-17"
+        window.set_main_info(ShowData(FileInfo.empty(), data, OtherInfo.empty(), data.number))
+        window.show()
+        lengths = []
+        for width in (880, 1089, 1600):
+            window.resize(width, 820)
+            for _ in range(4):
+                APP.processEvents()
+                apply_responsive_layout(window)
+            assert window.Ui.label_outline.text() == "暂无"
+            assert window.Ui.label_director.text() == "暂无"
+            assert window.Ui.label_title.property("mdcxFullText") == data.title.strip()
+            assert data.title.strip() in window.Ui.label_title.toolTip()
+            lengths.append(len(window.Ui.label_title.text()))
+            labels = (window.Ui.label_number, window.Ui.label_outline, window.Ui.label_tag, window.Ui.label_release)
+            starts = [label.mapTo(window._main_detail_pane, QPoint(0, 0)).x() for label in labels]
+            assert len(set(starts)) == 1
+            for label in labels:
+                assert label.fontMetrics().horizontalAdvance(label.text()) <= label.contentsRect().width()
+        assert lengths[-1] > lengths[0]
+        for height in (700, 820, 700):
+            window.resize(1089, height)
+            for _ in range(4):
+                APP.processEvents()
+                apply_responsive_layout(window)
+            assert window.height() == height
+            last_line = window.Ui.line_11
+            bottom = last_line.mapTo(window._main_detail_pane, QPoint(0, last_line.height())).y()
+            assert 0 <= window._main_detail_pane.height() - bottom <= 80
+            assert window.Ui.line_6.isVisible()
+        window.set_main_info(None)
+        assert window.Ui.label_outline.text() == ""
+        assert window.Ui.label_title.toolTip() == ""
+    finally:
+        window.hide()
+        window.deleteLater()
+        APP.processEvents()
+        if font_id >= 0:
+            QFontDatabase.removeApplicationFont(font_id)
 
 
 def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_controls():
@@ -203,7 +262,7 @@ def test_preview_pixmaps_keep_source_aspect_ratio_and_center_in_frames():
     window.close()
 
 
-def test_main_metadata_rows_keep_the_original_fifty_pixel_rhythm():
+def test_main_metadata_rows_align_captions_and_values_with_underlines():
     window = generated_ui_window()
     setup_responsive_ui(window)
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_main)
@@ -214,13 +273,21 @@ def test_main_metadata_rows_keep_the_original_fifty_pixel_rhythm():
     def detail_y(widget):
         return widget.mapTo(window._main_detail_pane, QPoint(0, 0)).y()
 
-    assert detail_y(window.Ui.label_33) - detail_y(window.Ui.label_18) == 50
-    assert detail_y(window.Ui.label_23) - detail_y(window.Ui.label_13) == 50
-    assert detail_y(window.Ui.label_30) - detail_y(window.Ui.label_23) == 50
-    assert window.Ui.label_outline.height() == 32
+    assert detail_y(window.Ui.label_33) - detail_y(window.Ui.label_18) == 36
+    assert detail_y(window.Ui.label_23) - detail_y(window.Ui.label_13) == 36
+    assert detail_y(window.Ui.label_30) - detail_y(window.Ui.label_23) == 36
+    assert detail_y(window.Ui.label_18) == detail_y(window.Ui.label_outline)
+    assert detail_y(window.Ui.label_13) == detail_y(window.Ui.label_release)
+    assert window.Ui.label_outline.height() == 36
     assert not window.Ui.label_outline.wordWrap()
     assert not window.Ui.label_tag.wordWrap()
-    assert window.Ui.label_release.height() == 32
+    assert window.Ui.label_release.height() == 36
+    assert window.Ui.line_6.isVisible()
+    assert window.Ui.line_8.isVisible()
+    release_end = window.Ui.label_release.mapTo(window._main_detail_pane, QPoint(0, 0)).x()
+    release_end += window.Ui.label_release.width()
+    runtime_start = window.Ui.label_22.mapTo(window._main_detail_pane, QPoint(0, 0)).x()
+    assert runtime_start - release_end >= 20
     for label in (
         window.Ui.label_release,
         window.Ui.label_runtime,

@@ -1,5 +1,9 @@
+from pathlib import Path
+
+import pytest
 from PyQt6.QtCore import QPoint, Qt
-from PyQt6.QtWidgets import QGroupBox, QWidget
+from PyQt6.QtGui import QFontDatabase
+from PyQt6.QtWidgets import QGroupBox, QLabel, QWidget
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import (
@@ -10,8 +14,65 @@ from mdcx.controllers.main_window.responsive_layout import (
     setup_responsive_ui,
 )
 from mdcx.controllers.main_window.settings_page import SettingsPageController
-from mdcx.controllers.main_window.style import set_style
+from mdcx.controllers.main_window.style import set_dark_style, set_style
 from tests.layout_test_support import APP, generated_ui_window
+
+
+@pytest.mark.parametrize("width", [880, 1089, 1600])
+@pytest.mark.parametrize("advanced", [False, True])
+@pytest.mark.parametrize("dark", [False, True])
+def test_real_settings_pages_have_no_overlaps_or_stretched_help(monkeypatch, width, advanced, dark):
+    # Exercise real dynamic controls, theme, resize callbacks and event delivery.
+    # Disable startup I/O and user-config loading, not UI initialization.
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    # The Windows offscreen plugin does not discover system fonts itself.
+    font_path = Path("C:/Windows/Fonts/msyh.ttc")
+    font_id = QFontDatabase.addApplicationFont(str(font_path)) if font_path.exists() else -1
+    window = MyMAinWindow()
+    window.dark_mode = dark
+    (set_dark_style if dark else set_style)(window)
+    window.settings_controller._toggle_advanced(advanced)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    window.resize(width, 900)
+    window.show()
+    try:
+        for index in range(window.Ui.tabWidget.count()):
+            window.Ui.tabWidget.setCurrentIndex(index)
+            for _ in range(4):
+                APP.processEvents()
+                apply_responsive_layout(window)
+            page = window.Ui.tabWidget.currentWidget()
+            for parent in page.findChildren(QWidget):
+                if not parent.isVisible() or parent.layout() is None:
+                    continue
+                children = [
+                    child
+                    for child in parent.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly)
+                    if child.isVisible() and (not isinstance(child, QLabel) or child.text())
+                ]
+                for position, child in enumerate(children):
+                    context = (width, advanced, index, parent.objectName(), child.objectName())
+                    assert parent.rect().adjusted(-2, -2, 2, 2).contains(child.geometry()), context
+                    for sibling in children[position + 1 :]:
+                        overlap = child.geometry().intersected(sibling.geometry())
+                        assert overlap.width() <= 2 or overlap.height() <= 2, (*context, sibling.objectName())
+                    if (
+                        isinstance(child, QLabel)
+                        and child.wordWrap()
+                        and child.sizePolicy().verticalPolicy() == child.sizePolicy().Policy.Preferred
+                    ):
+                        expected = max(child.minimumHeight(), child.heightForWidth(child.width()))
+                        assert child.height() <= expected + 4, (*context, child.height(), expected)
+        assert window.Ui.label_267.text() == "导演语言："
+        assert window.Ui.lineEdit_actor_name_max.y() < window.Ui.label_168.y()
+        assert window.Ui.lineEdit_actor_name_max.x() == window.Ui.lineEdit_file_name_max.x()
+    finally:
+        window.hide()
+        window.deleteLater()
+        APP.processEvents()
+        if font_id >= 0:
+            QFontDatabase.removeApplicationFont(font_id)
 
 
 def test_settings_tabs_contents_scrollbars_and_footer_expand_consistently():
