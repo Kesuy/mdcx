@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRect, QSize, Qt, QTimer
+from PyQt6.QtCore import QEvent, QObject, QRect, QSize, Qt, QTimer
 from PyQt6.QtWidgets import (
     QGridLayout,
     QGroupBox,
@@ -48,6 +48,13 @@ IMAGE_ASPECT_HEIGHT = 220
 PAGE_BOTTOM_MARGIN = 8
 FORM_SECTION_HORIZONTAL_MARGIN = 29
 SETTINGS_SECTION_SPACING = 19
+
+
+class _SettingsViewportResizeFilter(QObject):
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Resize:
+            _schedule_content_pane_sync(self.parent())
+        return False
 
 
 @dataclass(frozen=True)
@@ -460,10 +467,15 @@ def _apply_breakpoint(window: "MyMAinWindow", width: int) -> None:
 
 def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
     ui = window.Ui
+    viewport_filter = _SettingsViewportResizeFilter(window)
+    window._settings_viewport_resize_filter = viewport_filter
     # Legacy sections retain their Designer heights. Keep surplus space below
     # the form instead of letting a wrapping help row absorb all of it.
-    for layout in ui.tabWidget.findChildren(QLayout):
-        layout.setAlignment(layout.alignment() | Qt.AlignmentFlag.AlignTop)
+    # Only align form layouts exported by Designer. Recursing into Qt's private
+    # combo popup and scrollbar layouts collapses their viewports to zero.
+    for layout in vars(ui).values():
+        if isinstance(layout, QLayout) and ui.tabWidget.isAncestorOf(layout.parentWidget()):
+            layout.setAlignment(layout.alignment() | Qt.AlignmentFlag.AlignTop)
     ui.tabWidget.tabBar().setExpanding(False)
     ui.tabWidget.setStyleSheet(f"{ui.tabWidget.styleSheet()}\nQTabWidget::tab-bar {{ alignment: center; }}")
 
@@ -483,6 +495,8 @@ def _setup_settings_scroll_areas(window: "MyMAinWindow") -> None:
         tab_layout.setSpacing(0)
         tab_layout.addWidget(scroll_area)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.viewport().installEventFilter(viewport_filter)
 
         content = scroll_area.widget()
         content_width = content.width()
@@ -568,7 +582,9 @@ def _sync_settings_scroll_areas(window: "MyMAinWindow") -> None:
                     layout_height += max(0, section.height() - section.contentsRect().height())
                 required_height = layout_height
                 if section_layout.hasHeightForWidth():
-                    required_height = max(required_height, section_layout.heightForWidth(section_width))
+                    wrapped_height = section_layout.totalHeightForWidth(section_width)
+                    if wrapped_height >= 0:
+                        required_height = wrapped_height
             if required_height != base_section_height:
                 section.resize(section_width, required_height)
                 height_delta += required_height - base_section_height

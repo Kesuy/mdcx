@@ -78,11 +78,20 @@ class MainPageMixin:
             # The task name usually repeats the number with an order prefix.
             # Keep it in the tooltip and identity role, not in the narrow row.
             display_text = f"{icon} {primary} · {source or '本地'}"
+            warnings = []
+            if result == "succ":
+                if show_data.other.fanart_failed:
+                    display_text += " · ⚠图"
+                    warnings.append("艺术图获取失败")
+                if show_data.other.face_detection_failed:
+                    display_text += " · ⚠脸"
+                    warnings.append("未检测到有效人脸，已使用居中裁剪")
             node.setData(
                 0,
                 Qt.ItemDataRole.ToolTipRole,
                 f"状态：{state}\n番号/名称：{number or filename}\n来源：{source or '本地'}\n{filename}"
-                + ("\n双击打开失败中心并重试" if result == "fail" else ""),
+                + ("\n双击打开失败中心并重试" if result == "fail" else "")
+                + ("\n" + "\n".join(warnings) if warnings else ""),
             )
         node.setText(0, display_text)
         if result == "succ":
@@ -741,8 +750,45 @@ class MainPageMixin:
         """
         file_info = None if self.show_data is None else self.show_data.file_info
         cutwindow = self._get_cutwindow()
-        cutwindow.showimage(self.img_path, file_info)
+        image_path = None
+        if self.show_data is not None:
+            image_path = next(
+                (
+                    p
+                    for p in (
+                        self.show_data.other.fanart_path,
+                        self.show_data.other.thumb_path,
+                        self.show_data.other.poster_path,
+                    )
+                    if p is not None and p.is_file()
+                ),
+                None,
+            )
+        cutwindow.showimage(image_path, file_info, new_movie=True)
         cutwindow.show()
+
+    def _crop_navigation_entries(self):
+        """Follow the visible proxy order, including the current filter and sort."""
+        tree = self.Ui.treeWidget_number
+        model = tree.model()
+        entries = []
+        for row in range(model.rowCount()):
+            parent = model.index(row, 0)
+            for child_row in range(model.rowCount(parent)):
+                item = tree.itemFromIndex(model.index(child_row, 0, parent))
+                data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(_result_item_name(item))
+                if data is None:
+                    continue
+                path = next(
+                    (
+                        p
+                        for p in (data.other.fanart_path, data.other.thumb_path, data.other.poster_path)
+                        if p is not None and p.is_file()
+                    ),
+                    None,
+                )
+                entries.append((item, data, path))
+        return entries
 
     def checkBox_cover_clicked(self):
         if not self.Ui.checkBox_cover.isChecked():

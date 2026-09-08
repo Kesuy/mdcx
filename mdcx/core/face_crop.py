@@ -279,3 +279,18 @@ def get_face_crop_left(image: Image.Image, crop_width: int, log_fn=None) -> int 
     )
     _log_face(message, log_fn)
     return left
+
+
+def get_face_crop_box(image: Image.Image, crop_width: int, crop_height: int) -> tuple[int, int, int, int] | None:
+    """Position the manual crop rectangle around a face without changing its ratio."""
+    crop_width = min(max(1, crop_width), image.width)
+    crop_height = min(max(1, crop_height), image.height)
+    with image.convert("RGB") as rgb:
+        pixels = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
+    faces, _ = _detect_faces_with_rotation_fallback(pixels)
+    face = _select_primary_face(faces, image.width)
+    if face is None:
+        return None
+    left = _build_face_focus_left(image.width, crop_width, face)
+    top = max(0, min(round(face.top + face.height / 2 - crop_height / 2), image.height - crop_height))
+    return left, top, left + crop_width, top + crop_height

@@ -23,7 +23,6 @@ from .mosaic import normalize_mosaic
 AVWIKI_SCRAPING_TYPES = {
     FixedScrapingType.YOUMA,
     FixedScrapingType.SUREN,
-    FixedScrapingType.FC2,
 }
 
 

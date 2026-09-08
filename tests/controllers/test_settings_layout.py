@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QPoint, Qt
-from PyQt6.QtGui import QFontDatabase
-from PyQt6.QtWidgets import QGroupBox, QLabel, QWidget
+from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtGui import QFontDatabase, QWheelEvent
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QGroupBox, QLabel, QScrollArea, QWidget
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import (
@@ -16,6 +17,121 @@ from mdcx.controllers.main_window.responsive_layout import (
 from mdcx.controllers.main_window.settings_page import SettingsPageController
 from mdcx.controllers.main_window.style import set_dark_style, set_style
 from tests.layout_test_support import APP, generated_ui_window
+
+
+def test_settings_scrollbars_adapt_to_viewport_and_visible_content(monkeypatch):
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    window = MyMAinWindow()
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    window.show()
+    saw_scrollbar = saw_fitting_page = False
+    try:
+        for width, height in ((880, 700), (1600, 1600), (1089, 900)):
+            window.resize(width, height)
+            for advanced in (True, False):
+                window.settings_controller._toggle_advanced(advanced)
+                for index in range(window.Ui.tabWidget.count()):
+                    window.Ui.tabWidget.setCurrentIndex(index)
+                    for _ in range(6):
+                        APP.processEvents()
+                    assert not window._responsive_content_sync_timer.isActive()
+                    for area in window.Ui.tabWidget.currentWidget().findChildren(QScrollArea):
+                        bar = area.verticalScrollBar()
+                        viewport = area.viewport()
+                        context = (width, height, advanced, index, area.objectName())
+                        assert area.widget().width() == viewport.width(), context
+                        assert bar.maximum() == max(0, area.widget().height() - viewport.height()), context
+                        assert bar.pageStep() == viewport.height(), context
+                        if bar.maximum():
+                            saw_scrollbar = True
+                            assert bar.isVisible(), context
+                            assert abs(bar.height() - viewport.height()) <= 2, context
+                            bar.setValue(bar.maximum())
+                            assert area.widget().y() + area.widget().height() == viewport.height(), context
+                        else:
+                            saw_fitting_page = True
+                            assert not bar.isVisible(), context
+        assert saw_scrollbar and saw_fitting_page
+    finally:
+        window.task_manager.shutdown()
+        window.hide()
+        window.deleteLater()
+        APP.processEvents()
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_settings_mouse_tabs_scrollbars_and_open_combo_popups(monkeypatch, dark):
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    window = MyMAinWindow()
+    window.dark_mode = dark
+    (set_dark_style if dark else set_style)(window)
+    window.settings_controller._toggle_advanced(True)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    window.resize(1089, 700)
+    window.show()
+    APP.installEventFilter(window)
+    visited = set()
+    scrolled = 0
+    try:
+        tabs = window.Ui.tabWidget
+        for page_index in range(tabs.count()):
+            QTest.mouseClick(tabs.tabBar(), Qt.MouseButton.LeftButton, pos=tabs.tabBar().tabRect(page_index).center())
+            APP.processEvents()
+            assert tabs.currentIndex() == page_index
+            for area in tabs.currentWidget().findChildren(QScrollArea):
+                bar = area.verticalScrollBar()
+                if bar.maximum() > 0:
+                    assert bar.isVisible() and bar.height() > 100, area.objectName()
+                    bar.setValue(0)
+                    point = QPointF(area.viewport().rect().center())
+                    wheel = QWheelEvent(
+                        point,
+                        point,
+                        QPoint(),
+                        QPoint(0, -120),
+                        Qt.MouseButton.NoButton,
+                        Qt.KeyboardModifier.NoModifier,
+                        Qt.ScrollPhase.NoScrollPhase,
+                        False,
+                    )
+                    APP.sendEvent(area.viewport(), wheel)
+                    assert bar.value() > 0, area.objectName()
+                    QTest.keyClick(bar, Qt.Key.Key_End)
+                    assert bar.value() == bar.maximum()
+                    scrolled += 1
+                for combo in area.findChildren(QComboBox):
+                    if not combo.isVisible():
+                        continue
+                    assert combo.count() > 0, combo.objectName()
+                    area.ensureWidgetVisible(combo)
+                    APP.processEvents()
+                    QTest.mouseClick(combo, Qt.MouseButton.LeftButton, pos=combo.rect().center())
+                    # Let Qt's popup-opening mouse-release guard expire before
+                    # the separate user click selecting an option.
+                    QTest.qWait(160)
+                    view = combo.view()
+                    assert view.isVisible(), combo.objectName()
+                    assert view.viewport().height() >= view.sizeHintForRow(0), combo.objectName()
+                    index = view.model().index(combo.count() - 1, 0)
+                    view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtBottom)
+                    APP.processEvents()
+                    rect = view.visualRect(index)
+                    assert view.viewport().rect().contains(rect.center()), combo.objectName()
+                    QTest.mouseMove(view.viewport(), rect.center())
+                    QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+                    assert combo.currentIndex() == combo.count() - 1, combo.objectName()
+                    visited.add(combo.objectName())
+                    combo.hidePopup()
+        assert {"comboBox_website_all", "comboBox_fixed_scraping_type"} <= visited
+        assert scrolled >= 8
+    finally:
+        APP.removeEventFilter(window)
+        window.task_manager.shutdown()
+        window.hide()
+        window.deleteLater()
+        APP.processEvents()
 
 
 @pytest.mark.parametrize("width", [880, 1089, 1600])

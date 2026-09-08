@@ -1,3 +1,4 @@
+import asyncio
 import os
 import stat
 import tempfile
@@ -16,8 +17,8 @@ from ..config.manager import manager
 from ..config.models import MarkType
 from ..core.file import get_file_info_v2
 from ..core.mosaic import has_leak_mark, has_umr_mark, has_uncensored_mark, is_censored_mosaic
+from ..task_manager import QtTaskManager
 from ..utils import executor
-from ..utils.file import delete_file_sync
 from ..views.posterCutTool import Ui_Dialog_cut_poster
 from .main_window.style import get_theme_tokens
 
@@ -85,6 +86,9 @@ class CutWindow(QDialog):
         self.Ui = Ui_Dialog_cut_poster()  # 实例化 Ui
         self.Ui.setupUi(self)  # 初始化Ui
         self.main_window = parent
+        self._face_tasks = QtTaskManager(self)
+        self._current_show_name = ""
+        self._saved_state = None
         self._setup_ui_layout()
         self.m_drag = False  # 允许拖动
         self.m_DragPosition = None  # 拖动位置
@@ -115,15 +119,18 @@ class CutWindow(QDialog):
         self.Ui.pushButton_cut_close.clicked.connect(self.do_cut_and_close)
         self.Ui.pushButton_cut.clicked.connect(self.do_cut)
         self.Ui.pushButton_close.clicked.connect(self.close)
+        self.Ui.pushButton_auto_face.clicked.connect(self.auto_face)
+        self.Ui.pushButton_previous.clicked.connect(lambda: self._navigate(-1))
+        self.Ui.pushButton_next.clicked.connect(lambda: self._navigate(1))
         self.showimage()
 
     def _setup_ui_layout(self):
         """Arrange the fixed-size crop dialog into preview, controls, and actions."""
-        self.setFixedSize(1080, 680)
+        self.setFixedSize(1080, 720)
         self.Ui.widget_cutimage.setGeometry(0, 0, 800, 600)
         self.Ui.label_backgroud_pic.setGeometry(0, 0, 800, 600)
-        self.Ui.widget.setGeometry(800, 0, 280, 680)
-        self.Ui.widget_2.setGeometry(0, 600, 800, 80)
+        self.Ui.widget.setGeometry(800, 0, 280, 720)
+        self.Ui.widget_2.setGeometry(0, 600, 800, 120)
 
         self.Ui.pushButton_open_pic.setGeometry(30, 20, 220, 40)
         self.Ui.pushButton_rotate_left.setGeometry(30, 70, 105, 40)
@@ -143,12 +150,12 @@ class CutWindow(QDialog):
         self.Ui.label.setText("当前高宽比例：")
         self.Ui.comboBox_cut_ratio.setGeometry(30, 325, 105, 32)
         self.Ui.checkBox_keep_ratio.setGeometry(150, 325, 100, 32)
-        self.Ui.label_2.setGeometry(20, 375, 220, 16)
-        self.Ui.gridLayoutWidget.setGeometry(20, 400, 230, 80)
-        self.Ui.widget1.setGeometry(20, 485, 230, 31)
-        self.Ui.pushButton_cut_close.setGeometry(30, 535, 220, 50)
-        self.Ui.pushButton_cut.setGeometry(30, 595, 105, 40)
-        self.Ui.pushButton_close.setGeometry(145, 595, 105, 40)
+        self.Ui.label_2.setGeometry(20, 415, 220, 16)
+        self.Ui.gridLayoutWidget.setGeometry(20, 440, 230, 80)
+        self.Ui.widget1.setGeometry(20, 525, 230, 31)
+        self.Ui.pushButton_cut_close.setGeometry(30, 575, 220, 50)
+        self.Ui.pushButton_cut.setGeometry(30, 635, 105, 40)
+        self.Ui.pushButton_close.setGeometry(145, 635, 105, 40)
 
         self.Ui.label_4.setGeometry(30, 12, 141, 16)
         self.Ui.horizontalSlider_left.setGeometry(30, 38, 330, 21)
@@ -426,33 +433,32 @@ class CutWindow(QDialog):
         return image.copy() if transpose is None else image.transpose(transpose)
 
     def _save_full_image(self, image: Image.Image, target_path: Path, source_path: Path):
-        if target_path == source_path:
-            source_mode = stat.S_IMODE(source_path.stat().st_mode)
-            image_format = Image.registered_extensions().get(target_path.suffix.lower(), "JPEG")
-            temp_fd, temp_name = tempfile.mkstemp(
-                prefix=f".{target_path.stem}.mdcx-rotate-", suffix=target_path.suffix, dir=target_path.parent
-            )
-            temp_path = Path(temp_name)
-            try:
-                with os.fdopen(temp_fd, "w+b") as temp_file:
-                    if hasattr(os, "fchmod"):
-                        os.fchmod(temp_file.fileno(), source_mode)
-                    else:
-                        os.chmod(temp_path, source_mode)
-                    image.save(temp_file, format=image_format, quality=95, subsampling=0)
-                    temp_file.flush()
-                    os.fsync(temp_file.fileno())
-                if hasattr(os, "listxattr"):
-                    for attribute in os.listxattr(source_path):
-                        os.setxattr(temp_path, attribute, os.getxattr(source_path, attribute))
-                os.replace(temp_path, target_path)
-            finally:
-                if temp_path.exists():
-                    delete_file_sync(temp_path)
-            return
-        if target_path.exists():
-            delete_file_sync(target_path)
-        image.save(target_path, quality=95, subsampling=0)
+        """Encode before replacing any existing image, including poster outputs."""
+        mode = (
+            stat.S_IMODE(target_path.stat().st_mode)
+            if target_path.exists()
+            else stat.S_IMODE(source_path.stat().st_mode)
+        )
+        image_format = Image.registered_extensions().get(target_path.suffix.lower(), "JPEG")
+        temp_fd, temp_name = tempfile.mkstemp(
+            prefix=f".{target_path.stem}.mdcx-rotate-", suffix=target_path.suffix, dir=target_path.parent
+        )
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(temp_fd, "w+b") as temp_file:
+                if hasattr(os, "fchmod"):
+                    os.fchmod(temp_file.fileno(), mode)
+                else:
+                    os.chmod(temp_path, mode)
+                image.save(temp_file, format=image_format, quality=95, subsampling=0)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            if target_path == source_path and hasattr(os, "listxattr"):
+                for attribute in os.listxattr(source_path):
+                    os.setxattr(temp_path, attribute, os.getxattr(source_path, attribute))
+            os.replace(temp_path, target_path)
+        finally:
+            temp_path.unlink(missing_ok=True)
 
     # 打开图片选择框
     def open_image(self):
@@ -464,7 +470,8 @@ class CutWindow(QDialog):
             options=self.main_window.options,
         )
         if img_path:
-            self.showimage(Path(img_path))
+            if self._save_changes():
+                self.showimage(Path(img_path), show_name="")
 
     def _default_image_directory(self) -> Path:
         """Return the current movie folder for the native image picker."""
@@ -491,7 +498,24 @@ class CutWindow(QDialog):
         return None
 
     # 显示要裁剪的图片
-    def showimage(self, img_path: Path | None = None, json_data: "FileInfo | None" = None):
+    def showimage(
+        self,
+        img_path: Path | None = None,
+        json_data: "FileInfo | None" = None,
+        *,
+        show_name: str | None = None,
+        new_movie: bool = False,
+    ):
+        if img_path is not None and QPixmap(str(img_path)).isNull():
+            if not new_movie:
+                self.Ui.label_crop_status.setText("图片无法读取，已保留当前图片")
+                return False
+            img_path = None
+        self._face_tasks.cancel("crop-face")
+        self.Ui.pushButton_auto_face.setEnabled(img_path is not None)
+        self._current_show_name = show_name if show_name is not None else getattr(self.main_window, "show_name", "")
+        if new_movie:
+            self.movie_directory = None
         if json_data is not None:
             movie_directory = self._movie_directory_from_path(getattr(json_data, "file_path", None))
             if movie_directory is not None:
@@ -509,6 +533,30 @@ class CutWindow(QDialog):
         self.cut_thumb_path = None  # 裁剪后的thumb路径
         self.cut_poster_path = None  # 裁剪后的poster路径
         self.cut_fanart_path = None  # 裁剪后的fanart路径
+        self.setWindowTitle(f"{getattr(json_data, 'number', '')} 封面图片裁剪".strip())
+        self.pushButton_select_cutrange.setVisible(img_path is not None)
+        for name in (
+            "pushButton_cut",
+            "pushButton_cut_close",
+            "pushButton_rotate_left",
+            "pushButton_rotate_right",
+            "horizontalSlider_left",
+            "horizontalSlider_right",
+            "comboBox_cut_ratio",
+            "checkBox_keep_ratio",
+        ):
+            getattr(self.Ui, name).setEnabled(img_path is not None)
+        if img_path is None:
+            self.pic_w = self.pic_h = self.pic_new_w = self.pic_new_h = 0
+            self.Ui.label_backgroud_pic.clear()
+            self.Ui.label_backgroud_pic.setGeometry(0, 0, self.show_w, self.show_h)
+            self.Ui.label_backgroud_pic.setText("当前影片暂无可读取图片，请点击“打开图片”")
+            self.Ui.label_origin_size.setText("—")
+            self.getRealPos()
+            self._saved_state = None
+            self.Ui.label_crop_status.setText("当前影片暂无图片")
+            self._update_navigation()
+            return True
         self.Ui.label_origin_size.setText(str(f"{str(self.pic_w)}, {str(self.pic_h)}"))  # 显示原图尺寸
 
         # 获取水印设置
@@ -624,6 +672,121 @@ class CutWindow(QDialog):
             QRect(self.rect_x, self.rect_y, self.rect_w, self.rect_h), sync_sliders=True
         )  # 显示裁剪框
         self.getRealPos()  # 显示裁剪框实际位置
+        self._saved_state = self._edit_state()
+        self.Ui.label_crop_status.setText("切换影片时自动保存修改")
+        self._update_navigation()
+        if img_path is not None:
+            self.auto_face()
+        return True
+
+    def _edit_state(self):
+        controls = (
+            "checkBox_add_sub",
+            "radioButton_add_no",
+            "radioButton_add_no_2",
+            "radioButton_add_4k",
+            "radioButton_add_8k",
+            "radioButton_add_censored",
+            "radioButton_add_umr",
+            "radioButton_add_leak",
+            "radioButton_add_uncensored",
+        )
+        return (
+            self.rotation_quarters,
+            self.getRealPos(),
+            tuple(getattr(self.Ui, name).isChecked() for name in controls),
+        )
+
+    def _save_changes(self) -> bool:
+        if self.show_image_path and self._saved_state != self._edit_state():
+            return self.do_cut()
+        return True
+
+    def _navigation(self):
+        provider = getattr(self.main_window, "_crop_navigation_entries", None)
+        entries = provider() if callable(provider) else []
+        index = next((i for i, (_, data, _) in enumerate(entries) if data.show_name == self._current_show_name), -1)
+        return entries, index
+
+    def _update_navigation(self):
+        entries, index = self._navigation()
+        self.Ui.pushButton_previous.setEnabled(index > 0)
+        self.Ui.pushButton_next.setEnabled(0 <= index < len(entries) - 1)
+
+    def _navigate(self, offset: int):
+        entries, index = self._navigation()
+        target = index + offset
+        if index < 0 or not 0 <= target < len(entries):
+            self._update_navigation()
+            return
+        item, data, image_path = entries[target]
+        if not self._save_changes():
+            self.Ui.label_crop_status.setText("保存失败，已留在当前影片")
+            return
+        self.main_window._set_result_item_as_current_selection(item)
+        self.main_window.set_main_info(data)
+        self.showimage(image_path, data.file_info, show_name=data.show_name, new_movie=True)
+
+    @staticmethod
+    def _detect_face_box(path: Path, quarters: int, width: int, height: int):
+        from ..core.face_crop import get_face_crop_box
+
+        with Image.open(path) as source:
+            with source.rotate(-90 * quarters, expand=True) as image:
+                return get_face_crop_box(image, width, height)
+
+    def auto_face(self):
+        if not self.show_image_path:
+            return
+        state = self._edit_state()
+        path = self.show_image_path
+        left, top, right, bottom = state[1]
+        self.Ui.pushButton_auto_face.setEnabled(False)
+        self.Ui.label_crop_status.setText("正在识别人脸…")
+
+        def completed(box):
+            if self.show_image_path != path:
+                return
+            self.Ui.pushButton_auto_face.setEnabled(True)
+            if self._edit_state() != state:
+                self.Ui.label_crop_status.setText("选区已变更，请重新识别")
+                return
+            if box is None:
+                self.Ui.label_crop_status.setText("未检测到有效人脸，请手动调整")
+                return
+            x1, y1, x2, y2 = box
+            self._apply_crop_rect(
+                QRect(
+                    round(x1 * self.pic_new_w / self.pic_w),
+                    round(y1 * self.pic_new_h / self.pic_h),
+                    round((x2 - x1) * self.pic_new_w / self.pic_w),
+                    round((y2 - y1) * self.pic_new_h / self.pic_h),
+                ),
+                sync_sliders=True,
+            )
+            self.getRealPos()
+            self.Ui.label_crop_status.setText("已定位人脸，可继续调整后保存")
+
+        def failed(_error):
+            if self.show_image_path != path:
+                return
+            self.Ui.pushButton_auto_face.setEnabled(True)
+            self.Ui.label_crop_status.setText("人脸识别失败，请手动调整或重试")
+
+        self._face_tasks.submit_sync(
+            "crop-face",
+            self._detect_face_box,
+            path,
+            state[0],
+            right - left,
+            bottom - top,
+            on_success=completed,
+            on_error=failed,
+        )
+
+    def closeEvent(self, event):
+        self._face_tasks.cancel_all()
+        super().closeEvent(event)
 
     # 计算在原图的裁剪位置
     def getRealPos(self):
@@ -657,11 +820,21 @@ class CutWindow(QDialog):
         return self.c_x, self.c_y, self.c_x2, self.c_y2
 
     def do_cut_and_close(self):
-        executor.submit(self.to_cut())
-        self.close()
+        if self.do_cut():
+            self.close()
 
     def do_cut(self):
-        executor.run(self.to_cut())
+        # Keep all widget reads and preview updates on the Qt thread. Saving
+        # must complete before navigation is allowed to change the source.
+        try:
+            saved = asyncio.run(self.to_cut())
+        except Exception as error:
+            self.Ui.label_crop_status.setText(f"保存失败：{error}")
+            return False
+        if saved:
+            self._saved_state = self._edit_state()
+            self.Ui.label_crop_status.setText("已保存")
+        return bool(saved)
 
     async def to_cut(self):
         img_path = self.show_image_path  # 被裁剪的图片
@@ -708,12 +881,11 @@ class CutWindow(QDialog):
         img = converted_img
         img_new_png = img.crop((self.c_x, self.c_y, self.c_x2, self.c_y2))
         try:
-            if os.path.exists(self.cut_poster_path):
-                delete_file_sync(self.cut_poster_path)
-        except Exception as e:
-            self.main_window.show_log_text(" 🔴 Failed to remove old poster!\n    " + str(e))
-            return False
-        img_new_png.save(self.cut_poster_path, quality=95, subsampling=0)
+            self._save_full_image(img_new_png, self.cut_poster_path, img_path)
+        except Exception:
+            img.close()
+            img_new_png.close()
+            raise
         # poster加水印
         if manager.config.poster_mark == 1:
             await add_mark_thread(self.cut_poster_path, mark_list)
@@ -722,6 +894,8 @@ class CutWindow(QDialog):
         if DownloadableFile.THUMB in manager.config.download_files:
             if thumb_path != img_path or self.rotation_quarters:
                 self._save_full_image(img, thumb_path, img_path)
+                if thumb_path == img_path:
+                    self.rotation_quarters = 0
             # thumb加水印
             if manager.config.thumb_mark == 1:
                 await add_mark_thread(thumb_path, mark_list)
@@ -732,6 +906,8 @@ class CutWindow(QDialog):
         if DownloadableFile.FANART in manager.config.download_files:
             if self.cut_fanart_path != img_path or self.rotation_quarters:
                 self._save_full_image(img, self.cut_fanart_path, img_path)
+                if self.cut_fanart_path == img_path:
+                    self.rotation_quarters = 0
             # fanart加水印
             if manager.config.fanart_mark == 1:
                 await add_mark_thread(self.cut_fanart_path, mark_list)

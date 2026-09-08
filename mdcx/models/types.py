@@ -531,6 +531,8 @@ class OtherInfo:
     poster_big: bool
     poster_size: tuple[int, int]
     thumb_size: tuple[int, int]
+    fanart_failed: bool = False
+    face_detection_failed: bool = False
 
     @classmethod
     def empty(cls) -> "OtherInfo":

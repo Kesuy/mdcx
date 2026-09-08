@@ -47,6 +47,7 @@ test.v2.json
 MDCx.config
 .fc2cmadb-browser/
 /userdata/
+/facetest/
 /Log/
 *.log
 

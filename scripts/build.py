@@ -280,6 +280,17 @@ class BuildManager:
                     "]\n\n"
                 )
                 content = content.replace(marker, f"{filter_icu}{marker}", 1)
+                # MDCx uses OpenCV for still-image face/barcode detection only.
+                # Its separately loaded FFmpeg video-I/O plugin is unused; keep
+                # cv2.pyd, DNN, barcode support, and all other runtime DLLs.
+                filter_videoio = (
+                    "# No VideoCapture/VideoWriter in MDCx.\n"
+                    "a.binaries = [item for item in a.binaries if not (\n"
+                    "    item[0].replace('\\\\', '/').lower().startswith('cv2/opencv_videoio_ffmpeg')\n"
+                    "    and item[0].lower().endswith('.dll')\n"
+                    ")]\n\n"
+                )
+                content = content.replace(marker, f"{filter_videoio}{marker}", 1)
 
             spec_file.write_text(content, encoding="utf-8")
             logger.info(".spec 文件平台规则应用成功")

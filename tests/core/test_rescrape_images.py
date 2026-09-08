@@ -21,6 +21,19 @@ class _FailingImageContext:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("download", [True, False])
+async def test_missing_fanart_warning_only_when_requested(tmp_path, monkeypatch, download):
+    files = [DownloadableFile.IGNORE_PIC_FAIL]
+    if download:
+        files.append(DownloadableFile.FANART)
+    monkeypatch.setattr(manager.config, "download_files", files)
+    monkeypatch.setattr(manager.config, "keep_files", [])
+    other = OtherInfo.empty()
+    assert await fanart_download("TEST-001", other, "", tmp_path / "fanart.jpg")
+    assert other.fanart_failed is download
+
+
+@pytest.mark.asyncio
 async def test_force_refresh_replaces_a_kept_thumb_atomically(monkeypatch, tmp_path: Path):
     thumb_path = tmp_path / "062526_001-thumb.jpg"
     Image.new("RGB", (32, 32), "red").save(thumb_path)

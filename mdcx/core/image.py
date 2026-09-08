@@ -4,6 +4,7 @@
 
 import asyncio
 import os
+import re
 import time
 import traceback
 from pathlib import Path
@@ -81,7 +82,9 @@ async def prepare_local_number_images(
             and Path(name).suffix.lower() in LOCAL_NUMBER_IMAGE_EXTENSIONS
             and folder_old_path / name not in final_paths
         ),
-        key=lambda path: (path.name.casefold(), path.name),
+        key=lambda path: tuple(
+            (1, int(part)) if part.isdigit() else (0, part) for part in re.split(r"(\d+)", path.name.casefold())
+        ),
     )
     if not matched:
         return False, True
@@ -111,6 +114,7 @@ async def prepare_local_number_images(
 
     if DownloadableFile.POSTER in download_files:
         if copy_poster:
+            LogBuffer.log().write(f"\n 🖼 本地海报: 已勾选 {result.scraping_type.value} 不裁剪，直接复制原图")
             poster_created, error = await asyncio.to_thread(_save_local_image_as_jpeg, source_image, poster_final_path)
             if not poster_created:
                 LogBuffer.log().write(f"\n 🔴 同番号图片生成 Poster 失败: {error}")
@@ -121,6 +125,8 @@ async def prepare_local_number_images(
                 source_image,
                 poster_final_path,
                 result.scraping_type,
+                other=other,
+                face_crop_all_ratios=True,
             )
         if not poster_created:
             return True, False
@@ -226,6 +232,9 @@ def cut_thumb_to_poster(
     poster_path: Path,
     scraping_type: FixedScrapingType,
     log_fn=None,
+    *,
+    other: OtherInfo | None = None,
+    face_crop_all_ratios: bool = False,
 ):
     start_time = time.time()
     log = log_fn or LogBuffer.log().write
@@ -245,13 +254,31 @@ def cut_thumb_to_poster(
         log(f"\n 🖼 Poster裁剪: 开始处理({scraping_type.value})，源图={w}x{h}")
 
         # 优先按图片比例决定基础裁剪方式，保持旧版自动裁剪行为。
-        if prop >= 1.4:
+        if face_crop_all_ratios and prop >= 1 and scraping_type in FACE_FALLBACK_CROP_TYPES:
+            from .face_crop import get_face_crop_box
+
+            crop_width = min(w, max(1, int(h / 1.5)))
+            crop_height = min(h, max(1, round(crop_width * 1.5)))
+            box = get_face_crop_box(img, crop_width, crop_height)
+            if box is None:
+                if other is not None:
+                    other.face_detection_failed = True
+                json_data.poster_from = "thumb center"
+                ax, ay = (w - crop_width) // 2, (h - crop_height) // 2
+                bx, by = ax + crop_width, ay + crop_height
+                log("\n 🖼 本地海报: 未检测到有效人脸，使用 2:3 居中裁剪")
+            else:
+                json_data.poster_from = "thumb face"
+                ax, ay, bx, by = box
+                log("\n 🖼 本地海报: 人脸裁剪命中，使用 2:3 构图")
+        elif prop >= 1.4:
+            log(f"\n 🖼 Poster裁剪: 原图高宽比 {prop:.2f} ≥ 1.4，保留已有竖版构图")
             copy_file_sync(thumb_path, poster_path)
             log(f"\n 🍀 Poster done! (copy thumb)({get_used_time(start_time)}s)")
             json_data.poster_from = "copy thumb"
             img.close()
             return True
-        if prop >= 1:
+        elif prop >= 1:
             json_data.poster_from = "thumb center"
             ax, ay, bx, by = _center_crop_box(w, h)
             log("\n 🖼 Poster裁剪: 图片接近竖图，使用居中裁剪")
@@ -265,6 +292,8 @@ def cut_thumb_to_poster(
             crop_width = int(h / 1.5)
             face_left = get_face_crop_left(img, crop_width, log_fn=log)
             if face_left is None:
+                if other is not None:
+                    other.face_detection_failed = True
                 json_data.poster_from = "thumb center"
                 ax, ay, bx, by = _center_crop_box(w, h)
             else:

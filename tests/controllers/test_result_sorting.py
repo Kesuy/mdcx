@@ -251,3 +251,37 @@ def test_real_main_window_connects_clicks_after_replacing_designer_tree(monkeypa
     window.hide()
     window.deleteLater()
     APP.processEvents()
+
+
+def test_crop_navigation_follows_sorted_filtered_results_and_warning_keeps_identity(monkeypatch, tmp_path):
+    from PIL import Image
+
+    monkeypatch.setattr(MyMAinWindow, "load_config", lambda self: None)
+    monkeypatch.setattr(MyMAinWindow, "_finish_startup", lambda self: None)
+    window = MyMAinWindow()
+    try:
+        for number in ("ABC-010", "ABC-002", "XYZ-001"):
+            data = ShowData.empty()
+            data.show_name = "task." + number
+            data.data.number = number
+            data.data.title = number
+            data.other.fanart_path = tmp_path / (number + ".jpg")
+            Image.new("RGB", (40, 20), "navy").save(data.other.fanart_path)
+            if number == "ABC-002":
+                data.other.fanart_failed = True
+                data.other.face_detection_failed = True
+            window.show_list_name("succ", data)
+        window.result_sort_combo.setCurrentText("番号")
+        window.result_filter_edit.setText("ABC")
+        entries = window._crop_navigation_entries()
+        assert [data.data.number for _, data, _ in entries] == ["ABC-002", "ABC-010"]
+        item = entries[0][0]
+        assert item.data(0, RESULT_NAME_ROLE) == "task.ABC-002"
+        assert "⚠图" in item.text(0) and "⚠脸" in item.text(0)
+        assert "艺术图获取失败" in item.data(0, Qt.ItemDataRole.ToolTipRole)
+        window._toggle_result_sort_order()
+        assert [data.data.number for _, data, _ in window._crop_navigation_entries()] == ["ABC-010", "ABC-002"]
+    finally:
+        window.task_manager.shutdown()
+        window.hide()
+        window.deleteLater()

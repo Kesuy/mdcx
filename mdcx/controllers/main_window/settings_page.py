@@ -905,6 +905,9 @@ class SettingsPageController:
         self.ui.toolButton_advanced_settings.setText("隐藏高级设置" if visible else "显示高级设置")
         for widget in self._advanced_widgets:
             widget.setVisible(visible)
+        from .responsive_layout import _schedule_content_pane_sync
+
+        _schedule_content_pane_sync(self.window)
 
     @staticmethod
     def _persist_advanced_visibility(visible: bool) -> None:

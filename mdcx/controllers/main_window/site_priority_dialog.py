@@ -761,8 +761,4 @@ def _hide_legacy_field_website_group(window: "MyMAinWindow") -> None:
     )
     if separator is not None:
         separator.hide()
-    window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.setMinimumHeight(1330)
-    window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.resize(
-        window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.width(),
-        1330,
-    )
+    window.Ui.scrollAreaWidgetContents_guaxiaowangzhan.setMinimumHeight(0)

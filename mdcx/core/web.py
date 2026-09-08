@@ -1147,7 +1147,7 @@ async def poster_download(
         thumb_path = fanart_path
     cut_log = LogBuffer.log().write
     if thumb_path and await asyncio.to_thread(
-        cut_thumb_to_poster, result, thumb_path, poster_final_path_temp, result.scraping_type, cut_log
+        cut_thumb_to_poster, result, thumb_path, poster_final_path_temp, result.scraping_type, cut_log, other=other
     ):
         # 裁剪成功，替换旧图
         if not await _replace_downloaded_file(poster_final_path_temp, poster_final_path):
@@ -1260,6 +1260,7 @@ async def fanart_download(
         LogBuffer.log().write(f"\n 🍀 Fanart done! (old)({get_used_time(start_time)}s)")
         return True
 
+    other.fanart_failed = True
     if DownloadableFile.IGNORE_PIC_FAIL in download_files:
         LogBuffer.log().write("\n 🟠 Fanart failed! (你已勾选「图片下载失败时，不视为失败！」) ")
         LogBuffer.log().write(f"\n 🍀 Fanart done! (none)({get_used_time(start_time)}s)")

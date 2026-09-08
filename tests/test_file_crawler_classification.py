@@ -148,7 +148,6 @@ def test_avwiki_uses_unified_scraping_types():
     assert AVWIKI_SCRAPING_TYPES == {
         FixedScrapingType.YOUMA,
         FixedScrapingType.SUREN,
-        FixedScrapingType.FC2,
     }
 
 
@@ -179,8 +178,10 @@ def test_specific_crawler_language_uses_website_enum_members(
         (FixedScrapingType.YOUMA, ["未知演员"], True),
         (FixedScrapingType.YOUMA, ["葵つかさ"], False),
         (FixedScrapingType.SUREN, ["素人"], True),
-        (FixedScrapingType.FC2, ["販売者"], True),
+        (FixedScrapingType.FC2, ["販売者"], False),
         (FixedScrapingType.WUMA, [], False),
+        (FixedScrapingType.OUMEI, [], False),
+        (FixedScrapingType.GUOCHAN, [], False),
     ],
 )
 def test_avwiki_youma_only_queries_when_actor_unknown_or_empty(

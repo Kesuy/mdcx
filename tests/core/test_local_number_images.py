@@ -4,11 +4,167 @@ import pytest
 from PIL import Image
 
 from mdcx.base.file import move_other_file
-from mdcx.config.enums import DownloadableFile, FixedScrapingType
+from mdcx.config.enums import DownloadableFile, FixedScrapingType, KeepableFile
 from mdcx.config.manager import manager
 from mdcx.core.image import prepare_local_number_images
 from mdcx.core.scraper import prepare_primary_images
 from mdcx.models.types import CrawlersResult, OtherInfo
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", [(800, 450), (600, 600), (600, 840), (600, 1000)])
+@pytest.mark.parametrize("face_found", [True, False])
+async def test_local_fc2_crop_all_ratios_after_old_artwork_migration(tmp_path, monkeypatch, size, face_found):
+    from mdcx.core.file import deal_old_files
+    from mdcx.models.flags import Flags
+
+    source, target = tmp_path / "source", tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    number = "FC2-1844229"
+    movie = source / f"{number}.mp4"
+    movie.write_bytes(b"test")
+    originals = [source / f"{number} {index}.jpg" for index in (2, 10)]
+    for path, color in zip(originals, ("red", "blue"), strict=True):
+        _save_image(path, size, color)
+    original_bytes = {path.name: path.read_bytes() for path in originals}
+    for name in ("poster", "thumb", "fanart"):
+        _save_image(source / f"{name}.jpg", (800, 450), "green")
+    monkeypatch.setattr(manager.config, "use_local_number_images", True)
+    monkeypatch.setattr(manager.config, "soft_link", 0)
+    monkeypatch.setattr(manager.config, "main_mode", 1)
+    monkeypatch.setattr(manager.config, "success_file_move", True)
+    monkeypatch.setattr(
+        manager.config,
+        "download_files",
+        [
+            DownloadableFile.POSTER,
+            DownloadableFile.THUMB,
+            DownloadableFile.FANART,
+            DownloadableFile.IGNORE_WUMA,
+            DownloadableFile.IGNORE_OUMEI,
+            DownloadableFile.IGNORE_GUOCHAN,
+        ],
+    )
+    monkeypatch.setattr(manager.config, "keep_files", [KeepableFile.POSTER, KeepableFile.THUMB, KeepableFile.FANART])
+    calls = []
+
+    def detect_left(*_args, **_kwargs):
+        calls.append(True)
+        return 0 if face_found else None
+
+    def detect_box(_image, width, height):
+        calls.append(True)
+        return (0, 0, width, height) if face_found else None
+
+    monkeypatch.setattr("mdcx.core.image.get_face_crop_left", detect_left)
+    monkeypatch.setattr("mdcx.core.face_crop.get_face_crop_box", detect_box)
+    result = CrawlersResult.empty()
+    result.number = number
+    result.scraping_type = FixedScrapingType.FC2
+    other = OtherInfo.empty()
+    poster, thumb, fanart = [target / f"{name}.jpg" for name in ("poster", "thumb", "fanart")]
+    Flags.reset()
+    Flags.file_done_dic[number] = {}
+    try:
+        acquired, _ = await deal_old_files(
+            number,
+            other,
+            source,
+            target,
+            movie,
+            target / f"{number}-thumb.jpg",
+            target / f"{number}-poster.jpg",
+            target / f"{number}-fanart.jpg",
+            target / f"{number}.nfo",
+            poster,
+            thumb,
+            fanart,
+        )
+        assert acquired
+        assert await prepare_primary_images(result, other, "", source, target, poster, thumb, fanart, None)
+        await move_other_file(number, source, target, movie.stem, number)
+        assert calls == [True]
+        assert other.face_detection_failed is not face_found
+        for name, contents in original_bytes.items():
+            assert not (source / name).exists()
+            assert (target / name).read_bytes() == contents
+        with Image.open(fanart) as image:
+            assert image.size == size
+            assert image.getpixel((0, 0))[0] > 240
+        with Image.open(poster) as image:
+            assert abs(image.height / image.width - 1.5) < 0.01
+            assert image.getpixel((0, 0))[0] > 240
+    finally:
+        Flags.reset()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("copy_poster", [True, False])
+async def test_local_artwork_uses_natural_first_image_and_obeys_face_crop_switch(tmp_path, monkeypatch, copy_poster):
+    source, target = tmp_path / "source", tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    _save_image(source / "FC2-1234567 10.jpg", (800, 450), "blue")
+    _save_image(source / "FC2-1234567 2.jpg", (800, 450), "red")
+    _save_image(target / "poster.jpg", (800, 450), "green")
+    monkeypatch.setattr(manager.config, "use_local_number_images", True)
+    monkeypatch.setattr(manager.config, "soft_link", 0)
+    # Match the user's settings: other uncensored categories must not override
+    # the independent FC2 option, even when old artwork is retained.
+    files = [
+        DownloadableFile.POSTER,
+        DownloadableFile.THUMB,
+        DownloadableFile.FANART,
+        DownloadableFile.IGNORE_WUMA,
+        DownloadableFile.IGNORE_OUMEI,
+        DownloadableFile.IGNORE_GUOCHAN,
+    ]
+    monkeypatch.setattr(manager.config, "keep_files", [KeepableFile.POSTER, KeepableFile.THUMB, KeepableFile.FANART])
+    if copy_poster:
+        files.append(DownloadableFile.IGNORE_FC2)
+    monkeypatch.setattr(manager.config, "download_files", files)
+    calls = []
+    monkeypatch.setattr("mdcx.core.image.get_face_crop_left", lambda *_args, **_kwargs: calls.append(True) or 400)
+    result = CrawlersResult.empty()
+    result.number = "FC2-1234567"
+    result.scraping_type = FixedScrapingType.FC2
+    other = OtherInfo.empty()
+    assert await prepare_primary_images(
+        result, other, "", source, target, target / "poster.jpg", target / "thumb.jpg", target / "fanart.jpg", None
+    )
+    with Image.open(target / "fanart.jpg") as image:
+        assert image.size == (800, 450)
+        assert image.getpixel((0, 0))[0] > 240
+    with Image.open(target / "poster.jpg") as image:
+        assert image.size == ((800, 450) if copy_poster else (300, 450))
+    assert bool(calls) is not copy_poster
+    assert not other.face_detection_failed
+
+
+@pytest.mark.asyncio
+async def test_local_face_miss_records_warning_without_failing_scrape(tmp_path, monkeypatch):
+    _save_image(tmp_path / "FC2-1234567.jpg", (800, 450), "red")
+    monkeypatch.setattr(manager.config, "use_local_number_images", True)
+    monkeypatch.setattr(manager.config, "soft_link", 0)
+    monkeypatch.setattr(manager.config, "download_files", [DownloadableFile.POSTER])
+    monkeypatch.setattr("mdcx.core.image.get_face_crop_left", lambda *_args, **_kwargs: None)
+    result = CrawlersResult.empty()
+    result.number = "FC2-1234567"
+    result.scraping_type = FixedScrapingType.FC2
+    other = OtherInfo.empty()
+    assert await prepare_local_number_images(
+        result,
+        other,
+        tmp_path,
+        tmp_path,
+        tmp_path / "poster.jpg",
+        tmp_path / "thumb.jpg",
+        tmp_path / "fanart.jpg",
+        copy_poster=False,
+    ) == (True, True)
+    assert other.face_detection_failed
+    assert result.poster_from == "thumb center"
 
 
 def _save_image(path: Path, size: tuple[int, int], color: str) -> None:

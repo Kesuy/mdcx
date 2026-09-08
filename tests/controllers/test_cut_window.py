@@ -271,3 +271,159 @@ def test_rotated_art_source_is_overwritten_with_same_orientation_as_other_output
     finally:
         window.close()
         parent.close()
+
+
+def test_navigation_saves_only_modified_images_and_stops_on_failure(tmp_path, monkeypatch):
+    from mdcx.models.types import ShowData
+
+    first, second = ShowData.empty(), ShowData.empty()
+    first.show_name, second.show_name = "one", "two"
+    paths = [tmp_path / "one.jpg", tmp_path / "two.jpg"]
+    for path in paths:
+        Image.new("RGB", (800, 450), "navy").save(path)
+    window = _window()
+    events = []
+    detections = []
+    monkeypatch.setattr(window._face_tasks, "submit_sync", lambda *args, **kwargs: detections.append(args[2]))
+    parent = window.main_window
+    parent._crop_navigation_entries = lambda: [("a", first, paths[0]), ("b", second, paths[1])]
+    parent._set_result_item_as_current_selection = lambda item: events.append(("select", item))
+    parent.set_main_info = lambda data: events.append(("show", data.show_name))
+    window.showimage(paths[0], _image_data(), show_name="one")
+    assert not window.Ui.pushButton_previous.isEnabled()
+    assert window.Ui.pushButton_next.isEnabled()
+    monkeypatch.setattr(window, "do_cut", lambda: events.append(("save", None)) or False)
+    window.rotate_right()
+    window._navigate(1)
+    assert window.show_image_path == paths[0]
+    assert events == [("save", None)]
+    monkeypatch.setattr(window, "do_cut", lambda: events.append(("save", None)) or True)
+    window._navigate(1)
+    assert window.show_image_path == paths[1]
+    assert events[-3:] == [("save", None), ("select", "b"), ("show", "two")]
+    assert not window.Ui.pushButton_next.isEnabled()
+    events.clear()
+    window._navigate(-1)
+    assert events == [("select", "a"), ("show", "one")]
+    assert detections == [paths[0], paths[1], paths[0]]
+    window.close()
+
+
+def test_auto_face_ignores_stale_result_and_keeps_crop_ratio(tmp_path, monkeypatch):
+    image_path = tmp_path / "face.jpg"
+    Image.new("RGB", (800, 450), "navy").save(image_path)
+    window = _window()
+    callbacks = []
+    monkeypatch.setattr(window._face_tasks, "submit_sync", lambda *args, **kwargs: callbacks.append(kwargs))
+    window.showimage(image_path, _image_data())
+    assert len(callbacks) == 1
+    assert not window.Ui.pushButton_auto_face.isEnabled()
+    old = window.getRealPos()
+    width, height = old[2] - old[0], old[3] - old[1]
+    callbacks[-1]["on_success"]((100, 0, 100 + width, height))
+    assert abs(window.getRealPos()[0] - 100) <= 1
+    assert window._saved_state != window._edit_state()
+    window.auto_face()
+    window.rotate_right()
+    rotated_state = window._edit_state()
+    callbacks[-1]["on_success"]((0, 0, width, height))
+    assert window._edit_state() == rotated_state
+    window.close()
+
+
+def test_loading_another_image_auto_detects_and_discards_old_callbacks(tmp_path, monkeypatch):
+    paths = [tmp_path / "first.jpg", tmp_path / "second.jpg"]
+    for path in paths:
+        Image.new("RGB", (800, 450), "navy").save(path)
+    window = _window()
+    callbacks = []
+    monkeypatch.setattr(window._face_tasks, "submit_sync", lambda *args, **kwargs: callbacks.append(kwargs))
+    try:
+        window.showimage(paths[0], _image_data())
+        window.showimage(paths[1], _image_data())
+        assert len(callbacks) == 2
+        state = window._edit_state()
+        callbacks[0]["on_success"]((50, 0, 350, 450))
+        callbacks[0]["on_error"]("old error")
+        assert window._edit_state() == state
+        assert not window.Ui.pushButton_auto_face.isEnabled()
+        assert window.Ui.label_crop_status.text() == "正在识别人脸…"
+        callbacks[1]["on_success"](None)
+        assert window._edit_state() == state
+        assert window.Ui.pushButton_auto_face.isEnabled()
+    finally:
+        window.close()
+
+
+def test_missing_neighbor_saves_then_opens_empty_movie(tmp_path, monkeypatch):
+    from mdcx.models.types import ShowData
+
+    data = [ShowData.empty(), ShowData.empty()]
+    data[0].show_name, data[1].show_name = "one", "two"
+    path = tmp_path / "one.jpg"
+    Image.new("RGB", (800, 450), "navy").save(path)
+    window = _window()
+    window.main_window._crop_navigation_entries = lambda: [("a", data[0], path), ("b", data[1], None)]
+    window.showimage(path, _image_data(), show_name="one")
+    window.rotate_right()
+    events = []
+    monkeypatch.setattr(window, "do_cut", lambda: events.append("save") or True)
+    window.main_window._set_result_item_as_current_selection = lambda item: events.append(item)
+    window.main_window.set_main_info = lambda data: None
+    window._navigate(1)
+    assert events == ["save", "b"]
+    assert window.show_image_path is None
+    assert window._current_show_name == "two"
+    window.close()
+
+
+@pytest.mark.parametrize("missing", [None, "missing.jpg", "broken.jpg"])
+def test_new_movie_clears_old_preview_and_picker_directory(tmp_path, monkeypatch, missing):
+    from mdcx.controllers.main_window.main_page_mixin import MainPageMixin
+    from mdcx.models.types import ShowData
+
+    old = tmp_path / "old"
+    current = tmp_path / "FC2-2635824"
+    old.mkdir()
+    current.mkdir()
+    image = old / "old.jpg"
+    Image.new("RGB", (800, 450), "blue").save(image)
+    (current / "broken.jpg").write_bytes(b"invalid")
+    window = _window()
+    callbacks = []
+    monkeypatch.setattr(window._face_tasks, "submit_sync", lambda *args, **kwargs: callbacks.append(kwargs))
+    try:
+        window.showimage(image, _image_data(old / "old.mp4"))
+        data = ShowData.empty()
+        data.file_info.number = "FC2-2635824"
+        data.file_info.file_path = current / "FC2-2635824.mp4"
+        data.other.fanart_path = current / missing if missing else None
+        parent = window.main_window
+        parent.show_data = data
+        parent.show_name = "current"
+        parent.img_path = image  # A stale preview path must never choose the previous movie.
+        parent._get_cutwindow = lambda: window
+        MainPageMixin._pic_main_clicked(parent)
+        assert window.show_image_path is None
+        assert window.cut_poster_path is None
+        assert window.Ui.label_backgroud_pic.pixmap().isNull()
+        assert window.pushButton_select_cutrange.isHidden()
+        assert not window.Ui.pushButton_cut.isEnabled()
+        assert "FC2-2635824" in window.windowTitle()
+        assert window._default_image_directory() == current
+        callbacks[0]["on_success"]((0, 0, 300, 450))
+        assert window.show_image_path is None
+        selected = []
+        monkeypatch.setattr(
+            QFileDialog, "getOpenFileName", lambda *args, **kwargs: selected.append(args[2]) or ("", "")
+        )
+        window.open_image()
+        assert selected == [current.as_posix()]
+        replacement = current / "replacement.jpg"
+        Image.new("RGB", (800, 450), "red").save(replacement)
+        window.showimage(replacement, data.file_info)
+        assert window.Ui.pushButton_cut.isEnabled()
+        assert not window.pushButton_select_cutrange.isHidden()
+        assert len(callbacks) == 2
+    finally:
+        window.close()

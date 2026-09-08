@@ -120,13 +120,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>591</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>刮削目录</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_16_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="537">
+              <layout class="QGridLayout" name="groupBox_16_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -633,13 +633,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>351</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>文件扫描设置</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_32_responsive_layout" columnminimumwidth="662" columnstretch="662" rowminimumheight="301">
+              <layout class="QGridLayout" name="groupBox_32_responsive_layout" columnminimumwidth="662" columnstretch="662">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -1012,13 +1012,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>521</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>文件清理设置</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_61_responsive_layout" columnminimumwidth="120,20,321,39,1,140,20" columnstretch="120,20,321,39,1,140,20" rowminimumheight="330,2,28,30,10,40,1,19,16">
+              <layout class="QGridLayout" name="groupBox_61_responsive_layout" columnminimumwidth="120,20,321,39,1,140,20" columnstretch="120,20,321,39,1,140,20">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -1037,7 +1037,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="0" rowspan="2" colspan="7">
+                <item row="0" column="0" colspan="7">
                   <widget class="QWidget" name="gridLayoutWidget_34">
                     <layout class="QGridLayout" name="gridLayout_52">
                       <item row="1" column="1">
@@ -1596,7 +1596,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="2" rowspan="2" colspan="5">
+                <item row="1" column="2" colspan="5">
                   <widget class="QCheckBox" name="checkBox_i_understand_clean">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -1647,7 +1647,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="5" column="4" rowspan="2" colspan="2">
+                <item row="5" column="4" colspan="2">
                   <widget class="QCheckBox" name="checkBox_auto_clean">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -1714,13 +1714,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>131</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>文件格式设置</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_9_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="91">
+              <layout class="QGridLayout" name="groupBox_9_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -1899,7 +1899,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>421</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -1911,7 +1911,7 @@
               <property name="title">
                 <string>刮削模式</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_responsive_layout" columnminimumwidth="631" columnstretch="631" rowminimumheight="377">
+              <layout class="QGridLayout" name="groupBox_responsive_layout" columnminimumwidth="631" columnstretch="631">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -2633,7 +2633,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>111</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -2645,7 +2645,7 @@
               <property name="title">
                 <string>刮削成功后移动文件</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_27_responsive_layout" columnminimumwidth="631" columnstretch="631" rowminimumheight="71">
+              <layout class="QGridLayout" name="groupBox_27_responsive_layout" columnminimumwidth="631" columnstretch="631">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -2745,7 +2745,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>111</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -2757,7 +2757,7 @@
               <property name="title">
                 <string>刮削失败时移动文件</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_15_responsive_layout" columnminimumwidth="631" columnstretch="631" rowminimumheight="71">
+              <layout class="QGridLayout" name="groupBox_15_responsive_layout" columnminimumwidth="631" columnstretch="631">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -2854,7 +2854,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>111</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -2866,7 +2866,7 @@
               <property name="title">
                 <string>刮削结束后删除空文件夹</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_30_responsive_layout" columnminimumwidth="631" columnstretch="631" rowminimumheight="71">
+              <layout class="QGridLayout" name="groupBox_30_responsive_layout" columnminimumwidth="631" columnstretch="631">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -2963,7 +2963,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>461</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -2975,7 +2975,7 @@
               <property name="title">
                 <string>更新模式规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_5_responsive_layout" columnminimumwidth="520,80,1,30" columnstretch="520,80,1,30" rowminimumheight="30,10,20,10,310,81">
+              <layout class="QGridLayout" name="groupBox_5_responsive_layout" columnminimumwidth="520,80,1,30" columnstretch="520,80,1,30">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -3525,7 +3525,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>111</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -3537,7 +3537,7 @@
               <property name="title">
                 <string>刮削成功后重命名文件</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_18_responsive_layout" columnminimumwidth="631" columnstretch="631" rowminimumheight="71">
+              <layout class="QGridLayout" name="groupBox_18_responsive_layout" columnminimumwidth="631" columnstretch="631">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -3634,7 +3634,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>221</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -3643,7 +3643,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_53_responsive_layout" columnminimumwidth="631" columnstretch="631" rowminimumheight="181">
+              <layout class="QGridLayout" name="groupBox_53_responsive_layout" columnminimumwidth="631" columnstretch="631">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -4016,7 +4016,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>211</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -4028,7 +4028,7 @@
               <property name="title">
                 <string>刮削成功后在输出目录创建软链接或硬链接</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_2_responsive_layout" columnminimumwidth="220,411,129" columnstretch="220,411,129" rowminimumheight="16,14,161">
+              <layout class="QGridLayout" name="groupBox_2_responsive_layout" columnminimumwidth="220,411,129" columnstretch="220,411,129">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -4399,7 +4399,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>970</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -4411,7 +4411,7 @@
               <property name="title">
                 <string>类型刮削网站</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_80_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="930">
+              <layout class="QGridLayout" name="groupBox_80_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -4712,9 +4712,9 @@
                             <string>help</string>
                           </property>
                           <property name="wordWrap">
-    <bool>true</bool>
-  </property>
-</widget>
+                            <bool>true</bool>
+                          </property>
+                        </widget>
                       </item>
                       <item row="12" column="1">
                         <widget class="QLabel" name="label_318">
@@ -5050,7 +5050,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>1000</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -5062,7 +5062,7 @@
               <property name="title">
                 <string>字段刮削网站</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_35_responsive_layout" columnminimumwidth="40,601,20" columnstretch="40,601,20" rowminimumheight="794,17,151">
+              <layout class="QGridLayout" name="groupBox_35_responsive_layout" columnminimumwidth="40,601,20" columnstretch="40,601,20">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -6013,7 +6013,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>251</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -6025,7 +6025,7 @@
               <property name="title">
                 <string>网站偏好</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_11_responsive_layout" columnminimumwidth="479,151,1" columnstretch="479,151,1" rowminimumheight="172,26,6">
+              <layout class="QGridLayout" name="groupBox_11_responsive_layout" columnminimumwidth="479,151,1" columnstretch="479,151,1">
                 <property name="leftMargin">
                   <number>50</number>
                 </property>
@@ -6044,7 +6044,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="0" rowspan="3" colspan="3">
+                <item row="0" column="0" colspan="3">
                   <widget class="QWidget" name="layoutWidget">
                     <layout class="QGridLayout" name="gridLayout_28">
                       <item row="3" column="0">
@@ -6660,13 +6660,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>481</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>下载</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_24_responsive_layout" columnminimumwidth="621" columnstretch="621" rowminimumheight="31,9,131,9,230,8,33">
+              <layout class="QGridLayout" name="groupBox_24_responsive_layout" columnminimumwidth="621" columnstretch="621">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -7184,13 +7184,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>131</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>保留旧文件</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_33_responsive_layout" columnminimumwidth="621" columnstretch="621" rowminimumheight="31,9,51">
+              <layout class="QGridLayout" name="groupBox_33_responsive_layout" columnminimumwidth="621" columnstretch="621">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -7311,7 +7311,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>211</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -7339,7 +7339,7 @@
                 <property name="verticalSpacing">
                   <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="1" colspan="2">
+                <item row="0" column="0" colspan="2">
                   <widget class="QWidget" name="horizontalLayoutWidget_20">
                     <layout class="QHBoxLayout" name="horizontalLayout_25">
                       <item>
@@ -7352,7 +7352,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="1" colspan="2">
+                <item row="1" column="0" colspan="2">
                   <widget class="QLabel" name="label_87">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -7379,14 +7379,14 @@
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="1" colspan="1">
+                <item row="2" column="0" colspan="1">
                   <widget class="QPushButton" name="pushButton_add_all_theme_videos">
                     <property name="text">
                       <string>添加所有主题视频</string>
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="1" rowspan="1" colspan="1">
+                <item row="2" column="1" colspan="1">
                   <widget class="QPushButton" name="pushButton_del_all_theme_videos">
                     <property name="text">
                       <string>删除所有主题视频</string>
@@ -7407,13 +7407,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>261</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>创建剧照副本</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_34_responsive_layout" columnminimumwidth="90,161,29,181,160,10" columnstretch="90,161,29,181,160,10" rowminimumheight="37,13,101,9,40">
+              <layout class="QGridLayout" name="groupBox_34_responsive_layout" columnminimumwidth="90,161,29,181,160,10" columnstretch="90,161,29,181,160,10">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -7533,7 +7533,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>181</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -7558,7 +7558,7 @@
                 <property name="verticalSpacing">
                   <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="1" colspan="1">
+                <item row="0" column="0" colspan="1">
                   <widget class="QWidget" name="horizontalLayoutWidget_24">
                     <layout class="QHBoxLayout" name="horizontalLayout_38">
                       <item>
@@ -7593,7 +7593,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="1" colspan="1">
+                <item row="1" column="0" colspan="1">
                   <widget class="QWidget" name="horizontalLayoutWidget_70">
                     <layout class="QHBoxLayout" name="horizontalLayout_158">
                       <property name="spacing">
@@ -7643,7 +7643,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="1" colspan="1">
+                <item row="2" column="0" colspan="1">
                   <widget class="QWidget" name="horizontalLayoutWidget_25">
                     <layout class="QHBoxLayout" name="horizontalLayout_39">
                       <item>
@@ -7678,7 +7678,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="3" column="0" rowspan="1" colspan="1">
+                <item row="3" column="0" colspan="1">
                   <widget class="QLabel" name="label_92">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -7714,7 +7714,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>201</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -7723,7 +7723,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_66_responsive_layout" columnminimumwidth="90,161,29,181,160,20" columnstretch="90,161,29,181,160,20" rowminimumheight="31,9,41,19,40">
+              <layout class="QGridLayout" name="groupBox_66_responsive_layout" columnminimumwidth="90,161,29,181,160,20" columnstretch="90,161,29,181,160,20">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -7855,7 +7855,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>1051</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -7864,7 +7864,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_8_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="1001">
+              <layout class="QGridLayout" name="groupBox_8_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -8250,7 +8250,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>441</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -8262,7 +8262,7 @@
               <property name="title">
                 <string>分集命名规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_38_responsive_layout" columnminimumwidth="10,40,91,9,40,10,71,39,51,50,9,21,9,110,71,30,10" columnstretch="10,40,91,9,40,10,71,39,51,50,9,21,9,110,71,30,10" rowminimumheight="111,9,20,10,30,30,20,10,30,10,30,10,30,10,20">
+              <layout class="QGridLayout" name="groupBox_38_responsive_layout" columnminimumwidth="10,40,91,9,40,10,71,39,51,50,9,21,9,110,71,30,10" columnstretch="10,40,91,9,40,10,71,39,51,50,9,21,9,110,71,30,10">
                 <property name="leftMargin">
                   <number>10</number>
                 </property>
@@ -8634,7 +8634,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>351</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -8662,7 +8662,7 @@
                 <property name="verticalSpacing">
                   <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="1" colspan="1">
+                <item row="0" column="0" colspan="1">
                   <widget class="QLabel" name="label_171">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
@@ -8687,7 +8687,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="0" column="1" rowspan="1" colspan="1">
+                <item row="0" column="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_folder_name_max">
                     <property name="minimumSize">
                       <size>
@@ -8703,7 +8703,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="1" column="1" rowspan="1" colspan="1">
+                <item row="1" column="1" colspan="1">
                   <widget class="QLabel" name="label_169">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8727,7 +8727,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="1" rowspan="1" colspan="1">
+                <item row="2" column="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_file_name_max">
                     <property name="minimumSize">
                       <size>
@@ -8740,7 +8740,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="1" colspan="1">
+                <item row="2" column="0" colspan="1">
                   <widget class="QLabel" name="label_170">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -8765,7 +8765,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="1" rowspan="1" colspan="1">
+                <item row="3" column="1" colspan="1">
                   <widget class="QLabel" name="label_172">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8789,7 +8789,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="4" column="1" rowspan="1" colspan="1">
+                <item row="4" column="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_actor_name_max">
                     <property name="minimumSize">
                       <size>
@@ -8802,7 +8802,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="4" column="0" rowspan="1" colspan="1">
+                <item row="4" column="0" colspan="1">
                   <widget class="QLabel" name="label_167">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -8827,7 +8827,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="5" column="1" rowspan="1" colspan="1">
+                <item row="5" column="1" colspan="1">
                   <widget class="QLabel" name="label_168">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8843,7 +8843,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="6" column="1" rowspan="1" colspan="1">
+                <item row="6" column="1" colspan="1">
                   <widget class="QLineEdit" name="lineEdit_actor_name_more">
                     <property name="minimumSize">
                       <size>
@@ -8870,7 +8870,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>521</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -8882,7 +8882,7 @@
               <property name="title">
                 <string>马赛克命名规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_46_responsive_layout" columnminimumwidth="130,6,3,100,150,197,9,52,12" columnstretch="130,6,3,100,150,197,9,52,12" rowminimumheight="7,16,7,11,22,16,22,11,7,16,7,11,12,16,12,11,7,16,7,11,22,16,22,11,7,16,7,11,8,16,8,12,3,27,3,9,16">
+              <layout class="QGridLayout" name="groupBox_46_responsive_layout" columnminimumwidth="130,6,3,100,150,197,9,52,12" columnstretch="130,6,3,100,150,197,9,52,12">
                 <property name="leftMargin">
                   <number>21</number>
                 </property>
@@ -8901,7 +8901,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="2" rowspan="3" colspan="4">
+                <item row="0" column="2" colspan="4">
                   <widget class="QLineEdit" name="lineEdit_umr_style">
                     <property name="minimumSize">
                       <size>
@@ -8939,7 +8939,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="4" column="2" rowspan="3" colspan="7">
+                <item row="4" column="2" colspan="7">
                   <widget class="QLabel" name="label_116">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -8991,7 +8991,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="8" column="2" rowspan="3" colspan="4">
+                <item row="8" column="2" colspan="4">
                   <widget class="QLineEdit" name="lineEdit_leak_style">
                     <property name="minimumSize">
                       <size>
@@ -9029,7 +9029,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="12" column="2" rowspan="3" colspan="7">
+                <item row="12" column="2" colspan="7">
                   <widget class="QLabel" name="label_117">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -9081,7 +9081,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="16" column="2" rowspan="3" colspan="4">
+                <item row="16" column="2" colspan="4">
                   <widget class="QLineEdit" name="lineEdit_wuma_style">
                     <property name="minimumSize">
                       <size>
@@ -9119,7 +9119,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="20" column="2" rowspan="3" colspan="7">
+                <item row="20" column="2" colspan="7">
                   <widget class="QLabel" name="label_137">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -9171,7 +9171,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="24" column="2" rowspan="3" colspan="4">
+                <item row="24" column="2" colspan="4">
                   <widget class="QLineEdit" name="lineEdit_youma_style">
                     <property name="minimumSize">
                       <size>
@@ -9209,7 +9209,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="28" column="2" rowspan="3" colspan="6">
+                <item row="28" column="2" colspan="6">
                   <widget class="QLabel" name="label_145">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -9251,7 +9251,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="32" column="0" rowspan="2">
+                <item row="32" column="0">
                   <widget class="QLabel" name="label_286">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -9276,7 +9276,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="33" column="3" rowspan="2">
+                <item row="33" column="3">
                   <widget class="QCheckBox" name="checkBox_foldername_mosaic">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -9295,7 +9295,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="33" column="5" rowspan="2" colspan="2">
+                <item row="33" column="5" colspan="2">
                   <widget class="QCheckBox" name="checkBox_filename_mosaic">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -9350,7 +9350,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>121</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -9362,7 +9362,7 @@
               <property name="title">
                 <string>图片命名规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_37_responsive_layout" columnminimumwidth="621" columnstretch="621" rowminimumheight="71">
+              <layout class="QGridLayout" name="groupBox_37_responsive_layout" columnminimumwidth="621" columnstretch="621">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -9471,7 +9471,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>121</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -9483,7 +9483,7 @@
               <property name="title">
                 <string>预告片命名规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_62_responsive_layout" columnminimumwidth="621" columnstretch="621" rowminimumheight="71">
+              <layout class="QGridLayout" name="groupBox_62_responsive_layout" columnminimumwidth="621" columnstretch="621">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -9592,7 +9592,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>411</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -9604,7 +9604,7 @@
               <property name="title">
                 <string>字段命名规则</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_40_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="370">
+              <layout class="QGridLayout" name="groupBox_40_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -9945,7 +9945,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>301</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -9976,7 +9976,7 @@
                 <property name="verticalSpacing">
                   <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="1" colspan="3">
+                <item row="0" column="0" colspan="3">
                   <widget class="QWidget" name="gridLayoutWidget_35">
                     <layout class="QGridLayout" name="gridLayout_43">
                       <item row="0" column="0">
@@ -10055,7 +10055,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="1" colspan="3">
+                <item row="1" column="0" colspan="3">
                   <widget class="QLabel" name="label_331">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -10074,7 +10074,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="1" colspan="3">
+                <item row="2" column="0" colspan="3">
                   <widget class="QFrame" name="frame_6">
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -10160,7 +10160,7 @@
                     </widget>
                   </widget>
                 </item>
-                <item row="3" column="0" rowspan="1" colspan="1">
+                <item row="3" column="0" colspan="1">
                   <widget class="QLabel" name="label_357">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -10185,7 +10185,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="1" rowspan="1" colspan="1">
+                <item row="3" column="1" colspan="1">
                   <widget class="QCheckBox" name="checkBox_foldername_4k">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -10204,7 +10204,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="3" column="2" rowspan="1" colspan="1">
+                <item row="3" column="2" colspan="1">
                   <widget class="QCheckBox" name="checkBox_filename_4k">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
@@ -10223,7 +10223,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="4" column="0" rowspan="1" colspan="3">
+                <item row="4" column="0" colspan="3">
                   <widget class="QLabel" name="label_358">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -10253,7 +10253,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>271</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -10265,7 +10265,7 @@
               <property name="title">
                 <string>其他说明</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_67_responsive_layout" columnminimumwidth="10,120,491,10" columnstretch="10,120,491,10" rowminimumheight="30,130,1,29,16">
+              <layout class="QGridLayout" name="groupBox_67_responsive_layout" columnminimumwidth="10,120,491,10" columnstretch="10,120,491,10">
                 <property name="leftMargin">
                   <number>40</number>
                 </property>
@@ -10309,7 +10309,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="1" column="1" rowspan="2" colspan="3">
+                <item row="1" column="1" colspan="3">
                   <widget class="QLabel" name="label_352">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -10336,7 +10336,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="2" colspan="2">
+                <item row="2" column="0" colspan="2">
                   <widget class="QLabel" name="label_354">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -10431,7 +10431,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>216</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -10443,7 +10443,7 @@
               <property name="title">
                 <string>翻译引擎</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_trans_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="176">
+              <layout class="QGridLayout" name="groupBox_trans_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -10689,13 +10689,13 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>601</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
                 <string>LLM 翻译</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_llm_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="561">
+              <layout class="QGridLayout" name="groupBox_llm_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -11009,7 +11009,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>130</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -11021,7 +11021,7 @@
               <property name="title">
                 <string>标题</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_82_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="91">
+              <layout class="QGridLayout" name="groupBox_82_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -11171,7 +11171,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>220</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -11183,7 +11183,7 @@
               <property name="title">
                 <string>简介</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_83_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="130,1,50">
+              <layout class="QGridLayout" name="groupBox_83_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -11202,7 +11202,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="0" rowspan="2">
+                <item row="0" column="0">
                   <widget class="QWidget" name="layoutWidget_13">
                     <layout class="QGridLayout" name="gridLayout_48">
                       <item row="0" column="0">
@@ -11326,7 +11326,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="2">
+                <item row="1" column="0">
                   <widget class="QFrame" name="frame_5">
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -11420,7 +11420,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>420</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -11432,7 +11432,7 @@
               <property name="title">
                 <string>演员</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_84_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="381">
+              <layout class="QGridLayout" name="groupBox_84_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -11611,7 +11611,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>151</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -11623,7 +11623,7 @@
               <property name="title">
                 <string>标签</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_85_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="111">
+              <layout class="QGridLayout" name="groupBox_85_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -11772,7 +11772,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>151</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -11784,7 +11784,7 @@
               <property name="title">
                 <string>系列</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_86_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="111">
+              <layout class="QGridLayout" name="groupBox_86_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -11933,7 +11933,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>151</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -11945,7 +11945,7 @@
               <property name="title">
                 <string>片商</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_87_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="111">
+              <layout class="QGridLayout" name="groupBox_87_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -12094,7 +12094,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>151</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -12106,7 +12106,7 @@
               <property name="title">
                 <string>发行商</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_88_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="111">
+              <layout class="QGridLayout" name="groupBox_88_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -12255,7 +12255,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>151</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -12267,7 +12267,7 @@
               <property name="title">
                 <string>导演</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_89_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="111">
+              <layout class="QGridLayout" name="groupBox_89_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -12456,7 +12456,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>271</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -12465,7 +12465,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_20_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="221">
+              <layout class="QGridLayout" name="groupBox_20_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -12700,7 +12700,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>451</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -12709,7 +12709,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_45_responsive_layout" columnminimumwidth="140,1,1,169,94,146,90,4,16" columnstretch="140,1,1,169,94,146,90,4,16" rowminimumheight="186,4,40,12,30,7,131">
+              <layout class="QGridLayout" name="groupBox_45_responsive_layout" columnminimumwidth="140,1,1,169,94,146,90,4,16" columnstretch="140,1,1,169,94,146,90,4,16">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -13068,7 +13068,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>561</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -13077,7 +13077,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_26_responsive_layout" columnminimumwidth="20,121,510" columnstretch="20,121,510" rowminimumheight="30,10,461">
+              <layout class="QGridLayout" name="groupBox_26_responsive_layout" columnminimumwidth="20,121,510" columnstretch="20,121,510">
                 <property name="leftMargin">
                   <number>30</number>
                 </property>
@@ -13189,7 +13189,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>511</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -13198,7 +13198,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_31_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="461">
+              <layout class="QGridLayout" name="groupBox_31_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -13748,7 +13748,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>101</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -13757,7 +13757,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_36_responsive_layout" columnminimumwidth="664" columnstretch="664" rowminimumheight="51">
+              <layout class="QGridLayout" name="groupBox_36_responsive_layout" columnminimumwidth="664" columnstretch="664">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -13901,7 +13901,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>201</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -13929,7 +13929,7 @@
                 <property name="verticalSpacing">
                   <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="1" colspan="1">
+                <item row="0" column="0" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_31">
                     <layout class="QGridLayout" name="gridLayout_31">
                       <item row="0" column="1">
@@ -14040,7 +14040,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="1" colspan="1">
+                <item row="1" column="0" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_29">
                     <layout class="QGridLayout" name="gridLayout_29">
                       <item row="0" column="1">
@@ -14151,7 +14151,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="1" colspan="1">
+                <item row="2" column="0" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_32">
                     <layout class="QGridLayout" name="gridLayout_39">
                       <item row="0" column="1">
@@ -14276,7 +14276,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>101</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -14285,7 +14285,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_39_responsive_layout" columnminimumwidth="664" columnstretch="664" rowminimumheight="51">
+              <layout class="QGridLayout" name="groupBox_39_responsive_layout" columnminimumwidth="664" columnstretch="664">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -14466,7 +14466,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>1071</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -14478,7 +14478,7 @@
               <property name="title">
                 <string>写入 NFO 的字段：</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_81_responsive_layout" columnminimumwidth="130,431,100" columnstretch="130,431,100" rowminimumheight="21,9,1018">
+              <layout class="QGridLayout" name="groupBox_81_responsive_layout" columnminimumwidth="130,431,100" columnstretch="130,431,100">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -16272,7 +16272,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>321</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -16281,7 +16281,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_43_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="292">
+              <layout class="QGridLayout" name="groupBox_43_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -16685,7 +16685,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>501</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -16697,7 +16697,7 @@
               <property name="title">
                 <string>补全 Emby/Jellyfin 演员头像</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_41_responsive_layout" columnminimumwidth="30,110,261,29,141,50,40" columnstretch="30,110,261,29,141,50,40" rowminimumheight="40,1,300,9,51,19,40">
+              <layout class="QGridLayout" name="groupBox_41_responsive_layout" columnminimumwidth="30,110,261,29,141,50,40" columnstretch="30,110,261,29,141,50,40">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -16716,7 +16716,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="1" rowspan="2" colspan="4">
+                <item row="0" column="1" colspan="4">
                   <widget class="QLabel" name="label_297">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -16741,7 +16741,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="2" colspan="7">
+                <item row="1" column="0" colspan="7">
                   <widget class="QWidget" name="layoutWidget_8">
                     <layout class="QGridLayout" name="gridLayout">
                       <item row="6" column="1">
@@ -17219,7 +17219,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>391</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -17231,7 +17231,7 @@
               <property name="title">
                 <string>补全 Emby/Jellyfin 演员信息</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_64_responsive_layout" columnminimumwidth="30,110,261,29,191,40" columnstretch="30,110,261,29,191,40" rowminimumheight="40,1,189,1,50,19,40">
+              <layout class="QGridLayout" name="groupBox_64_responsive_layout" columnminimumwidth="30,110,261,29,191,40" columnstretch="30,110,261,29,191,40">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -17250,7 +17250,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="1" rowspan="2" colspan="5">
+                <item row="0" column="1" colspan="5">
                   <widget class="QLabel" name="label_295">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -17275,7 +17275,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="3" colspan="6">
+                <item row="1" column="0" colspan="6">
                   <widget class="QWidget" name="gridLayoutWidget_14">
                     <layout class="QGridLayout" name="gridLayout_14">
                       <item row="0" column="1">
@@ -17635,7 +17635,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="3" column="0" rowspan="2" colspan="6">
+                <item row="3" column="0" colspan="6">
                   <widget class="QFrame" name="frame_4">
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -17748,7 +17748,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>191</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -17760,7 +17760,7 @@
               <property name="title">
                 <string>补全 Kodi/Plex/Jvedio 演员头像</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_68_responsive_layout" columnminimumwidth="30,110,161,19,141,9,171,20" columnstretch="30,110,161,19,141,9,171,20" rowminimumheight="40,1,50,19,40">
+              <layout class="QGridLayout" name="groupBox_68_responsive_layout" columnminimumwidth="30,110,161,19,141,9,171,20" columnstretch="30,110,161,19,141,9,171,20">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -17779,7 +17779,7 @@
                 <property name="verticalSpacing">
                   <number>0</number>
                 </property>
-                <item row="0" column="1" rowspan="2" colspan="7">
+                <item row="0" column="1" colspan="7">
                   <widget class="QLabel" name="label_414">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -17804,7 +17804,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="2" colspan="8">
+                <item row="1" column="0" colspan="8">
                   <widget class="QFrame" name="frame_7">
                     <property name="frameShape">
                       <enum>QFrame::NoFrame</enum>
@@ -17963,7 +17963,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>531</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -18279,7 +18279,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>281</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -18288,7 +18288,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_28_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="264">
+              <layout class="QGridLayout" name="groupBox_28_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -18331,9 +18331,9 @@
                             <string>help</string>
                           </property>
                           <property name="wordWrap">
-    <bool>true</bool>
-  </property>
-</widget>
+                            <bool>true</bool>
+                          </property>
+                        </widget>
                       </item>
                       <item row="0" column="1">
                         <layout class="QHBoxLayout" name="horizontalLayout_17">
@@ -18719,7 +18719,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>301</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -18728,7 +18728,7 @@
               <property name="semanticRole" stdset="0">
                 <string>codeGroup</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_44_responsive_layout" columnminimumwidth="661" columnstretch="661" rowminimumheight="241">
+              <layout class="QGridLayout" name="groupBox_44_responsive_layout" columnminimumwidth="661" columnstretch="661">
                 <property name="leftMargin">
                   <number>20</number>
                 </property>
@@ -18927,7 +18927,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>181</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="title">
@@ -18955,7 +18955,7 @@
                 <property name="verticalSpacing">
                   <number>10</number>
                 </property>
-                <item row="0" column="0" rowspan="1" colspan="1">
+                <item row="0" column="0" colspan="1">
                   <widget class="QWidget" name="gridLayoutWidget_11">
                     <layout class="QGridLayout" name="gridLayout_65">
                       <item row="0" column="0">
@@ -19005,7 +19005,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="1" column="0" rowspan="1" colspan="1">
+                <item row="1" column="0" colspan="1">
                   <widget class="QLabel" name="label_356">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -19041,7 +19041,7 @@
                     </property>
                   </widget>
                 </item>
-                <item row="2" column="0" rowspan="1" colspan="1">
+                <item row="2" column="0" colspan="1">
                   <widget class="QWidget" name="layoutWidget">
                     <layout class="QHBoxLayout" name="horizontalLayout_150">
                       <item>
@@ -19149,7 +19149,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>81</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -19161,7 +19161,7 @@
               <property name="title">
                 <string>保存日志</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_17_responsive_layout" columnminimumwidth="621" columnstretch="621" rowminimumheight="41">
+              <layout class="QGridLayout" name="groupBox_17_responsive_layout" columnminimumwidth="621" columnstretch="621">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -19214,7 +19214,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>81</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -19226,7 +19226,7 @@
               <property name="title">
                 <string>调试模式（日志页面）</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_3_responsive_layout" columnminimumwidth="623" columnstretch="623" rowminimumheight="41">
+              <layout class="QGridLayout" name="groupBox_3_responsive_layout" columnminimumwidth="623" columnstretch="623">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -19322,7 +19322,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>81</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -19334,7 +19334,7 @@
               <property name="title">
                 <string>检查更新</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_4_responsive_layout" columnminimumwidth="621" columnstretch="621" rowminimumheight="41">
+              <layout class="QGridLayout" name="groupBox_4_responsive_layout" columnminimumwidth="621" columnstretch="621">
                 <property name="leftMargin">
                   <number>60</number>
                 </property>
@@ -19387,7 +19387,7 @@
               <property name="minimumSize">
                 <size>
                   <width>0</width>
-                  <height>581</height>
+                  <height>0</height>
                 </size>
               </property>
               <property name="maximumSize">
@@ -19399,7 +19399,7 @@
               <property name="title">
                 <string>高级功能</string>
               </property>
-              <layout class="QGridLayout" name="groupBox_12_responsive_layout" columnminimumwidth="665" columnstretch="665" rowminimumheight="531">
+              <layout class="QGridLayout" name="groupBox_12_responsive_layout" columnminimumwidth="665" columnstretch="665">
                 <property name="leftMargin">
                   <number>30</number>
                 </property>
