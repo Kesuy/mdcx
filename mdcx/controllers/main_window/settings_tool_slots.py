@@ -469,7 +469,6 @@ class SettingsToolSlotsMixin:
         self.Ui.pushButton_start_cap.setStyleSheet(build_action_button_style("pushButton_start_cap", self.dark_mode))
         self.Ui.pushButton_start_cap2.setStyleSheet(build_action_button_style("pushButton_start_cap2", self.dark_mode))
         Flags.file_mode = FileMode.Default
-        self.threads_list = [thread for thread in self.threads_list if thread.is_alive()]
         if len(Flags.failed_list):
             self.Ui.pushButton_scraper_failed_list.setText(f"一键重新刮削当前 {len(Flags.failed_list)} 个失败文件")
         else:

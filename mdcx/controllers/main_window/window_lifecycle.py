@@ -10,7 +10,6 @@ from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QCursor, QGuiApplication
 from PyQt6.QtWidgets import QComboBox, QMessageBox, QPushButton, QSystemTrayIcon
 
-from mdcx.base.web import check_theporndb_api_token
 from mdcx.config.enums import Switch
 from mdcx.config.manager import manager
 from mdcx.consts import GITHUB_ISSUES_URL, GITHUB_RELEASES_URL, IS_WINDOWS
@@ -334,11 +333,6 @@ class WindowLifecycleMixin:
         if feedback or download_link:
             self.main_logs_show.emit(f"{feedback}{download_link}")
         signal_qt.show_log_text("================================================================================")
-        self.task_manager.submit_sync(
-            "check-theporndb-token",
-            check_theporndb_api_token,
-            on_error=lambda error: signal_qt.show_traceback_log(error),
-        )
 
     def _show_version_thread(self):
         """Compatibility wrapper for lightweight callers; production uses callbacks."""

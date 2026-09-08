@@ -8164,6 +8164,15 @@ class Ui_SettingsPage(object):
         self.lineEdit_api_token_theporndb.setMinimumSize(QtCore.QSize(300, 30))
         self.lineEdit_api_token_theporndb.setObjectName("lineEdit_api_token_theporndb")
         self.gridLayout_65.addWidget(self.lineEdit_api_token_theporndb, 0, 1, 1, 1)
+        self.pushButton_check_theporndb_api = QtWidgets.QPushButton(parent=self.gridLayoutWidget_11)
+        self.pushButton_check_theporndb_api.setMinimumSize(QtCore.QSize(90, 30))
+        self.pushButton_check_theporndb_api.setObjectName("pushButton_check_theporndb_api")
+        self.gridLayout_65.addWidget(self.pushButton_check_theporndb_api, 0, 2, 1, 1)
+        self.label_theporndb_api_result = QtWidgets.QLabel(parent=self.gridLayoutWidget_11)
+        self.label_theporndb_api_result.setText("")
+        self.label_theporndb_api_result.setWordWrap(True)
+        self.label_theporndb_api_result.setObjectName("label_theporndb_api_result")
+        self.gridLayout_65.addWidget(self.label_theporndb_api_result, 1, 1, 1, 2)
         self.groupBox_14_responsive_layout.addWidget(self.gridLayoutWidget_11, 0, 0, 1, 1)
         self.label_356 = QtWidgets.QLabel(parent=self.groupBox_14)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Fixed)
@@ -9950,6 +9959,7 @@ class Ui_SettingsPage(object):
         self.groupBox_14.setProperty("semanticRole", _translate("SettingsPage", "codeGroup"))
         self.label_355.setText(_translate("SettingsPage", "ThePornDB："))
         self.lineEdit_api_token_theporndb.setProperty("semanticRole", _translate("SettingsPage", "code"))
+        self.pushButton_check_theporndb_api.setText(_translate("SettingsPage", "API 测试"))
         self.label_356.setText(_translate("SettingsPage", "<html><head/><body><p><a\n"
 "                          href=\"https://theporndb.net/\"><span style=\"\n"
 "                          text-decoration: underline;\n"

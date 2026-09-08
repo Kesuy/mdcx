@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from .session import ScrapeSession
 
 from .enums import FileMode
-from .types import ScrapeResult
+from .types import CrawlersResult
 
 
 class FileDoneDict(TypedDict):
@@ -32,8 +32,6 @@ class _Flags:
     # 刮削相关
     rest_time_convert: int = 0
     rest_time_convert_: int = 0
-    total_kills: int = 0
-    now_kill: int = 0
     success_save_time: float = 0.0
     next_start_time: float = 0.0
     count_claw: int = 0  # 批量刮削次数
@@ -74,7 +72,7 @@ class _Flags:
     # 番号的json刮削状态（None: 进行中，True: 成功，False: 失败）
     json_get_status: dict[str, bool | None] = field(default_factory=dict)
     # 获取成功的json
-    json_data_dic: dict[str, ScrapeResult] = field(default_factory=dict)
+    json_data_dic: dict[str, CrawlersResult] = field(default_factory=dict)
     img_path: str = ""
     # 失败文件及其错误原因
     failed_list: list[tuple[Path, str]] = field(default_factory=list)

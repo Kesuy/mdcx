@@ -1,6 +1,5 @@
 import asyncio
 import threading
-import time
 from concurrent.futures import CancelledError
 
 import pytest
@@ -10,7 +9,6 @@ from mdcx.utils import (
     add_html_plain_text,
     clean_list,
     collapse_inline_script_splits,
-    kill_a_thread,
 )
 from mdcx.utils.language import is_english, is_japanese, is_probably_english_for_translation
 
@@ -165,24 +163,6 @@ def test_background_executor_fast_future_does_not_remain_pending():
     finally:
         executor.cancel()
         executor._stop_background_thread()
-
-
-def test_kill_a_thread_waits_boundedly_without_forcing_thread_exit():
-    release = threading.Event()
-    thread = threading.Thread(target=release.wait)
-    thread.start()
-
-    try:
-        started_at = time.monotonic()
-        stopped = kill_a_thread(thread, timeout=0.02)
-
-        assert stopped is False
-        assert time.monotonic() - started_at < 0.2
-        assert thread.is_alive()
-    finally:
-        release.set()
-        thread.join(timeout=1)
-    assert not thread.is_alive()
 
 
 def test_collapse_inline_script_splits_recovers_streamed_text():

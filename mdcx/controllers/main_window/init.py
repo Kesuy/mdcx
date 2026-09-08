@@ -283,6 +283,7 @@ def Init_Singal(self: "MyMAinWindow"):
     self.Ui.pushButton_move_mp4.clicked.connect(self.pushButton_move_mp4_clicked)
     self.Ui.pushButton_check_net.clicked.connect(self.pushButton_check_net_clicked)
     self.Ui.pushButton_check_javdb_cookie.clicked.connect(self.pushButton_check_javdb_cookie_clicked)
+    self.Ui.pushButton_check_theporndb_api.clicked.connect(self.network_controller.check_theporndb_token)
     self.Ui.pushButton_check_fc2ppvdb_cookie.clicked.connect(self.pushButton_check_fc2ppvdb_cookie_clicked)
     self.Ui.pushButton_check_javbus_cookie.clicked.connect(self.pushButton_check_javbus_cookie_clicked)
     self.Ui.pushButton_check_and_clean_files.clicked.connect(self.pushButton_check_and_clean_files_clicked)

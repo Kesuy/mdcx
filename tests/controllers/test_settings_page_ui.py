@@ -49,6 +49,15 @@ def test_api_keys_have_explicit_eye_toggle_buttons():
         assert field.echoMode() == field.EchoMode.Password
 
 
+def test_theporndb_api_test_controls_are_in_token_layout():
+    window, _ = _controller()
+    ui = window.Ui
+    assert ui.gridLayout_65.itemAtPosition(0, 2).widget() is ui.pushButton_check_theporndb_api
+    assert ui.gridLayout_65.itemAtPosition(1, 1).widget() is ui.label_theporndb_api_result
+    assert ui.pushButton_check_theporndb_api.text() == "API 测试"
+    assert ui.label_theporndb_api_result.wordWrap()
+
+
 def test_ca_certificate_is_selected_with_file_picker(monkeypatch, tmp_path):
     window, controller = _controller()
     certificate = tmp_path / "proxy-ca.pem"

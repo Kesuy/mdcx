@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from mdcx.base.web import check_theporndb_api_token
 from mdcx.config.enums import Website
 from mdcx.config.manager import manager
 from mdcx.core.network_check import run_network_check
@@ -74,6 +75,28 @@ class NetworkController:
         signal_qt.show_net_info(f"\n⛔️ 网络检测出现异常：{error}")
         signal_qt.show_traceback_log(error)
         self._network_check_done()
+
+    def check_theporndb_token(self) -> None:
+        ui = self.window.Ui
+        token = ui.lineEdit_api_token_theporndb.text().strip()
+        if not token:
+            ui.label_theporndb_api_result.setText("❌ 未填写 API Token")
+            return
+        ui.pushButton_check_theporndb_api.setEnabled(False)
+        ui.label_theporndb_api_result.setText("⏳ 正在检测中...")
+        try:
+            self.window.task_manager.submit_sync(
+                "check-theporndb-token",
+                lambda: check_theporndb_api_token(token),
+                on_success=self._theporndb_check_done,
+                on_error=lambda _error: self._theporndb_check_done("❌ API 测试失败，请检查网络或 Token"),
+            )
+        except Exception:
+            self._theporndb_check_done("❌ API 测试失败，请检查网络或 Token")
+
+    def _theporndb_check_done(self, result: str) -> None:
+        self.window.Ui.label_theporndb_api_result.setText(result)
+        self.window.Ui.pushButton_check_theporndb_api.setEnabled(True)
 
     def check_javdb_cookie(self) -> None:
         input_cookie = self.window.Ui.plainTextEdit_cookie_javdb.toPlainText().strip()

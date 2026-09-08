@@ -818,9 +818,9 @@ def check_version() -> str | None:
     return None
 
 
-def check_theporndb_api_token() -> str:
+def check_theporndb_api_token(api_token: str | None = None) -> str:
     tips = "✅ 连接正常! "
-    api_token = manager.config.theporndb_api_token
+    api_token = (manager.config.theporndb_api_token if api_token is None else api_token).strip()
     url = "https://api.theporndb.net/scenes/hash/8679fcbdd29fa735"
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -835,11 +835,9 @@ def check_theporndb_api_token() -> str:
                 response, err = executor.run(computed.async_client.request("GET", url, headers=headers))
         except CancelledError:
             tips = "❌ ThePornDB 连接检查已取消"
-            signal.show_log_text(tips)
             return tips
         if response is None:
             tips = f"❌ ThePornDB 连接失败: {err}"
-            signal.show_log_text(tips)
             return tips
         if response.status_code == 401 and "Unauthenticated" in str(response.text):
             tips = "❌ API Token 错误！影响欧美刮削！请到「设置」-「网络」中修改。"
@@ -847,7 +845,6 @@ def check_theporndb_api_token() -> str:
             tips = "✅ 连接正常！" if response.json().get("data") else "❌ 返回数据异常！"
         else:
             tips = f"❌ 连接失败！请检查网络或代理设置！ {response.status_code} {response.text}"
-    signal.show_log_text(tips.replace("❌", " ❌ ThePornDB").replace("✅", " ✅ ThePornDB"))
     return tips
 
 

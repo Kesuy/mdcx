@@ -40,7 +40,10 @@ AsyncBackgroundExecutor
 - 网络检测、取消状态和 JavDB/FC2CMADB/JavBus Cookie 校验由 `NetworkController` 管理；新增网络站点校验应进入该控制器。
 - 同类任务使用稳定名称；重新提交同名任务会取消旧 Future，并忽略过期回调。
 - 窗口退出必须调用 `QtTaskManager.shutdown()`，随后由配置管理器关闭网络客户端和共享事件循环。
-- 裸 `threading.Thread` 仅允许存在于旧刮削工作线程和无完整 Qt 对象的测试兼容分支；新增主窗口功能不得使用。
+- 刮削使用 asyncio 任务和逐轮 `ScrapeSession`；同番号元数据缓存不包含本地文件标签，核心缓存访问绑定本轮会话。
+- 刮削入口拒绝重叠运行。停止采用协作式取消：停止投放新文件，等待在途文件操作、资源关闭和成功列表保存完成后，才恢复开始按钮。
+- `Flags` 仅为既有 UI 和辅助函数保留当前会话适配；不得用它替代新任务持有的会话。
+- 主窗口不得创建裸 `threading.Thread`；阻塞工具任务使用 `submit_sync`。
 
 ## 设置页：Layout 优先
 

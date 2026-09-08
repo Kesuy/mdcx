@@ -211,7 +211,11 @@ async def test_scrape_crawler_result_reaches_postprocess_without_copy_name_colli
     monkeypatch.setattr(scraper_module, "replace_special_word", lambda *_args: None)
     monkeypatch.setattr(scraper_module, "translate_title_outline", no_op_async)
     monkeypatch.setattr(scraper_module, "translate_actor", no_op_async)
-    monkeypatch.setattr(scraper_module, "translate_info", lambda *_args: None)
+
+    def translate_metadata(_result, _has_sub, *, include_file_tags):
+        assert include_file_tags is False
+
+    monkeypatch.setattr(scraper_module, "translate_info", translate_metadata)
     monkeypatch.setattr(scraper_module, "replace_word", lambda *_args: None)
     monkeypatch.setattr(scraper_module, "get_video_size", stop_after_postprocess)
     monkeypatch.setattr(scraper_module.manager.config, "main_mode", 1)

@@ -40,7 +40,24 @@ def _should_query_avwiki_actor(res: CrawlersResult) -> bool:
     return res.scraping_type in AVWIKI_SCRAPING_TYPES
 
 
-def translate_info(json_data: CrawlersResult, has_sub: bool):
+def add_file_tags(json_data: CrawlersResult, has_sub: bool) -> None:
+    """Add local-file tags only after taking the shared metadata snapshot."""
+    tag_include = manager.config.nfo_tag_include
+    language = manager.config.get_field_config(CrawlerResultFields.TAGS).language
+    local_tags = []
+    json_data.mosaic = normalize_mosaic(json_data.mosaic)
+    if has_sub and TagInclude.CNWORD in tag_include:
+        local_tags.append("中文字幕")
+    if json_data.mosaic and TagInclude.MOSAIC in tag_include:
+        local_tags.append(json_data.mosaic)
+    for tag in local_tags:
+        if language in (Language.ZH_CN, Language.ZH_TW):
+            tag = zhconv.convert(tag, "zh-cn" if language == Language.ZH_CN else "zh-hant")
+        if tag not in json_data.tags:
+            json_data.tags.append(tag)
+
+
+def translate_info(json_data: CrawlersResult, has_sub: bool, *, include_file_tags: bool = True):
     xml_info = resources.info_mapping_data
     if xml_info is not None and len(xml_info) == 0:
         return json_data
@@ -121,9 +138,9 @@ def translate_info(json_data: CrawlersResult, has_sub: bool):
     # 添加字幕、马赛克信息到tag中
     mosaic = normalize_mosaic(json_data.mosaic)
     json_data.mosaic = mosaic
-    if has_sub and TagInclude.CNWORD in tag_include:
+    if include_file_tags and has_sub and TagInclude.CNWORD in tag_include:
         tag += ",中文字幕"
-    if mosaic and TagInclude.MOSAIC in tag_include:
+    if include_file_tags and mosaic and TagInclude.MOSAIC in tag_include:
         tag += "," + mosaic
 
     # 添加系列、制作、发行信息到tag中

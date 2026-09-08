@@ -11,7 +11,6 @@ import unicodedata
 from collections.abc import Coroutine
 from concurrent.futures import Future
 from pathlib import Path
-from threading import Thread
 from typing import Any, TypeVar
 
 from ..consts import IS_NFC
@@ -252,14 +251,6 @@ def clean_list(a: str) -> str:
     移除逗号分隔的字符串中的重复项, 同时移除每项首尾的空格, 并保持顺序.
     """
     return ",".join(dict.fromkeys(w.strip() for w in a.split(",") if w.strip()).keys())
-
-
-def kill_a_thread(t: Thread, timeout: float = 5.0) -> bool:
-    """Boundedly wait for a cooperatively-stopped thread without injecting exceptions."""
-    if t is threading.current_thread():
-        return False
-    t.join(timeout=max(float(timeout), 0.0))
-    return not t.is_alive()
 
 
 def get_random_headers() -> dict:

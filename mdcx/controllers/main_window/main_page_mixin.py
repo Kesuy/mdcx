@@ -44,17 +44,6 @@ class MainPageMixin:
     def pushButton_stop_scrape_clicked(self):
         self._get_scrape_controller().stop()
 
-    def _show_stop_info(self):
-        self._get_scrape_controller().show_stop_info()
-
-    def show_stop_info_thread(
-        self,
-    ):
-        self._get_scrape_controller().schedule_stop_info()
-
-    def _kill_threads(self):
-        self._get_scrape_controller().kill_workers()
-
     def set_processbar(self, value):
         self.Ui.progressBar_scrape.setProperty("value", value)
 

@@ -78,7 +78,7 @@ def test_check_theporndb_api_token_handles_cancelled_executor(monkeypatch: pytes
     result = base_web.check_theporndb_api_token()
 
     assert result == "❌ ThePornDB 连接检查已取消"
-    assert logs == ["❌ ThePornDB 连接检查已取消"]
+    assert logs == []
 
 
 @pytest.mark.asyncio

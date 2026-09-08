@@ -1,7 +1,9 @@
 import asyncio
 import copy as copy_module
+import threading
 import time
 import traceback
+from concurrent.futures import Future
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -33,7 +35,7 @@ from ..models.failure import classify_failure
 from ..models.flags import FileDoneDict, Flags
 from ..models.log_buffer import LogBuffer
 from ..models.session import ScrapeSession
-from ..models.types import CrawlersResult, FileInfo, OtherInfo, ScrapeResult, ShowData
+from ..models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 from ..runtime import ApplicationServices
 from ..signals import signal
 from ..tools.emby_actor_image import update_emby_actor_photo
@@ -47,7 +49,7 @@ from .file_crawler import FileScraper, classify_existing_scrape_result, classify
 from .image import add_mark, prepare_local_number_images
 from .media_resource import MediaResourceContext
 from .nfo import get_nfo_data, write_nfo
-from .translate import translate_actor, translate_info, translate_title_outline
+from .translate import add_file_tags, translate_actor, translate_info, translate_title_outline
 from .utils import (
     add_definition_tag,
     deal_some_field,
@@ -176,12 +178,16 @@ class Scraper:
         self.crawler_provider = crawler_provider
         self.session = session or ScrapeSession()
         self.services = services or ApplicationServices.from_globals()
+        self.finished: Future[None] = Future()
+        self.auto_exit = False
 
     async def _run_tasks_with_limit(self, movie_list: list[Path], task_count: int, thread_number: int) -> None:
         task_iter = iter(enumerate(movie_list, 1))
         running_tasks: set[asyncio.Task[None]] = set()
 
         def _submit_next_task() -> bool:
+            if self.session.cancellation_requested:
+                return False
             try:
                 index, each_file = next(task_iter)
             except StopIteration:
@@ -208,14 +214,14 @@ class Scraper:
                     try:
                         done_task.result()
                     except StopScrape:
-                        if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
+                        if self.session.cancellation_requested:
                             stop_requested = True
                         elif fatal_error is None:
                             fatal_error = UnexpectedScrapeCancellation(
                                 f"刮削任务异常停止：{done_task.get_name()}，但未检测到手动停止标识"
                             )
                     except asyncio.CancelledError:
-                        if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
+                        if self.session.cancellation_requested:
                             stop_requested = True
                         elif fatal_error is None:
                             fatal_error = UnexpectedScrapeCancellation(
@@ -226,8 +232,10 @@ class Scraper:
                             fatal_error = e
 
                 if stop_requested or fatal_error is not None:
-                    for pending_task in running_tasks:
-                        pending_task.cancel()
+                    # Manual stop lets in-flight file operations finish safely.
+                    if fatal_error is not None:
+                        for pending_task in running_tasks:
+                            pending_task.cancel()
                     if running_tasks:
                         await asyncio.gather(*running_tasks, return_exceptions=True)
                     if fatal_error is not None:
@@ -251,7 +259,9 @@ class Scraper:
 
     async def _run(self, file_mode: FileMode, movie_list: list[Path] | None) -> None:
         Flags.reset()
-        self.session.reset(file_mode)
+        self.session.reset(file_mode, clear_cancel=False)
+        if self.session.cancellation_requested:
+            return
         self.session.state.appointment_url = Flags.appoint_url
         self.session.state.specified_site = Flags.website_name
         Flags.bind_session(self.session)
@@ -310,6 +320,8 @@ class Scraper:
         Flags.remain_list = self.session.state.remain_queue
         Flags.can_save_remain = True
 
+        if self.session.cancellation_requested:
+            return
         task_count = len(movie_list)
         self.session.sync_progress(total=task_count)
         Flags.sync_progress_from_session()
@@ -335,16 +347,14 @@ class Scraper:
             # 异步并发（按并发数渐进投喂任务，避免大列表一次性创建海量协程）
             await self._run_tasks_with_limit(movie_list, task_count, thread_number)
             completed_count = self.session.state.completed_count
-            if completed_count < task_count and not (
-                signal.stop or Flags.stop_requested or self.session.cancellation_requested
-            ):
+            if completed_count < task_count and not self.session.cancellation_requested:
                 message = f"刮削异常提前结束：已完成 {completed_count}/{task_count}，剩余 {task_count - completed_count} 个任务未执行"
                 signal.show_traceback_log(message)
                 signal.show_log_text(f" 🔴 {message}")
                 raise UnexpectedScrapeCancellation(message)
             signal.label_result.emit(f" 刮削中：0 成功：{Flags.succ_count} 失败：{Flags.fail_count}")
             await save_success_list()  # 保存成功列表
-            if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
+            if self.session.cancellation_requested:
                 return
 
         signal.show_log_text("================================================================================")
@@ -384,13 +394,15 @@ class Scraper:
         signal.show_log_text("================================================================================")
         signal.show_scrape_info(f"🎉 刮削完成 {task_count}/{task_count}")
 
+        if self.session.cancellation_requested:
+            return
+
         # auto run after scrape
         if EmbyAction.ACTOR_PHOTO_AUTO in manager.config.emby_on:
             await update_emby_actor_photo()
         if manager.config.actor_photo_kodi_auto:
             await creat_kodi_actors(True)
 
-        signal.reset_buttons_status.emit()
         if len(Flags.again_dic):
             Flags.new_again_dic = Flags.again_dic.copy()
             new_movie_list = list(Flags.new_again_dic.keys())
@@ -402,12 +414,14 @@ class Scraper:
             signal.show_log_text("\n\n 🍔 已启用「刮削后自动退出软件」！")
             count = 5
             for i in range(count):
+                if self.session.cancellation_requested:
+                    return
                 signal.show_log_text(f" {count - i} 秒后将自动退出！")
                 await asyncio.sleep(1)
-            await self.crawler_provider.close()
-            signal.exec_exit_app.emit()
+            self.auto_exit = True
 
     async def process_one_file(self, task: tuple[Path, int, int]) -> None:
+        self._check_stop(task[0].name)
         # 获取顺序
         file_path, count, count_all = task
         Flags.counting_order += 1
@@ -454,7 +468,7 @@ class Scraper:
             signal.show_log_text(f" 🕷 {get_current_time()} 开始刮削：{started_count}/{count_all} {show_name}")
 
         start_time = time.time()
-        file_mode = Flags.file_mode
+        file_mode = self.session.state.file_mode
 
         # 获取文件基础信息
         file_info = await get_file_info_v2(file_path)
@@ -495,16 +509,24 @@ class Scraper:
             if json_data and other:
                 if manager.config.main_mode == 4:
                     number = json_data.number  # 读取模式且存在nfo时，可能会导致movie_number改变，需要更新
-                Flags.json_data_dic.update({number: ScrapeResult(file_info, json_data, other)})
                 for status_number in (origin_number, number):
-                    if status_number in Flags.json_get_status and Flags.json_get_status[status_number] is None:
-                        Flags.json_get_status[status_number] = True
-            elif origin_number in Flags.json_get_status and Flags.json_get_status[origin_number] is None:
-                Flags.json_get_status[origin_number] = False
+                    if (
+                        status_number in self.session.cache("json_get_status", dict)
+                        and self.session.cache("json_get_status", dict)[status_number] is None
+                    ):
+                        self.session.cache("json_get_status", dict)[status_number] = True
+            elif (
+                origin_number in self.session.cache("json_get_status", dict)
+                and self.session.cache("json_get_status", dict)[origin_number] is None
+            ):
+                self.session.cache("json_get_status", dict)[origin_number] = False
         except Exception as e:
             failure_exception = e
-            if origin_number in Flags.json_get_status and Flags.json_get_status[origin_number] is None:
-                Flags.json_get_status[origin_number] = False
+            if (
+                origin_number in self.session.cache("json_get_status", dict)
+                and self.session.cache("json_get_status", dict)[origin_number] is None
+            ):
+                self.session.cache("json_get_status", dict)[origin_number] = False
             self._check_stop(show_name)
             failure_debug_detail = traceback.format_exc()
             signal.show_traceback_log(failure_debug_detail)
@@ -750,59 +772,25 @@ class Scraper:
             file_classification = classify_scrape_task(file_info.crawl_task(), manager.config)
         enable_shared_json = "." not in movie_number and file_classification.scraping_type != FixedScrapingType.GUOCHAN
         if enable_shared_json:
-            if movie_number not in Flags.json_get_status:
+            if movie_number not in self.session.cache("json_get_status", dict):
                 # 第一次遇到该番号，标记为“正在刮削”
-                Flags.json_get_set.add(movie_number)
-                Flags.json_get_status[movie_number] = None
+                self.session.cache("json_get_set", set).add(movie_number)
+                self.session.cache("json_get_status", dict)[movie_number] = None
                 LogBuffer.log().write(f"\n 🟡 [Same Number] 首次刮削，开始共享番号数据：{movie_number}")
             else:
                 # 同番号任务等待首个任务完成；若首个任务失败，直接结束等待，避免线程卡死
                 LogBuffer.log().write(f"\n 🟡 [Same Number] 等待同番号任务完成：{movie_number}")
-                while Flags.json_get_status.get(movie_number) is None:
+                while self.session.cache("json_get_status", dict).get(movie_number) is None:
+                    self._check_stop(file_info.file_show_name)
                     await asyncio.sleep(1)
-                if Flags.json_get_status.get(movie_number) is False:
+                if self.session.cache("json_get_status", dict).get(movie_number) is False:
                     LogBuffer.error().write(f"同番号任务失败，取消等待：{movie_number}")
                     return None, None
 
-        pre_data = Flags.json_data_dic.get(movie_number)
+        pre_data = self.session.scrape_results.get(movie_number) if enable_shared_json else None
         # 已存在该番号数据时直接使用该数据
         if pre_data and enable_shared_json:
-            pre_res = pre_data.data
-            res = update(pre_res, file_info)
-
-            tags = pre_res.tag.split(",")
-            tags = [
-                tag
-                for tag in tags
-                if tag
-                not in (  # 移除与具体文件相关的 tag; 分辨率相关 tag 在 add_definition_tag 中会移除; codec tag 无法穷举, 移除常见类型
-                    # todo 所有文件相关的 tag 推迟到 write_nfo 时从 file_info 生成, json_data_dic 只存储通用的 tag
-                    # "中文字幕",
-                    # "无码流出",
-                    # "無碼流出",
-                    # "无码破解",
-                    # "無碼破解",
-                    # "无码",
-                    # "無碼",
-                    # "有码",
-                    # "有碼",
-                    "国产",
-                    "國產",
-                    "里番",
-                    "裏番",
-                    "动漫",
-                    "動漫",
-                    "H264",
-                    "HEVC",
-                    "MPEG4",
-                    "VP8",
-                    "VP9",
-                )
-            ]
-            tags.append(file_info.mosaic)
-            if file_info.has_sub:
-                tags.append("中文字幕")
-            res.tag = ",".join(tags)
+            res = update(pre_data, file_info)
 
         elif not is_nfo_existed:
             # ========================= call crawlers =========================
@@ -837,9 +825,15 @@ class Scraper:
             await translate_title_outline(res, file_info.cd_part, movie_number)  # 翻译json_data（标题/介绍）
             deal_some_field(res)  # 再处理一遍字段，翻译后可能出现要去除的内容
             await translate_actor(res)  # 映射输出演员名/信息
-            translate_info(res, file_info.has_sub)  # 映射输出标签等信息
-            replace_word(res)
+            translate_info(res, file_info.has_sub, include_file_tags=False)  # 映射输出标签等信息
             _refresh_postprocessed_provenance(res, provenance_before)
+
+        # Cache metadata before adding subtitle, mosaic, resolution or arbitrary codec tags.
+        if enable_shared_json and not pre_data:
+            self.session.scrape_results[movie_number] = copy_module.deepcopy(res)
+        if update_nfo:
+            add_file_tags(res, file_info.has_sub)
+            replace_word(res)
 
         # 更新视频分辨率
         definition, codec = await get_video_size(file_path, file_info.number)
@@ -867,9 +861,9 @@ class Scraper:
 
         # 判断输出文件的路径是否重复
         if manager.config.soft_link == 0:
-            done_file_new_path_list = Flags.file_new_path_dic.get(file_new_path)
+            done_file_new_path_list = self.session.cache("file_new_path_dic", dict).get(file_new_path)
             if not done_file_new_path_list:  # 如果字典中不存在同名的情况，存入列表，继续刮削
-                Flags.file_new_path_dic[file_new_path] = [file_path]
+                self.session.cache("file_new_path_dic", dict)[file_new_path] = [file_path]
             else:
                 done_file_new_path_list.append(file_path)  # 已存在时，添加到列表，停止刮削
                 done_file_new_path_list.sort(reverse=True)
@@ -895,8 +889,8 @@ class Scraper:
             return None, None
 
         # 初始化图片已下载地址的字典
-        if not Flags.file_done_dic.get(res.number):
-            Flags.file_done_dic[res.number] = FileDoneDict(
+        if not self.session.cache("file_done_dic", dict).get(res.number):
+            self.session.cache("file_done_dic", dict)[res.number] = FileDoneDict(
                 poster=None,
                 thumb=None,
                 fanart=None,
@@ -1032,14 +1026,8 @@ class Scraper:
         return res, other
 
     def _check_stop(self, show_name: str) -> None:
-        if signal.stop or Flags.stop_requested or self.session.cancellation_requested:
-            Flags.now_kill += 1
-            signal.show_log_text(
-                f" 🕷 {get_current_time()} 已停止刮削：{Flags.now_kill}/{Flags.total_kills} {show_name}"
-            )
-            signal.set_label_file_path.emit(
-                f"⛔️ 正在停止刮削...\n   正在停止已在运行的任务线程（{Flags.now_kill}/{Flags.total_kills}）..."
-            )
+        if self.session.cancellation_requested:
+            signal.show_log_text(f"⛔️ 已停止刮削：{show_name}")
             raise StopScrape("手动停止刮削")
 
     async def _failed_file_info_show(self, count: str, p: Path, error_info: str) -> None:
@@ -1049,24 +1037,67 @@ class Scraper:
         signal.logs_failed_show.emit(info_str)
 
 
-def start_new_scrape(file_mode: FileMode, movie_list: list[Path] | None = None) -> None:
-    Flags.stop_requested = False
-    signal.stop = False
-    signal.change_buttons_status.emit()
-    signal.exec_set_processbar.emit(0)
+_active_scraper: Scraper | None = None
+_active_scraper_lock = threading.Lock()
+
+
+async def _run_active_scrape(scraper: Scraper, file_mode: FileMode, movie_list: list[Path] | None) -> None:
+    global _active_scraper
     try:
-        Flags.start_time = time.time()
-        with manager.acquire_computed() as computed:
-            crawler_provider = CrawlerProvider(
-                manager.config, computed.async_client, config_getter=lambda: manager.config
-            )
-        services = ApplicationServices.from_globals()
-        services.network_services["crawler_provider"] = crawler_provider
-        scraper = Scraper(crawler_provider, services=services)
-        executor.submit(scraper.run(file_mode, movie_list), group=SCRAPE_TASK_GROUP)
+        await scraper.run(file_mode, movie_list)
     except Exception:
         signal.show_traceback_log(traceback.format_exc())
         signal.show_log_text(traceback.format_exc())
+    finally:
+        try:
+            # Persist after every child task and the provider have finished.
+            await save_success_list()
+        finally:
+            with _active_scraper_lock:
+                if _active_scraper is scraper:
+                    _active_scraper = None
+            scraper.finished.set_result(None)
+            if not scraper.session.cancellation_requested:
+                signal.reset_buttons_status.emit()
+                if scraper.auto_exit:
+                    signal.exec_exit_app.emit()
+
+
+async def stop_active_scrape() -> None:
+    with _active_scraper_lock:
+        scraper = _active_scraper
+    if scraper is not None:
+        scraper.session.request_cancel()
+        # Unlike cancelling a submitted Future, this acknowledges actual cleanup.
+        await asyncio.shield(asyncio.wrap_future(scraper.finished))
+
+
+def start_new_scrape(file_mode: FileMode, movie_list: list[Path] | None = None) -> None:
+    global _active_scraper
+    with _active_scraper_lock:
+        if _active_scraper is not None:
+            signal.show_log_text("上一轮刮削仍在运行或收尾，请等待完成后再开始。")
+            return
+        try:
+            with manager.acquire_computed() as computed:
+                crawler_provider = CrawlerProvider(
+                    manager.config, computed.async_client, config_getter=lambda: manager.config
+                )
+            services = ApplicationServices.from_globals()
+            services.network_services["crawler_provider"] = crawler_provider
+            scraper = Scraper(crawler_provider, services=services)
+            _active_scraper = scraper
+            Flags.stop_requested = False
+            signal.stop = False
+            Flags.start_time = time.time()
+            signal.change_buttons_status.emit()
+            signal.exec_set_processbar.emit(0)
+            executor.submit(_run_active_scrape(scraper, file_mode, movie_list), group=SCRAPE_TASK_GROUP)
+        except Exception:
+            _active_scraper = None
+            signal.show_traceback_log(traceback.format_exc())
+            signal.show_log_text(traceback.format_exc())
+            signal.reset_buttons_status.emit()
 
 
 def get_remain_list() -> bool:

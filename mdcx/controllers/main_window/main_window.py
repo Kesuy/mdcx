@@ -136,7 +136,6 @@ class MyMAinWindow(
         # endregion
 
         # region 其它属性声明
-        self.threads_list: list[threading.Thread] = []  # 启动的线程列表
         self._thread_stop_event = threading.Event()
         self.start_click_time = 0
         self.start_click_pos: QPoint

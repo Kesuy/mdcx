@@ -8,7 +8,7 @@ from typing import Any
 
 from .enums import FileMode
 from .failure import FailureRecord
-from .types import ScrapeResult
+from .types import CrawlersResult
 
 
 @dataclass
@@ -46,10 +46,11 @@ class ScrapeSession:
     def request_cancel(self) -> None:
         self._cancelled.set()
 
-    def reset(self, file_mode: FileMode) -> None:
+    def reset(self, file_mode: FileMode, *, clear_cancel: bool = True) -> None:
         with self._lock:
             self.state = ScrapeSessionState(file_mode=file_mode)
-            self._cancelled.clear()
+            if clear_cancel:
+                self._cancelled.clear()
             self._remain_version = 0
             self._remain_dirty = False
 
@@ -121,5 +122,5 @@ class ScrapeSession:
                 self.state.failure_count = failed
 
     @property
-    def scrape_results(self) -> dict[str, ScrapeResult]:
+    def scrape_results(self) -> dict[str, CrawlersResult]:
         return self.cache("scrape_results")
