@@ -5,7 +5,9 @@
 """
 
 from ..base import web as _base_web
+from . import translate as _translate
 from .avwiki import get_actorname as _get_actorname
 
-# 保持既有 translate.py 调用不变，同时把演员名查询切换到更稳健的 AV-Wiki 解析实现。
+# 同时覆盖旧模块入口和 translate.py 已绑定的函数对象，避免打包后的导入顺序导致旧解析器继续被调用。
 _base_web.get_actorname = _get_actorname
+_translate.get_actorname = _get_actorname
