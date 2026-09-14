@@ -1,0 +1,147 @@
+name: Auto merge and release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  merge-codex-pr:
+    name: Merge trusted Codex PR and start release
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate trusted Codex PR
+        id: pr
+        shell: bash
+        run: |
+          pr_number="${{ github.event.workflow_run.pull_requests[0].number }}"
+          if [ -z "$pr_number" ] || [ "$pr_number" = "null" ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          author="$(jq -r '.user.login' <<<"$pr_json")"
+          base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+          head_ref="$(jq -r '.head.ref' <<<"$pr_json")"
+          head_repo="$(jq -r '.head.repo.full_name' <<<"$pr_json")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          state="$(jq -r '.state' <<<"$pr_json")"
+          draft="$(jq -r '.draft' <<<"$pr_json")"
+
+          eligible=true
+          if [ "$author" != "${{ github.repository_owner }}" ]; then eligible=false; fi
+          if [ "$base_ref" != "master" ]; then eligible=false; fi
+          if [ "$head_repo" != "$GITHUB_REPOSITORY" ]; then eligible=false; fi
+          if [[ "$head_ref" != codex/* ]]; then eligible=false; fi
+          if [ "$state" != "open" ] || [ "$draft" != "false" ]; then eligible=false; fi
+          if [ "$head_sha" != "${{ github.event.workflow_run.head_sha }}" ]; then eligible=false; fi
+
+          echo "eligible=$eligible" >> "$GITHUB_OUTPUT"
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Merge trusted Codex PR
+        id: merge
+        if: steps.pr.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          result="$(gh api --method PUT \
+            "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.pr.outputs.number }}/merge" \
+            -f merge_method=squash \
+            -f sha="${{ steps.pr.outputs.head_sha }}")"
+          merged="$(jq -r '.merged' <<<"$result")"
+          merge_sha="$(jq -r '.sha' <<<"$result")"
+          if [ "$merged" != "true" ] || [ -z "$merge_sha" ] || [ "$merge_sha" = "null" ]; then
+            echo "$result"
+            exit 1
+          fi
+          echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout merged commit
+        if: steps.pr.outputs.eligible == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.merge.outputs.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Create version tag and dispatch Release
+        if: steps.pr.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          version="$(sed -nE 's/^[[:space:]]*LOCAL_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mdcx/consts.py | head -n1)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "无效 LOCAL_VERSION: $version"
+            exit 1
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${version}" >/dev/null 2>&1; then
+            echo "Tag $version 已存在，本次不重复发布。"
+            exit 0
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${version}" \
+            -f sha="${{ steps.merge.outputs.sha }}"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+            -f ref=master \
+            -f "inputs[tag]=${version}" \
+            -f "inputs[prerelease]=false"
+
+  release-manual-master-merge:
+    name: Release version bump merged to master
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout master commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Create version tag and dispatch Release
+        shell: bash
+        run: |
+          version="$(sed -nE 's/^[[:space:]]*LOCAL_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mdcx/consts.py | head -n1)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "无效 LOCAL_VERSION: $version"
+            exit 1
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${version}" >/dev/null 2>&1; then
+            echo "Tag $version 已存在，本次不重复发布。"
+            exit 0
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${version}" \
+            -f sha="${{ github.sha }}"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+            -f ref=master \
+            -f "inputs[tag]=${version}" \
+            -f "inputs[prerelease]=false"

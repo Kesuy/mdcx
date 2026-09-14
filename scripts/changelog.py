@@ -199,8 +199,7 @@ def _notes_from_curated_content(content: str, *, version: str = "") -> dict[str,
             sections[current_category].append(note)
 
     if version and not selected_version_found:
-        console.print(f"[red]changelog 中未找到版本: {version}[/red]")
-        raise typer.Exit(1)
+        return {category: [] for category in RELEASE_CATEGORIES}
     return sections
 
 
@@ -216,11 +215,15 @@ def generate_changelog(
     if not commit_lines:
         console.print("[red]本次发布没有可写入的提交记录。[/red]")
         raise typer.Exit(1)
-    sections = (
-        _notes_from_curated_content(curated_content, version=curated_version)
-        if curated_content is not None
-        else _notes_from_commit_log(commit_lines)
-    )
+
+    if curated_content is not None:
+        sections = _notes_from_curated_content(curated_content, version=curated_version)
+        if curated_version and not any(sections.values()):
+            console.print(f"[yellow]changelog 中未找到版本 {curated_version}，回退到提交记录生成。[/yellow]")
+            sections = _notes_from_commit_log(commit_lines)
+    else:
+        sections = _notes_from_commit_log(commit_lines)
+
     changelog_content = _format_release_sections(sections)
     if not changelog_content:
         console.print("[red]本次发布没有“新功能 / 优化 / 修复”分类的中文说明。[/red]")
@@ -248,7 +251,6 @@ def main(
     从最新的匹配tag到HEAD的提交记录生成changelog
     """
 
-    # 将字符串路径转换为Path对象
     output_path = Path(output)
 
     if verbose:
@@ -264,7 +266,6 @@ def main(
         console.print(f"[yellow]使用发布 tag 模式: {tag}[/yellow]")
         commit_log = get_commit_log_for_head_tag(tag, pattern=pattern)
     else:
-        # 获取最新的匹配tag
         console.print(f"[yellow]正在查找匹配模式 '{pattern}' 的最新tag...[/yellow]")
         latest_tag = get_latest_tag(pattern)
 
@@ -273,14 +274,11 @@ def main(
             raise typer.Exit(1)
 
         console.print(f"[green]找到最新tag: {latest_tag}[/green]")
-
-        # 获取提交日志
         console.print(f"[yellow]正在获取从 {latest_tag} 到 HEAD 的提交记录...[/yellow]")
         commit_log = get_commit_log(latest_tag)
 
     if verbose and commit_log:
         console.print("\n[cyan]提交记录预览:[/cyan]")
-        # 显示前5条记录作为预览
         commit_lines = commit_log.splitlines()
         for line in commit_lines[:5]:
             console.print(f"  {line}")
@@ -288,7 +286,6 @@ def main(
             console.print(f"  ... 还有 {len(commit_lines) - 5} 条记录")
         console.print()
 
-    # 生成changelog
     console.print(f"[yellow]正在生成changelog到 {output_path}...[/yellow]")
     curated_content = None
     if curated:
@@ -299,7 +296,6 @@ def main(
         curated_content = curated_path.read_text(encoding="utf-8")
     generate_changelog(commit_log, output_path, curated_content=curated_content, curated_version=tag)
 
-    # 显示成功信息
     success_text = Text("Changelog生成完成!", style="bold green")
     console.print(Panel(success_text, border_style="green"))
 
