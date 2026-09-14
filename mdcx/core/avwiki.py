@@ -53,9 +53,7 @@ def parse_avwiki_actor_search(html: str, number: str) -> tuple[str, list[tuple[s
             classes = str(li.get("class") or "").split()
             if "actress-name" in classes:
                 continue
-            text = " ".join(
-                part.strip() for part in li.xpath(".//text()") if part and part.strip()
-            ).strip()
+            text = " ".join(part.strip() for part in li.xpath(".//text()") if part and part.strip()).strip()
             if text:
                 item_texts.append(text)
 
