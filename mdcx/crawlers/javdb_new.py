@@ -9,7 +9,9 @@ from parsel import Selector
 
 from ..config.manager import manager
 from ..config.models import Website
+from ..core.mosaic import is_plain_uncensored_mosaic
 from ..models.types import CrawlerResult
+from ..number import is_uncensored
 from .base import BaseCrawler, CralwerException, CrawlerData, DetailPageParser, extract_all_texts, extract_text
 
 
@@ -25,15 +27,29 @@ class Parser(DetailPageParser):
         return extract_text(html, 'string(//h2[@class="title is-4"]/span[@class="origin-title"])')
 
     async def actors(self, ctx, html: Selector) -> list[str]:
-        # parsel css 不支持 :has() 中的多个选择器, 这是一个已知问题: https://github.com/scrapy/cssselect/issues/138
-        return (
-            html.css("span:has(strong.female)")
-            .xpath("//strong[contains(@class, 'female')]/preceding-sibling::a/text()")
-            .getall()
-        )
+        return self._actor_names(html, ("female",))
 
     async def all_actors(self, ctx, html: Selector) -> list[str]:
-        return (html.css("span:has(strong.female)") or html.css("span:has(strong.male)")).xpath("a/text()").getall()
+        return self._actor_names(html, ("female", "male"))
+
+    @staticmethod
+    def _actor_names(html: Selector, genders: tuple[str, ...]) -> list[str]:
+        # Current pages mark the link itself; older pages put a gender marker after it.
+        selectors = []
+        for gender in genders:
+            selectors.append(f"//a[contains(concat(' ', normalize-space(@class), ' '), ' actor-{gender} ')]")
+            selectors.append(
+                "//a[following-sibling::*[1][self::strong and "
+                f"contains(concat(' ', normalize-space(@class), ' '), ' {gender} ')]]"
+            )
+        if "male" in genders:
+            # Current actor rows leave some links without a gender class.
+            selectors.append(
+                "//strong[normalize-space(.)='演員:' or normalize-space(.)='Actors:']"
+                "/../span//a[contains(@href, '/actors/')]"
+            )
+        names = (link.xpath("string(.)").get("").strip() for link in html.xpath(" | ".join(selectors)))
+        return list(dict.fromkeys(name for name in names if name))
 
     async def studio(self, ctx, html: Selector) -> str:
         return extract_text(
@@ -194,6 +210,7 @@ class JavdbCrawler(BaseCrawler):
 
     @override
     async def _parse_search_page(self, ctx, html: Selector, search_url: str) -> list[str] | None:
+        self._check_login_page(html)
         html_text = html._text or ""
         if "The owner of this website has banned your access based on your browser's behaving" in html_text:
             raise CralwerException(f"由于请求过多，javdb网站暂时禁止了你当前IP的访问！！点击 {search_url} 查看详情！")
@@ -233,8 +250,14 @@ class JavdbCrawler(BaseCrawler):
 
         return None
 
+    @staticmethod
+    def _check_login_page(html: Selector) -> None:
+        if html.xpath("//form[@action='/user_sessions'][.//input[@type='password']]"):
+            raise CralwerException("JavDB 需要登录：请在设置中填写或更新有效的 JavDB Cookie 后重试")
+
     @override
     async def _parse_detail_page(self, ctx, html: Selector, detail_url: str) -> CrawlerData | None:
+        self._check_login_page(html)
         # 提取 javdbid
         javdbid = ""
         if r := re.search(r"/v/([a-zA-Z0-9]+)", detail_url):
@@ -246,7 +269,13 @@ class JavdbCrawler(BaseCrawler):
         if not res.originaltitle:
             res.originaltitle = res.title
         res.poster = res.thumb.replace("/covers/", "/thumbs/")
-        res.mosaic = "无码" if any(keyword in res.title for keyword in ["無碼", "無修正", "Uncensored"]) else "有码"
+        res.mosaic = (
+            "无码"
+            if is_plain_uncensored_mosaic(ctx.input.mosaic)
+            or is_uncensored(res.number)
+            or any(keyword in res.title for keyword in ["無碼", "無修正", "Uncensored"])
+            else "有码"
+        )
         if res.trailer.startswith("//"):
             res.trailer = "https:" + res.trailer
         return res
