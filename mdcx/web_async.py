@@ -37,6 +37,25 @@ from .network_fingerprint import (
 from .utils import collapse_inline_script_splits
 
 
+def is_cloudflare_challenge_page(text: str, *, cloudflare_response: bool = False) -> bool:
+    """Identify blocking pages, not JSD/Precursor scripts injected into normal HTML."""
+    lowered = text.lower()
+    if "_cf_chl_opt" in lowered or re.search(r"/cdn-cgi/challenge-platform/[^\s'\"]*/orchestrate/", lowered):
+        return True
+    challenge_text = any(
+        marker in lowered
+        for marker in (
+            "just a moment",
+            "attention required",
+            "enable javascript and cookies",
+            "checking your browser before accessing",
+            "cf-browser-verification",
+        )
+    )
+    cloudflare_marker = any(marker in lowered for marker in ("cloudflare", "cf-chl", "cdn-cgi/challenge-platform"))
+    return challenge_text and (cloudflare_response or cloudflare_marker)
+
+
 class AsyncWebLimiters:
     def __init__(self):
         self._by_loop: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, AsyncLimiter]] = (
@@ -1126,23 +1145,12 @@ class AsyncWebClient:
             except Exception:
                 body_text = ""
 
-        challenge_markers = (
-            "just a moment",
-            "cf-chl",
-            "cdn-cgi/challenge-platform",
-            "attention required",
-            "enable javascript and cookies",
-            "checking your browser before accessing",
+        if self._extract_header_case_insensitive(headers, "cf-mitigated").lower() == "challenge":
+            return True
+        return is_cloudflare_challenge_page(
+            body_text,
+            cloudflare_response=status in (403, 429, 503) and ("cloudflare" in server or bool(cf_ray)),
         )
-        has_marker = any(marker in body_text for marker in challenge_markers)
-
-        # 规则1: 明确 header + 挑战文案
-        if status in (403, 429, 503) and ("cloudflare" in server or bool(cf_ray)) and has_marker:
-            return True
-        # 规则2: 挑战文案足够明确时，允许无 header 命中
-        if has_marker and ("cf-chl" in body_text or "cdn-cgi/challenge-platform" in body_text):
-            return True
-        return False
 
     async def _call_bypass_mirror(
         self,

@@ -1,3 +1,15 @@
+## 4.0.18
+
+### 修复
+- 统一设置页与网络检测的 Cookie 判断，修正 FC2CMADB 页面解析及浏览器指纹差异。
+- 检查 Cookie 不再自动清空 JavDB Cookie 或保存整份配置，编辑后保留未保存提示，由用户手动保存。
+- 修复正常页面中的 Cloudflare JSD、Precursor 后台脚本被误判为挑战页，以及通过 FlareSolverr 后仍显示拦截的问题。
+- CF Bypass 检测兼容 FlareSolverr，避免请求不支持的 `/cookies` 接口；修复 URL 中的代理参数被误判为代理连接故障。
+- MissAV 纯数字无码番号优先选择片商前缀与完整番号匹配的条目，避免重复条目缺少演员、发行商和简介。
+
+### 优化
+- 默认无码网站及字段优先级统一为 JavBus → MissAV → JavDB → Avsox → 7mmtv；保留已有配置中明确保存的自定义顺序。
+
 ## 4.0.17
 
 ### 修复

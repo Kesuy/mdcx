@@ -236,7 +236,7 @@ async def test_fc2cmadb_network_check_validates_configured_cookie(monkeypatch: p
         validator="fc2cmadb",
     )
     client = FakeClient()
-    page = '{"component":"Articles/Show","props":{"article":{"id":1817847}}}'
+    page = '<script type="application/json" data-page>{"component": "Articles/Show", "props": {"article": {"id": 1817847}}}</script><a href="/login">Login</a>'
 
     async def request(method, url, **kwargs):
         client.calls.append({"method": method, "url": url, **kwargs})
@@ -248,6 +248,7 @@ async def test_fc2cmadb_network_check_validates_configured_cookie(monkeypatch: p
     assert result.status == NetworkCheckStatus.OK
     assert result.message == "连接正常，Cookie 有效"
     assert client.calls[0]["cookies"]["fc2cmadb-session"] == "session-token"
+    assert client.calls[0]["fingerprint_id"] == "chrome136_win"
 
 
 @pytest.mark.anyio
@@ -349,3 +350,56 @@ async def test_run_network_check_item_reports_cf_bypass_failure(monkeypatch: pyt
     assert result.status == NetworkCheckStatus.FAILED
     assert result.message == "Cloudflare Bypass 失败"
     assert result.error == "bypass failed"
+
+
+def test_bypass_http_error_with_proxy_query_is_not_proxy_failure():
+    from mdcx.core.network_check import _message_for_error
+
+    error = "GET http://service.test/cookies?proxy=http%3A%2F%2Fproxy.test 失败: HTTP 404"
+    assert _message_for_error(error) == error
+
+
+@pytest.mark.anyio
+async def test_flaresolverr_health_uses_service_detection():
+    class Client:
+        async def _detect_cf_bypass_service(self):
+            return "flaresolverr"
+
+        async def request(self, method, url, **kwargs):
+            assert url == "http://service.test"
+            assert kwargs["use_proxy"] is False
+            return FakeResponse(text='{"msg":"FlareSolverr is ready!"}'), ""
+
+    spec = NetworkCheckSpec(
+        name="CF Bypass", group="辅助服务", url="http://service.test/cookies?url=http://example.com", use_proxy=False
+    )
+    result = await run_network_check_item(spec, client=Client())
+    assert result.status == NetworkCheckStatus.OK
+    assert "FlareSolverr" in result.message
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("script", ["jsd", "precursor"])
+async def test_normal_cloudflare_page_does_not_trigger_bypass(monkeypatch, script):
+    class Config(FakeConfig):
+        cf_bypass_url = "http://service.test"
+
+    monkeypatch.setattr("mdcx.core.network_check._manager", lambda: SimpleNamespace(config=Config()))
+
+    class Client:
+        async def request(self, *args, **kwargs):
+            return FakeResponse(
+                text=(
+                    "<html><title>Site catalogue</title><main>Movie list</main>"
+                    f'<script src="/cdn-cgi/challenge-platform/scripts/{script}/main.js"></script>'
+                    '<script src="https://static.cloudflareinsights.com/beacon.min.js"></script></html>'
+                )
+            ), ""
+
+        async def _try_bypass_cloudflare(self, **kwargs):
+            raise AssertionError("Normal HTML must not trigger bypass")
+
+    spec = NetworkCheckSpec(name="site", group="刮削站点", url="https://site.test", enable_cf_bypass=True)
+    result = await run_network_check_item(spec, client=Client())
+    assert result.status == NetworkCheckStatus.OK
+    assert result.message == "连接正常"

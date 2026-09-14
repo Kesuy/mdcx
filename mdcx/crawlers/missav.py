@@ -528,6 +528,14 @@ class MissavCrawler(BaseCrawler):
             return ""
 
         if expected_keyword:
+            # Duplicate numeric entries can omit cast and publisher metadata.
+            # Prefer the recognized maker-qualified entry for the exact same code.
+            if self.UNCENSORED_DIGIT_PATTERN.fullmatch(expected_keyword):
+                for detail_url in candidates:
+                    slug = self._extract_slug(detail_url).lower().replace("_", "-")
+                    normalized = normalize_uncensored_digit_number(slug).replace("_", "-")
+                    if normalized == expected_keyword and slug != expected_keyword:
+                        return detail_url
             for detail_url in candidates:
                 detail_slug = self._extract_slug(detail_url).lower().replace("_", "-")
                 if expected_keyword in detail_slug:
@@ -558,7 +566,7 @@ class MissavCrawler(BaseCrawler):
         expected_keyword = self._normalize_uncensored_keyword(ctx.input.number)
         detail_url = self._extract_first_detail_url_from_search(html, expected_keyword)
         if detail_url:
-            ctx.debug(f"MissAV 无码搜索命中首个详情页 URL: {detail_url}")
+            ctx.debug(f"MissAV 无码搜索选中详情页 URL: {detail_url}")
             return [detail_url]
 
         ctx.debug("MissAV 无码搜索页未提取到有效详情页 URL")

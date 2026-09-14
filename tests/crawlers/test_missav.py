@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from parsel import Selector
 
@@ -75,3 +77,44 @@ def test_is_soft_404_page_ignores_normal_detail_page():
     )
 
     assert MissavCrawler._is_soft_404_page(html) is False
+
+
+def test_numeric_search_prefers_maker_entry_from_duplicate_results():
+    page = Path(__file__).parents[1] / "fixtures" / "missav" / "duplicate_numeric_search.html"
+    crawler = MissavCrawler(client=None)
+    assert (
+        crawler._extract_first_detail_url_from_search(Selector(text=page.read_text(encoding="utf-8")), "010326-001")
+        == "https://missav.ws/dm325/caribbeancom-010326-001/cn"
+    )
+
+
+@pytest.mark.parametrize(
+    "alternative",
+    ["caribbeancom-010326-0010", "caribbeancom-010327-001", "unrelated-010326-001"],
+)
+def test_numeric_search_does_not_promote_unrelated_or_partial_codes(alternative):
+    crawler = MissavCrawler(client=None)
+    page = Selector(text=f'<a href="/010326-001">Match</a><a href="/{alternative}">Other</a>')
+    assert crawler._extract_first_detail_url_from_search(page, "010326-001") == "https://missav.ws/010326-001/cn"
+
+
+@pytest.mark.parametrize("reverse", [True, False])
+def test_numeric_search_priority_is_independent_of_result_position(reverse):
+    crawler = MissavCrawler(client=None)
+    paths = ["/010326_001", "/caribbeancom-010326_001"]
+    if reverse:
+        paths.reverse()
+    page = Selector(text="".join(f'<a href="{path}">Result</a>' for path in paths))
+    assert crawler._extract_first_detail_url_from_search(page, "010326-001") == (
+        "https://missav.ws/caribbeancom-010326_001/cn"
+    )
+
+
+def test_explicit_maker_search_preserves_requested_maker():
+    crawler = MissavCrawler(client=None)
+    page = Selector(
+        text=('<a href="/1pondo-010326-001">Other maker</a><a href="/caribbeancom-010326-001">Requested maker</a>')
+    )
+    assert crawler._extract_first_detail_url_from_search(page, "caribbeancom-010326-001") == (
+        "https://missav.ws/caribbeancom-010326-001/cn"
+    )

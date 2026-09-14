@@ -305,3 +305,18 @@ def test_narrow_long_help_labels_can_wrap():
         assert label.sizePolicy().horizontalPolicy() == label.sizePolicy().Policy.Expanding
         assert label.sizePolicy().verticalPolicy() == label.sizePolicy().Policy.Preferred
         assert label.wordWrap()
+
+
+def test_cookie_edits_mark_settings_unsaved():
+    window, controller = _controller()
+    controller.install_search_bar(QVBoxLayout())
+    controller.binder.load(manager.config)
+    controller.mark_clean()
+    for name in ("javdb", "javbus", "fc2ppvdb"):
+        editor = getattr(window.Ui, f"plainTextEdit_cookie_{name}")
+        original = editor.toPlainText()
+        editor.setPlainText("session=synthetic-test-value")
+        assert "1 项未保存" in window.Ui.label_settings_dirty.text()
+        assert window.Ui.pushButton_save_config.isEnabled()
+        editor.setPlainText(original)
+        assert window.Ui.label_settings_dirty.text() == "已保存"
