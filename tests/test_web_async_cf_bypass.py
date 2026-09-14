@@ -1127,3 +1127,27 @@ def test_sanitize_url_still_removes_polluted_suffix():
 
     assert sanitized is True
     assert sanitized_url == "https://x.com?a=1"
+
+
+@pytest.mark.parametrize("script", ["jsd", "precursor"])
+def test_cloudflare_background_scripts_are_not_blocking_challenges(script):
+    client = AsyncWebClient(timeout=5)
+    response = _fake_response(
+        status_code=200,
+        headers={"server": "cloudflare", "cf-ray": "synthetic"},
+        content=(
+            "<html><title>Site catalogue</title><main>Movie list</main>"
+            f'<script src="/cdn-cgi/challenge-platform/scripts/{script}/main.js"></script></html>'
+        ).encode(),
+    )
+    assert not client._is_cf_challenge_response(response)
+
+
+@pytest.mark.parametrize("status", [200, 403])
+def test_cloudflare_blocking_challenge_page_is_still_detected(status):
+    client = AsyncWebClient(timeout=5)
+    response = _fake_response(
+        status_code=status,
+        content=b"<html><title>Just a moment...</title><script>window._cf_chl_opt = {};</script></html>",
+    )
+    assert client._is_cf_challenge_response(response)

@@ -165,7 +165,7 @@ def test_config_default_site_priorities_follow_current_frontend_defaults():
         Website.DMM,
         Website.AVBASE,
     ]
-    assert config.website_wuma == [Website.MISSAV, Website.MMTV, Website.AVSOX]
+    assert config.website_wuma == [Website.JAVBUS, Website.MISSAV, Website.JAVDB, Website.AVSOX, Website.MMTV]
     assert config.website_suren == [
         Website.MGSTAGE,
         Website.JAVBUS,
@@ -350,3 +350,44 @@ def test_braced_naming_templates_are_migrated_to_jinja2_syntax():
 
     assert data["naming_file"] == "{{ number }}{% if studio %} [{{ studio }}]{% endif %} {{ definition }}"
     Config.model_validate(data)
+
+
+def test_default_uncensored_field_priorities_round_trip():
+    config = Config()
+    restored = Config.model_validate_json(config.model_dump_json())
+    expected = [Website.JAVBUS, Website.MISSAV, Website.JAVDB, Website.AVSOX, Website.MMTV]
+    for candidate in (config, restored):
+        assert candidate.website_wuma == expected
+        for priority in candidate.type_field_configs[FixedScrapingType.WUMA].values():
+            assert priority.site_prority == expected
+
+
+def test_existing_uncensored_priorities_survive_load_and_round_trip():
+    data = {
+        "website_wuma": ["missav", "7mmtv", "avsox"],
+        "field_configs": {"title": {"site_prority": ["avsox", "missav", "7mmtv"]}},
+        "type_field_configs": {"wuma": {"title": {"site_prority": ["7mmtv", "missav"]}}},
+    }
+    Config.update(data)
+    config = Config.model_validate(data)
+    for candidate in (config, Config.model_validate_json(config.model_dump_json())):
+        assert candidate.website_wuma == [Website.MISSAV, Website.MMTV, Website.AVSOX]
+        assert candidate.get_type_field_config(FixedScrapingType.WUMA, CrawlerResultFields.TITLE).site_prority == [
+            Website.MMTV,
+            Website.MISSAV,
+        ]
+
+
+def test_legacy_uncensored_custom_field_order_is_preserved():
+    data = {
+        "website_wuma": ["missav", "7mmtv", "avsox"],
+        "field_configs": {"title": {"site_prority": ["avsox", "missav", "7mmtv"]}},
+    }
+    Config.update(data)
+    config = Config.model_validate(data)
+    restored = Config.model_validate_json(config.model_dump_json())
+    assert restored.get_type_field_config(FixedScrapingType.WUMA, CrawlerResultFields.TITLE).site_prority == [
+        Website.AVSOX,
+        Website.MISSAV,
+        Website.MMTV,
+    ]

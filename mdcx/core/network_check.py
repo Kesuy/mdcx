@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus, urljoin
 
 from mdcx.config.enums import Website
-from mdcx.crawlers.fc2ppvdb import FC2CMADB_AUTH_PROBE_NUMBER, cookie_str_to_dict
+from mdcx.crawlers.fc2ppvdb import (
+    FC2CMADB_AUTH_PROBE_NUMBER,
+    FC2CMADB_FINGERPRINT_ID,
+    cookie_str_to_dict,
+    parse_article_page,
+)
 
 if TYPE_CHECKING:
     from mdcx.web_async import AsyncWebClient
@@ -122,24 +127,13 @@ def _diagnostic_timeout() -> float:
 
 
 def _is_cloudflare_challenge(text: str) -> bool:
-    lowered = text.lower()
-    challenge_markers = (
-        "challenge",
-        "ray id",
-        "ray-id",
-        "cf-browser-verification",
-        "just a moment",
-        "cf-chl",
-        "cdn-cgi/challenge-platform",
-        "attention required",
-        "enable javascript and cookies",
-        "checking your browser before accessing",
-    )
-    return "cloudflare" in lowered and any(marker in lowered for marker in challenge_markers)
+    from mdcx.web_async import is_cloudflare_challenge_page
+
+    return is_cloudflare_challenge_page(text)
 
 
 def _is_proxy_error(error: str) -> bool:
-    lowered = error.lower()
+    lowered = error.rsplit(": ", 1)[-1].lower()
     return "proxy" in lowered or "socks" in lowered or "tunnel" in lowered
 
 
@@ -169,8 +163,10 @@ def _classify_http_result(spec: NetworkCheckSpec, status_code: int, text: str) -
     if _is_cloudflare_challenge(text):
         return NetworkCheckStatus.WARNING, "被 Cloudflare 挑战页拦截"
 
+    if spec.site in {Website.JAVDB, Website.JAVBUS} and status_code >= 400:
+        return NetworkCheckStatus.WARNING, f"HTTP {status_code}，暂时无法验证站点或登录状态"
+
     if spec.site == Website.JAVDB:
-        manager = _manager()
         if "The owner of this website has banned your access based on your browser's behaving" in text:
             ip_address = re.findall(r"(\d+\.\d+\.\d+\.\d+)", text)
             ip_text = f"{ip_address[0]} " if ip_address else ""
@@ -179,13 +175,12 @@ def _classify_http_result(spec: NetworkCheckSpec, status_code: int, text: str) -
             return NetworkCheckStatus.FAILED, "当前 IP 被 JavDB 限制，请使用非日本节点"
         if "/logout" in text:
             return NetworkCheckStatus.OK, "连接正常，Cookie 有效"
-        if manager.config.javdb:
+        if spec.headers.get("cookie"):
             return NetworkCheckStatus.WARNING, "站点可访问，但 JavDB Cookie 可能无效"
         return NetworkCheckStatus.OK, "连接正常"
 
     if spec.site == Website.JAVBUS:
-        manager = _manager()
-        if "lostpasswd" in text and manager.config.javbus:
+        if "lostpasswd" in text and spec.headers.get("cookie"):
             return NetworkCheckStatus.WARNING, "站点可访问，但 JavBus Cookie 可能无效"
         if "lostpasswd" in text:
             return NetworkCheckStatus.WARNING, "当前节点可能需要 JavBus Cookie"
@@ -488,9 +483,21 @@ async def run_network_check_item(
     start_time = time.perf_counter()
     try:
         request_client = client or _manager().computed.async_client
+        request_url = spec.url
+        flaresolverr = False
+        if spec.name == "CF Bypass" and callable(getattr(request_client, "_detect_cf_bypass_service", None)):
+            mode = await request_client._detect_cf_bypass_service()
+            if mode == "flaresolverr":
+                # Detection may be cached; still check the service on every diagnostic run.
+                request_url = spec.url.split("/cookies?", 1)[0]
+                flaresolverr = True
+        request_options = {}
+        if spec.validator == "fc2cmadb":
+            request_options["fingerprint_id"] = FC2CMADB_FINGERPRINT_ID
         response, error = await request_client.request(
             spec.method,
-            spec.url,
+            request_url,
+            **request_options,
             headers=spec.headers or None,
             cookies=spec.cookies or None,
             use_proxy=spec.use_proxy,
@@ -574,7 +581,7 @@ async def run_network_check_item(
 
         status, message = _classify_validated_http_result(spec, int(response.status_code), text)
         if spec.name == "CF Bypass" and status == NetworkCheckStatus.OK:
-            message = "服务可用"
+            message = "FlareSolverr 服务就绪" if flaresolverr else "服务可用"
 
         return NetworkCheckResult(
             spec=spec,
@@ -622,8 +629,15 @@ def _classify_javdbapi(status_code: int, text: str) -> tuple[NetworkCheckStatus,
 def _classify_fc2cmadb(status_code: int, text: str) -> tuple[NetworkCheckStatus, str]:
     if status_code in {401, 404}:
         return NetworkCheckStatus.FAILED, "FC2CMADB Cookie 无效或已过期"
-    if status_code == 200 and '"component":"Articles/Show"' in text.replace(" ", "") and '"article"' in text:
-        return NetworkCheckStatus.OK, "连接正常，Cookie 有效"
+    if _is_cloudflare_challenge(text):
+        return NetworkCheckStatus.WARNING, "被 Cloudflare 挑战页拦截"
+    if status_code == 200:
+        try:
+            article_info = parse_article_page(text)
+        except (ValueError, TypeError):
+            article_info = {}
+        if article_info.get("article"):
+            return NetworkCheckStatus.OK, "连接正常，Cookie 有效"
     lowered = text.casefold()
     if status_code == 200 and any(marker in lowered for marker in ("ログイン", "login", "auth/login")):
         return NetworkCheckStatus.FAILED, "站点可访问，但 FC2CMADB Cookie 未生效"

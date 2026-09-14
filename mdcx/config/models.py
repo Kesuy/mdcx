@@ -368,9 +368,11 @@ class Config(BaseModel):
     )
     website_wuma: list[Website] = Field(
         default_factory=lambda: [
+            Website.JAVBUS,
             Website.MISSAV,
-            Website.MMTV,
+            Website.JAVDB,
             Website.AVSOX,
+            Website.MMTV,
         ],
         title="无码网站源",
     )
@@ -767,7 +769,7 @@ class Config(BaseModel):
         for crawler_field in ManualConfig.REDUCED_FIELDS:
             field_sites = self.get_field_config(crawler_field).site_prority
             sites = [site for site in field_sites if site in type_site_set]
-            if not sites:
+            if not sites or (scraping_type == FixedScrapingType.WUMA and field_sites == DEFAULT_FIELD_SITE_PRIORITY):
                 sites = list(type_sites)
             if scraping_type == FixedScrapingType.FC2 and Website.FC2PPVDB in type_site_set:
                 sites = [Website.FC2PPVDB, *[site for site in sites if site != Website.FC2PPVDB]]

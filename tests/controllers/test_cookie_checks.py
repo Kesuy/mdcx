@@ -111,7 +111,7 @@ def test_javbus_check_rejects_blank_cookie_without_network_task():
     assert window.set_javbus_status.values == ["❌ 未填写 Cookie"]
 
 
-def test_javdb_result_clears_expired_cookie_and_persists_config():
+def test_javdb_result_preserves_cookie_and_does_not_save_config():
     logs = []
     window = SimpleNamespace(
         set_javdb_cookie=_Signal(),
@@ -121,14 +121,12 @@ def test_javdb_result_clears_expired_cookie_and_persists_config():
     )
     controller = NetworkController(window)
 
-    controller._apply_javdb_cookie_result(
-        CookieCheckResult("❌ Cookie 已过期！已清理！", clear_cookie=True, save_config=True)
-    )
+    controller._apply_javdb_cookie_result(CookieCheckResult("⚠️ 站点可访问，但 JavDB Cookie 可能无效"))
 
-    assert window.set_javdb_cookie.values == [""]
-    assert window.exec_save_config.values == [None]
-    assert window.set_javdb_status.values == ["❌ Cookie 已过期！已清理！"]
-    assert logs == [" ❌ JavDb Cookie 已过期！已清理！"]
+    assert window.set_javdb_cookie.values == []
+    assert window.exec_save_config.values == []
+    assert window.set_javdb_status.values == ["⚠️ 站点可访问，但 JavDB Cookie 可能无效"]
+    assert logs == ["⚠️ 站点可访问，但 JavDB Cookie 可能无效"]
 
 
 def test_cookie_task_submission_failure_restores_visible_status():
@@ -148,3 +146,35 @@ def test_cookie_task_submission_failure_restores_visible_status():
 
     assert window.set_javbus_status.values == ["⏳ 正在检测中...", "❌ JavBus 检查失败，请查看日志"]
     assert logs == [" ❌ JavBus 检查失败，请查看日志"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("site", ["javdb", "javbus", "fc2ppvdb"])
+async def test_cookie_checks_use_shared_diagnostics_with_current_input(monkeypatch, site):
+    from contextlib import asynccontextmanager
+
+    from mdcx.core.network_check import NetworkCheckResult, NetworkCheckStatus
+
+    client = object()
+
+    @asynccontextmanager
+    async def acquire():
+        yield SimpleNamespace(async_client=client)
+
+    monkeypatch.setattr(network_controller_module.manager, "acquire_computed", acquire)
+    calls = []
+
+    async def check(spec, **kwargs):
+        calls.append(spec)
+        assert kwargs["client"] is client
+        return NetworkCheckResult(spec, NetworkCheckStatus.WARNING, "被 Cloudflare 挑战页拦截")
+
+    monkeypatch.setattr(network_controller_module, "run_network_check_item", check)
+    controller = NetworkController(SimpleNamespace())
+    result = await getattr(controller, f"_check_{site}_cookie_async")("session=synthetic")
+    assert result.tips == "⚠️ 被 Cloudflare 挑战页拦截"
+    assert (
+        calls[0].cookies == {"session": "synthetic"}
+        if site == "fc2ppvdb"
+        else calls[0].headers["cookie"] == "session=synthetic"
+    )
