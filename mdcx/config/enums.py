@@ -441,6 +441,7 @@ class Switch(Enum):
     HIDE_MENU = "hide_menu"
     DARK_MODE = "dark_mode"
     COPY_NETDISK_NFO = "copy_netdisk_nfo"
+    FORCE_AVWIKI_ACTOR = "force_avwiki_actor"
     SHOW_LOGS = "show_logs"
     HIDE_CLOSE = "hide_close"
     HIDE_MINI = "hide_mini"
@@ -466,6 +467,7 @@ class Switch(Enum):
             "Hide Menu",
             "Dark Mode",
             "Copy Netdisk Nfo",
+            "强制从 AV-Wiki 获取真实演员",
             "Show Logs",
             "Hide Close",
             "Hide Mini",
