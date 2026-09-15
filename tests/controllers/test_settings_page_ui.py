@@ -320,3 +320,25 @@ def test_cookie_edits_mark_settings_unsaved():
         assert window.Ui.pushButton_save_config.isEnabled()
         editor.setPlainText(original)
         assert window.Ui.label_settings_dirty.text() == "已保存"
+
+
+def test_local_image_preference_switch_saves_and_restores():
+    window, controller = _controller()
+    controller.install_search_bar(QVBoxLayout())
+    config = manager.config.model_copy(deep=True)
+    config.use_local_number_images = True
+    try:
+        controller.binder.load(config)
+        switch = window.Ui.checkBox_use_local_number_images
+        assert switch.text() == "优先使用本地图片"
+        assert switch.isChecked()
+        switch.setChecked(False)
+        controller.binder.save(config)
+        assert config.use_local_number_images is False
+        restored = type(config).model_validate_json(config.model_dump_json())
+        controller.binder.load(restored)
+        assert not switch.isChecked()
+        assert "本地图片随片整理" in window.Ui.label_local_number_images.text()
+        assert window.Ui.label_local_number_images.wordWrap()
+    finally:
+        window.close()

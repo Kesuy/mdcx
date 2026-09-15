@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QMessageBox
 from ..base.file import (
     _clean_empty_fodlers,
     check_file,
+    clean_rescrape_source_folder,
     copy_trailer_to_theme_videos,
     get_movie_list,
     move_bif,
@@ -677,11 +678,15 @@ class Scraper:
     async def _process_one_file(
         self, file_info: FileInfo, file_mode: FileMode
     ) -> tuple[CrawlersResult | None, OtherInfo | None]:
+        source_file = file_info.file_path
         media_context = MediaResourceContext()
         try:
-            return await self._process_one_file_with_context(file_info, file_mode, media_context)
+            result, other = await self._process_one_file_with_context(file_info, file_mode, media_context)
         finally:
             media_context.close()
+        if result is not None and other is not None and file_mode == FileMode.Again:
+            await clean_rescrape_source_folder(source_file)
+        return result, other
 
     async def _process_one_file_with_context(
         self,

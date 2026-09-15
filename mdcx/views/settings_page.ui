@@ -6805,14 +6805,15 @@
                                 </sizepolicy>
                               </property>
                               <property name="text">
-                                <string>优先使用同番号本地图片</string>
+                                <string>优先使用本地图片</string>
                               </property>
                             </widget>
                           </item>
                           <item>
                             <widget class="QLabel" name="label_local_number_images">
+                              <property name="wordWrap"><bool>true</bool></property>
                               <property name="text">
-                                <string> 多图按文件名排序，第一张生成封面/缩略/背景图，不再从网站下载</string>
+                                <string> 开：同番号本地图片优先作艺术图；关：本地图片随片整理，艺术图正常刮削</string>
                               </property>
                               <property name="semanticRole" stdset="0">
                                 <string>help</string>
