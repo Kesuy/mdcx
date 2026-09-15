@@ -58,7 +58,7 @@ def _replace_actor_with_avwiki(res: CrawlersResult, avwiki_actor: str) -> None:
     """Apply an AV-Wiki match to the existing actor fields without inventing actors.
 
     ``actors`` is the female-actor field used by the normal scraper. ``all_actors``
-    may additionally contain other performers.  AV-Wiki is authoritative only for
+    may additionally contain other performers. AV-Wiki is authoritative only for
     the matched female actor names, so keep unrelated entries in ``all_actors``.
     When the scraper has no actor at all (the normal state behind the configured
     ``actor_no_name`` output placeholder), seed both fields from the AV-Wiki result.
@@ -186,8 +186,6 @@ def translate_info(json_data: CrawlersResult, has_sub: bool, *, include_file_tag
 
     # 添加番号前缀
     letters = json_data.letters
-    if TagInclude.LETTERS in fields_rule and letters and letters != "未知车牌":
-        pass
     if TagInclude.LETTERS in tag_include and letters and letters != "未知车牌":
         # 去除素人番号前缀数字
         if FieldRule.DEL_NUM in fields_rule:
@@ -275,8 +273,7 @@ async def translate_actor(res: CrawlersResult):
     # 非读取模式，勾选了使用真实名字时; 读取模式，勾选了允许更新真实名字时
     if actor_realname:
         start_time = time.time()
-        should_query = _should_query_avwiki_actor(res)
-        if should_query:
+        if _should_query_avwiki_actor(res):
             force_avwiki = Switch.FORCE_AVWIKI_ACTOR in manager.config.switch_on
             source_actor = res.actor or manager.config.actor_no_name
             LogBuffer.log().write(
