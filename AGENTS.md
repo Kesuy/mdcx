@@ -53,6 +53,7 @@ PR 的 `CI` workflow 负责完整 pytest、Windows 构建与 smoke。**发布型
 - `CI` 成功后，自动合并流程只接受：仓库所有者本人、同仓库分支、目标为 `master`、非 Draft、且分支名以 `codex/` 开头的 PR；外部 PR 不自动合并。
 - 自动合并后创建版本 Tag，并显式触发既有 `release.yml`。正式 Release 仍必须经过其中的完整测试、Windows/macOS 构建、smoke、附件完整性检查和发布步骤。
 - 普通非发布 PR 若未提升 `LOCAL_VERSION`，合并后不得重复创建旧 Tag 或重复发布。
+- 自动发布中断后可在 Actions 重跑失败作业：已合并 PR 复用原合并提交；已有 Tag 必须指向该提交，才可补触发 Release。已正式发布或仍在运行的 Release 会跳过，普通未改版本的 PR 不发版。此恢复逻辑适用于包含修复的新工作流运行；旧运行使用旧版工作流，需手动触发对应 Tag 的 Release。
 - 不持续轮询 CI/Release。触发后只做必要的单次状态核验；若任务仍在运行，直接报告当前状态或运行链接。
 
 ## 结束任务
