@@ -51,11 +51,7 @@ def _should_query_avwiki_actor(res: CrawlersResult) -> bool:
 
 
 def _split_actor_names(value: str) -> list[str]:
-    return list(
-        dict.fromkeys(
-            name.strip() for name in str(value or "").split(",") if name.strip()
-        )
-    )
+    return list(dict.fromkeys(name.strip() for name in str(value or "").split(",") if name.strip()))
 
 
 def _replace_actor_with_avwiki(res: CrawlersResult, avwiki_actor: str) -> None:
@@ -73,9 +69,7 @@ def _replace_actor_with_avwiki(res: CrawlersResult, avwiki_actor: str) -> None:
 
     unknown_actor = manager.config.actor_no_name.strip()
     original_actors = [actor.strip() for actor in res.actors if actor.strip()]
-    source_is_unknown = not original_actors or (
-        len(original_actors) == 1 and original_actors[0] == unknown_actor
-    )
+    source_is_unknown = not original_actors or (len(original_actors) == 1 and original_actors[0] == unknown_actor)
     original_all_actors = [actor.strip() for actor in res.all_actors if actor.strip()]
 
     res.actors = real_actors.copy()
@@ -295,9 +289,7 @@ async def translate_actor(res: CrawlersResult):
                     f"\n 👩🏻 Av-wiki done! Actor's real Japanese name is '{temp_actor}' ({get_used_time(start_time)}s)"
                 )
             else:
-                LogBuffer.log().write(
-                    f"\n 🟡 Actor resolve: AV-Wiki failed; keep source_actor='{source_actor}'"
-                )
+                LogBuffer.log().write(f"\n 🟡 Actor resolve: AV-Wiki failed; keep source_actor='{source_actor}'")
                 LogBuffer.log().write(f"\n 🔴 Av-wiki failed! {temp_actor} ({get_used_time(start_time)}s)")
 
     # 如果不映射，返回
