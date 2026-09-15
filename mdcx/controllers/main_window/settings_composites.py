@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from PyQt6.QtWidgets import QCheckBox
+
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, OutlineShow, Switch, TagInclude
 
 from .config_binding import CompositeBinding, _resolve
@@ -105,6 +107,31 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
         setattr(owner, name, value)
 
     return CompositeBinding(spec.path, load, save)
+
+
+def _ensure_force_avwiki_actor_checkbox(ui: object) -> QCheckBox:
+    existing = getattr(ui, "checkBox_force_avwiki_actor", None)
+    if isinstance(existing, QCheckBox):
+        return existing
+
+    checkbox = QCheckBox("强制从 AV-Wiki 获取真实演员")
+    checkbox.setObjectName("checkBox_force_avwiki_actor")
+    checkbox.setToolTip(
+        "开启后，只要“使用AV-wiki获取演员真实名字”已启用，所有作品都会尝试查询 AV-Wiki；"
+        "查询失败会保留原演员名，但会增加网络请求。"
+    )
+    checkbox.setEnabled(ui.checkBox_actor_realname.isChecked())
+    ui.checkBox_actor_realname.toggled.connect(checkbox.setEnabled)
+    ui.horizontalLayout_8.addWidget(checkbox)
+    ui.checkBox_force_avwiki_actor = checkbox
+
+    def mark_dirty(*_args) -> None:
+        controller = getattr(checkbox.window(), "settings_controller", None)
+        if controller is not None:
+            controller._mark_dirty(checkbox.objectName())
+
+    checkbox.toggled.connect(mark_dirty)
+    return checkbox
 
 
 def build_settings_composites() -> list[CompositeBinding]:
@@ -256,6 +283,7 @@ def build_settings_composites() -> list[CompositeBinding]:
             ("checkBox_hide_menu_icon", Switch.HIDE_MENU),
             ("checkBox_dark_mode", Switch.DARK_MODE),
             ("checkBox_copy_netdisk_nfo", Switch.COPY_NETDISK_NFO),
+            ("checkBox_force_avwiki_actor", Switch.FORCE_AVWIKI_ACTOR),
         ),
         groups=(
             ChoiceGroupSpec(
@@ -331,7 +359,12 @@ def build_settings_composites() -> list[CompositeBinding]:
     )
     switch_binding = _composite_list_binding(switches)
 
+    def load_switches(ui: object, config: object) -> None:
+        _ensure_force_avwiki_actor_checkbox(ui)
+        switch_binding.load(ui, config)
+
     def save_switches(ui: object, config: object) -> None:
+        _ensure_force_avwiki_actor_checkbox(ui)
         switch_binding.save(ui, config)
         values = [value for value in config.switch_on if value != Switch.SHOW_LOGS]
         if not ui.textBrowser_log_main_2.isHidden():
@@ -346,5 +379,5 @@ def build_settings_composites() -> list[CompositeBinding]:
         _composite_list_binding(emby),
         _flag_list_binding(watermark_types),
         *(_scalar_choice_binding(spec) for spec in positions),
-        CompositeBinding("switch_on", switch_binding.load, save_switches),
+        CompositeBinding("switch_on", load_switches, save_switches),
     ]
