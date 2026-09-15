@@ -45,19 +45,23 @@ jobs:
               ("821SBTH-005", []),
           ]
 
+          async def verify(number, source_actors):
+              ok, value = await get_actorname(number)
+              result = CrawlersResult.empty()
+              result.number = number
+              result.actors = source_actors.copy()
+              result.all_actors = source_actors.copy()
+              if ok:
+                  _replace_actor_with_avwiki(result, value)
+              return number, ok, value, source_actors, result.actors, result.all_actors
+
           async def main():
-              for number, source_actors in CASES:
-                  ok, value = await get_actorname(number)
-                  result = CrawlersResult.empty()
-                  result.number = number
-                  result.actors = source_actors.copy()
-                  result.all_actors = source_actors.copy()
-                  if ok:
-                      _replace_actor_with_avwiki(result, value)
+              rows = await asyncio.gather(*(verify(number, actors) for number, actors in CASES))
+              for number, ok, value, source, final_actors, final_all_actors in rows:
                   print(
                       f"LIVE_AVWIKI number={number} ok={ok} value={value!r} "
-                      f"source={source_actors!r} final_actors={result.actors!r} "
-                      f"final_all_actors={result.all_actors!r}"
+                      f"source={source!r} final_actors={final_actors!r} "
+                      f"final_all_actors={final_all_actors!r}"
                   )
 
           asyncio.run(main())
