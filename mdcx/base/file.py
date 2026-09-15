@@ -260,6 +260,31 @@ def save_remain_list() -> None:
                 pass
 
 
+async def clean_rescrape_source_folder(file_path: Path) -> None:
+    """Remove only the emptied source directory after a successful rescrape."""
+    if not manager.config.del_empty_folder or manager.config.soft_link != 0:
+        return
+    source = file_path.parent
+    paths = get_movie_path_setting(file_path)
+    protected = {*paths.movie_paths, paths.success_folder, paths.failed_folder, paths.softlink_path}
+
+    def clean():
+        try:
+            if source.is_symlink() or source.is_junction() or file_path.exists() or file_path.is_symlink():
+                return
+            if source.resolve() in {path.resolve() for path in protected}:
+                return
+            # rmdir is atomic and refuses any remaining file, including hidden files.
+            # Never walk parents or recursively delete unrelated directories.
+            source.rmdir()
+            signal.show_log_text(f" 🗑 Clean empty folder: {source}")
+        except OSError:
+            # Nonempty, already removed, or inaccessible directories must be preserved.
+            pass
+
+    await asyncio.to_thread(clean)
+
+
 async def _clean_empty_fodlers(path: Path, file_mode: FileMode) -> None:
     start_time = time.time()
     if not manager.config.del_empty_folder or file_mode == FileMode.Again:

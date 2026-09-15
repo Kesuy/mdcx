@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'D:\AI Agent\MDCx\mdcx\views\settings_page.ui'
+# Form implementation generated from reading ui file 'C:\Users\Kesuy\Documents\Codex\2026-09-15\referenced-chatgpt-conversation-this-is-an\work\mdcx-local-images\mdcx\views\settings_page.ui'
 #
 # Created by: PyQt6 UI code generator 6.11.0
 #
@@ -2924,6 +2924,7 @@ class Ui_SettingsPage(object):
         self.checkBox_use_local_number_images.setObjectName("checkBox_use_local_number_images")
         self.horizontalLayout_local_number_images.addWidget(self.checkBox_use_local_number_images)
         self.label_local_number_images = QtWidgets.QLabel(parent=self.layoutWidget3)
+        self.label_local_number_images.setWordWrap(True)
         self.label_local_number_images.setObjectName("label_local_number_images")
         self.horizontalLayout_local_number_images.addWidget(self.label_local_number_images)
         self.verticalLayout_2.addLayout(self.horizontalLayout_local_number_images)
@@ -9204,8 +9205,8 @@ class Ui_SettingsPage(object):
 "                                预告片：trailer，在 Emby 详情页可以播放预告片；<br>\n"
 "                                nfo：包含标题、简介、标签等信息，在 Emby 详情页展示。</p>"))
         self.label_85.setProperty("semanticRole", _translate("SettingsPage", "help"))
-        self.checkBox_use_local_number_images.setText(_translate("SettingsPage", "优先使用同番号本地图片"))
-        self.label_local_number_images.setText(_translate("SettingsPage", " 多图按文件名排序，第一张生成封面/缩略/背景图，不再从网站下载"))
+        self.checkBox_use_local_number_images.setText(_translate("SettingsPage", "优先使用本地图片"))
+        self.label_local_number_images.setText(_translate("SettingsPage", " 开：同番号本地图片优先作艺术图；关：本地图片随片整理，艺术图正常刮削"))
         self.label_local_number_images.setProperty("semanticRole", _translate("SettingsPage", "help"))
         self.checkBox_ignore_pic_fail.setText(_translate("SettingsPage", "图片下载失败时，不视为刮削失败"))
         self.label_275.setText(_translate("SettingsPage", " 有时图片已被源网站删除，此时会下载失败"))

@@ -367,3 +367,47 @@ async def test_prepare_local_number_images_does_not_fall_back_past_first_sorted_
 
     assert (found, success) == (True, False)
     assert not (target / "thumb.jpg").exists()
+
+
+@pytest.mark.asyncio
+async def test_disabled_local_images_use_web_artwork_and_still_move_originals(monkeypatch, tmp_path):
+    source, target = tmp_path / "source", tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    original = source / "ABC-123 photo.jpg"
+    _save_image(original, (100, 100), "red")
+    original_bytes = original.read_bytes()
+    for key, value in {
+        "use_local_number_images": False,
+        "soft_link": 0,
+        "main_mode": 1,
+        "success_file_move": True,
+        "success_file_rename": True,
+    }.items():
+        monkeypatch.setattr(manager.config, key, value)
+    calls = []
+
+    async def download(*args, **kwargs):
+        calls.append(True)
+        return True
+
+    for name in ["thumb_download", "fanart_download", "poster_download"]:
+        monkeypatch.setattr(f"mdcx.core.scraper.{name}", download)
+    result = CrawlersResult.empty()
+    result.number = "ABC-123"
+    assert await prepare_primary_images(
+        result,
+        OtherInfo.empty(),
+        "",
+        source,
+        target,
+        target / "poster.jpg",
+        target / "thumb.jpg",
+        target / "fanart.jpg",
+        media_context=None,
+    )
+    assert len(calls) == 3
+    assert original.read_bytes() == original_bytes
+    await move_other_file(result.number, source, target, "ABC-123", "ABC-123")
+    assert not original.exists()
+    assert (target / original.name).read_bytes() == original_bytes
