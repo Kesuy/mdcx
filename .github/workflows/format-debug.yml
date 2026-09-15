@@ -1,4 +1,4 @@
-name: Ruff Format Diff
+name: Ruff Format Fix
 
 on:
   push:
@@ -6,14 +6,26 @@ on:
       - codex/fix-avwiki-prefixed-numbers-4.0.23
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diff:
+  format:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: codex/fix-avwiki-prefixed-numbers-4.0.23
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-      - name: Show Ruff formatting diff
+      - name: Format and push
         shell: bash
-        run: uvx ruff@0.15.12 format --diff mdcx/core/translate.py || true
+        run: |
+          uvx ruff@0.15.12 format mdcx/core/translate.py tests/test_avwiki_actor_rules.py tests/test_avwiki_parser.py
+          if git diff --quiet; then
+            echo "Already formatted"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mdcx/core/translate.py tests/test_avwiki_actor_rules.py tests/test_avwiki_parser.py
+          git commit -m "style: format AV-Wiki actor fix"
+          git push origin HEAD:codex/fix-avwiki-prefixed-numbers-4.0.23
