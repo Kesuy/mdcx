@@ -52,7 +52,9 @@ def _should_query_avwiki_actor(res: CrawlersResult) -> bool:
 
 def _split_actor_names(value: str) -> list[str]:
     return list(
-        dict.fromkeys(name.strip() for name in str(value or "").split(",") if name.strip())
+        dict.fromkeys(
+            name.strip() for name in str(value or "").split(",") if name.strip()
+        )
     )
 
 
