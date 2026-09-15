@@ -47,6 +47,7 @@ AVWIKI_MGS_AMATEUR_LABEL_HINTS = frozenset(
         "OUTDOOR",
         "SNAP×SNAP",
         "SUKESUKE+",
+        "TAG",
         "TOKYO不倫FILE",
         "TOPランナー",
         "VLOGDIARY",
@@ -99,6 +100,14 @@ def _number_prefix(number: str) -> str:
     return match.group(1) if match else ""
 
 
+def _label_matches(value: str, hint: str) -> bool:
+    # ARA / HHH / TAG 这类短英文代号用包含匹配容易误伤普通厂牌
+    # （例如 PARADISE、VINTAGE），因此短纯英文代号只允许完全相等。
+    if hint.isascii() and hint.isalnum() and len(hint) <= 4:
+        return value == hint
+    return hint in value
+
+
 def is_avwiki_mgs_amateur_number(number: str) -> bool:
     """Return True for known MGS-amateur short-number families."""
     return _number_prefix(number) in AVWIKI_MGS_AMATEUR_SHORT_PREFIXES
@@ -109,9 +118,8 @@ def is_avwiki_mgs_amateur_metadata(*values: str) -> bool:
     normalized_values = [_normalize_label(value) for value in values if str(value or "").strip()]
     if not normalized_values:
         return False
-    normalized_hints = (_normalize_label(hint) for hint in AVWIKI_MGS_AMATEUR_LABEL_HINTS)
-    hints = tuple(hint for hint in normalized_hints if hint)
-    return any(hint in value for value in normalized_values for hint in hints)
+    hints = tuple(_normalize_label(hint) for hint in AVWIKI_MGS_AMATEUR_LABEL_HINTS if _normalize_label(hint))
+    return any(_label_matches(value, hint) for value in normalized_values for hint in hints)
 
 
 def is_avwiki_mgs_amateur_result(number: str, studio: str = "", publisher: str = "", series: str = "") -> bool:
