@@ -92,6 +92,11 @@ def test_mgs_amateur_metadata_catches_future_short_prefixes(field_value: str):
     assert _should_query_avwiki_actor(result)
 
 
+@pytest.mark.parametrize("field_value", ["PARADISE", "VINTAGE", "TAGUCHI STUDIO"])
+def test_short_mgs_codes_do_not_match_substrings(field_value: str):
+    assert not is_avwiki_mgs_amateur_metadata(field_value)
+
+
 def test_force_switch_queries_all_scraping_types():
     manager.config.switch_on = [*manager.config.switch_on, Switch.FORCE_AVWIKI_ACTOR]
     result = _result("HEYZO-1234", scraping_type=FixedScrapingType.WUMA)
