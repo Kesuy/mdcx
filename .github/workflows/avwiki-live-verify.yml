@@ -20,30 +20,45 @@ jobs:
         with:
           python-version: "3.13"
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-      - name: Install locked dependencies
-        run: uv sync --locked --all-extras --dev
-      - name: Query AV-Wiki through MDCx
+      - name: Install Qt runtime and locked dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libegl1 fonts-noto-cjk
+          uv sync --locked --all-extras --dev
+      - name: Query AV-Wiki through MDCx and apply actor result
         shell: bash
         run: |
           uv run --locked python - <<'PY'
           import asyncio
           from mdcx.core.avwiki import get_actorname
+          from mdcx.core.translate import _replace_actor_with_avwiki
+          from mdcx.models.types import CrawlersResult
 
-          NUMBERS = [
-              "200GANA-3259",
-              "420ERK-085",
-              "420HOI-304",
-              "420HPT-034",
-              "435MFC-277",
-              "583ERKR-1032",
-              "766ESDX-046",
-              "821SBTH-005",
+          CASES = [
+              ("200GANA-3259", ["ひな"]),
+              ("420ERK-085", ["ゆかちゃん"]),
+              ("420HOI-304", ["梨"]),
+              ("420HPT-034", ["ユカ"]),
+              ("435MFC-277", ["ねね"]),
+              ("583ERKR-1032", []),
+              ("766ESDX-046", []),
+              ("821SBTH-005", []),
           ]
 
           async def main():
-              for number in NUMBERS:
+              for number, source_actors in CASES:
                   ok, value = await get_actorname(number)
-                  print(f"LIVE_AVWIKI number={number} ok={ok} value={value}")
+                  result = CrawlersResult.empty()
+                  result.number = number
+                  result.actors = source_actors.copy()
+                  result.all_actors = source_actors.copy()
+                  if ok:
+                      _replace_actor_with_avwiki(result, value)
+                  print(
+                      f"LIVE_AVWIKI number={number} ok={ok} value={value!r} "
+                      f"source={source_actors!r} final_actors={result.actors!r} "
+                      f"final_all_actors={result.all_actors!r}"
+                  )
 
           asyncio.run(main())
           PY
