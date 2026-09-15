@@ -6,18 +6,33 @@ import re
 # 200GANA / 300MIUM 这类三位数字前缀，因此不会被现有 SUREN 分类命中。
 # 这里仅负责“是否值得查询 AV-Wiki”，不改变 SUREN / YOUMA 刮削分类。
 #
-# 来源以 hdblog 的 MGS Amateur 分类为目标，并用 AV-Wiki 的 MGS 索引补齐
-# 当前仍在更新的短番号系列。数字前缀 MGS 番号仍由现有 SUREN 逻辑覆盖。
+# 数字前缀 MGS 番号继续由现有 SUREN 逻辑覆盖；这里补充 AV-Wiki 的 MGS
+# 索引中会以短番号出现的系列，避免因为文件名省略 MGS 数字前缀而漏查。
 AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
     {
+        "CMI",  # フルセイル / ゲスの極み映像
         "DDH",  # ドキュメントdeハメハメ
-        "MFCW",  # MOON FORCE WIFE
+        "DNW",  # ドキュメントなう。
+        "FIV",  # FIVE STARS
+        "GBAN",  # ゲッツ!!
+        "GES",  # フルセイル / ゲスの極み女子寮
+        "GETS",  # ゲッツ!!
+        "GNAB",  # ゲッツ!! / BANG!!
+        "GZAP",  # ゲッツ!! / ZAP
+        "KKJ",  # マジック / 口説き術
+        "MFCC",  # MOON FORCE CHEERS omnibus
+        "MFCD",  # MOON FORCE omnibus
         "MFCS",  # MOON FORCE 2nd
+        "MFCT",  # MOON FORCE 2nd omnibus
+        "MFCW",  # MOON FORCE WIFE
+        "MGT",  # MEGATRA
         "MMNM",  # しろうとまんまん沼
+        "ONEZ",  # ONE MORE
         "ORECZ",  # 俺の素人
         "OREMO",
         "ORESL",
         "OREV",
+        "OTIM",  # ONETIME
         "SIMA",  # しろうとまんまん+
         "SIMD",
         "SIMF",
@@ -26,14 +41,20 @@ AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
         "SIMT",
         "SIMW",
         "SRMM",
+        "ZRC",  # マジック / 全裸カタログ
     }
 )
 
-# 作为短番号表的兜底：同一 MGS 素人厂牌可能增加新前缀，只要刮削结果中的
-# studio / publisher / series 明确属于这些系列，仍然触发 AV-Wiki。
+# AV-Wiki 自身维护的 MGS 索引作为元数据兜底。这样即使同一厂牌以后新增短番号
+# 前缀，只要 scraper 能拿到 studio / publisher / series，仍然会补查真实演员。
 # 普通有码厂牌（S1、MOODYZ、IDEA POCKET 等）不会命中。
+#
+# “プレステージ”本身故意不作为提示：它同时包含大量普通有码作品，直接匹配会
+# 让普通 YOUMA 平白增加 AV-Wiki 请求。其 MGS 素人系列通过更具体的系列名、
+# 短番号前缀或现有数字前缀 SUREN 规则覆盖。
 AVWIKI_MGS_AMATEUR_LABEL_HINTS = frozenset(
     {
+        # AV-Wiki: MGS動画に出てるAV女優（素人名義）の名前が知りたい！
         "ARA",
         "BIBID",
         "DIEGO",
@@ -86,6 +107,29 @@ AVWIKI_MGS_AMATEUR_LABEL_HINTS = frozenset(
         "素人ハメ次郎",
         "街角シロウトナンパ",
         "俺の素人",
+        # AV-Wiki MGSグループ / omnibus index. Existing labels above intentionally
+        # overlap Jackson/KANBi/MOON FORCE/シロウトTV/ナンパTV/黒船.
+        "○○から中出し",
+        "FIVE STARS",
+        "HIGH SCORE",
+        "JUNKTION+",
+        "MEGATRA",
+        "SEXの逸材",
+        "VIDEO PODCAST",
+        "アフターサービス",
+        "ドキュメントなう",
+        "BOING",
+        "GOOD-BYE-CHERRYBOY",
+        "セイキョウイク",
+        "BUZZDOCUMENT",
+        "ONE MORE",
+        "ONETIME",
+        "ゲッツ",
+        "シロウトなんなん",
+        "フルセイル",
+        "マジック",
+        "同人AKIVAサークル",
+        "舞ワイフ",
     }
 )
 
