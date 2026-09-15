@@ -1,0 +1,28 @@
+name: tmp-hdblog-mgs-crawl
+
+on:
+  push:
+    branches:
+      - codex/avwiki-mgs-amateur-crawl
+    paths:
+      - scripts/tmp_crawl_hdblog_mgs_amateur.py
+      - .github/workflows/tmp-hdblog-mgs-crawl.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Crawl HDblog MGS amateur category
+        run: python scripts/tmp_crawl_hdblog_mgs_amateur.py
+      - name: Upload crawl result
+        uses: actions/upload-artifact@v4
+        with:
+          name: hdblog-mgs-amateur
+          path: hdblog_mgs_amateur.json
+          if-no-files-found: error
