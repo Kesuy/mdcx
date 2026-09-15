@@ -53,6 +53,21 @@ def _result(
         "OREMO-611",
         "ORESL-002",
         "OREV-170",
+        # Short-number families exposed by the AV-Wiki MGS index/omnibus pages.
+        "GBAN-024",
+        "GZAP-079",
+        "GNAB-117",
+        "DNW-163",
+        "MGT-193",
+        "OTIM-550",
+        "ONEZ-359",
+        "CMI-145",
+        "GES-029",
+        "ZRC-001",
+        "KKJ-070",
+        "MFCC-064",
+        "MFCD-003",
+        "MFCT-003",
     ],
 )
 def test_known_mgs_amateur_short_numbers_trigger_avwiki(number: str):
@@ -84,6 +99,14 @@ def test_empty_youma_actor_preserves_existing_fallback():
         "ドキュメントdeハメハメ",
         "街角シロウトナンパ+",
         "俺の素人 - ORECZ",
+        "ドキュメントなう。",
+        "MEGATRA",
+        "ONETIME",
+        "ONE MORE",
+        "ゲッツ!!",
+        "フルセイル",
+        "舞ワイフ（MGS）",
+        "MOON FORCE（オムニバス）",
     ],
 )
 def test_mgs_amateur_metadata_catches_future_short_prefixes(field_value: str):
@@ -92,8 +115,8 @@ def test_mgs_amateur_metadata_catches_future_short_prefixes(field_value: str):
     assert _should_query_avwiki_actor(result)
 
 
-@pytest.mark.parametrize("field_value", ["PARADISE", "VINTAGE", "TAGUCHI STUDIO"])
-def test_short_mgs_codes_do_not_match_substrings(field_value: str):
+@pytest.mark.parametrize("field_value", ["PARADISE", "VINTAGE", "TAGUCHI STUDIO", "S1", "MOODYZ", "IDEA POCKET"])
+def test_mgs_metadata_rules_do_not_match_normal_youma_labels(field_value: str):
     assert not is_avwiki_mgs_amateur_metadata(field_value)
 
 
