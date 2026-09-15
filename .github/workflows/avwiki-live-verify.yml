@@ -1,0 +1,68 @@
+name: AV-Wiki Live Verify
+
+on:
+  push:
+    branches:
+      - codex/fix-avwiki-prefixed-numbers-4.0.23
+
+permissions:
+  contents: read
+
+jobs:
+  live-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install Qt runtime and locked dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libegl1 fonts-noto-cjk
+          uv sync --locked --all-extras --dev
+      - name: Query AV-Wiki through MDCx and apply actor result
+        shell: bash
+        run: |
+          uv run --locked python - <<'PY'
+          import asyncio
+          from mdcx.core.avwiki import get_actorname
+          from mdcx.core.translate import _replace_actor_with_avwiki
+          from mdcx.models.types import CrawlersResult
+
+          CASES = [
+              ("200GANA-3259", ["ひな"]),
+              ("420ERK-085", ["ゆかちゃん"]),
+              ("420HOI-304", ["梨"]),
+              ("420HPT-034", ["ユカ"]),
+              ("435MFC-277", ["ねね"]),
+              ("583ERKR-1032", []),
+              ("766ESDX-046", []),
+              ("821SBTH-005", []),
+          ]
+
+          async def verify(number, source_actors):
+              ok, value = await get_actorname(number)
+              result = CrawlersResult.empty()
+              result.number = number
+              result.actors = source_actors.copy()
+              result.all_actors = source_actors.copy()
+              if ok:
+                  _replace_actor_with_avwiki(result, value)
+              return number, ok, value, source_actors, result.actors, result.all_actors
+
+          async def main():
+              rows = await asyncio.gather(*(verify(number, actors) for number, actors in CASES))
+              for number, ok, value, source, final_actors, final_all_actors in rows:
+                  print(
+                      f"LIVE_AVWIKI number={number} ok={ok} value={value!r} "
+                      f"source={source!r} final_actors={final_actors!r} "
+                      f"final_all_actors={final_all_actors!r}"
+                  )
+
+          asyncio.run(main())
+          PY

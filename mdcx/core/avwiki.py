@@ -11,16 +11,33 @@ def _normalize_avwiki_number(value: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
 
 
+def _avwiki_number_variants(value: str) -> list[str]:
+    """Return lookup forms understood by AV-Wiki, keeping the original first.
+
+    Some FANZA/MGS amateur numbers carry a three-digit distributor prefix in
+    MDCx (for example 420HOI-304), while AV-Wiki indexes the maker number
+    (HOI-304). We only strip that well-known three-digit form so unrelated
+    numbers are not broadened accidentally.
+    """
+    original = str(value or "").strip().upper()
+    if not original:
+        return []
+
+    variants = [original]
+    match = re.fullmatch(r"\d{3}([A-Z][A-Z0-9]*-\d+)", original)
+    if match:
+        variants.append(match.group(1))
+    return list(dict.fromkeys(variants))
+
+
+def _normalized_number_variants(value: str) -> set[str]:
+    return {_normalize_avwiki_number(item) for item in _avwiki_number_variants(value) if item}
+
+
 def _numbers_match(candidate: str, requested: str) -> bool:
-    candidate_norm = _normalize_avwiki_number(candidate)
-    requested_norm = _normalize_avwiki_number(requested)
-    if not candidate_norm or not requested_norm:
-        return False
-    return (
-        candidate_norm == requested_norm
-        or candidate_norm.endswith(requested_norm)
-        or requested_norm.endswith(candidate_norm)
-    )
+    candidate_variants = _normalized_number_variants(candidate)
+    requested_variants = _normalized_number_variants(requested)
+    return bool(candidate_variants and requested_variants and candidate_variants & requested_variants)
 
 
 def _unique_texts(values: list[str]) -> list[str]:
@@ -37,11 +54,12 @@ def _extract_actor_names(node) -> list[str]:
 
 
 def _node_contains_number(node, number: str) -> bool:
-    requested = _normalize_avwiki_number(number)
-    if not requested:
+    requested_variants = _normalized_number_variants(number)
+    if not requested_variants:
         return False
     text = " ".join(part.strip() for part in node.xpath(".//text()") if part and part.strip())
-    return requested in _normalize_avwiki_number(text)
+    normalized_text = _normalize_avwiki_number(text)
+    return any(variant in normalized_text for variant in requested_variants)
 
 
 def _parse_contextual_candidates(root, number: str) -> list[tuple[str, str]]:
@@ -122,43 +140,69 @@ def _failure_reason(number: str, candidates: list[tuple[str, str]]) -> str:
     return "no result matched the requested number"
 
 
+async def _try_avwiki_page(client, *, requested_number: str, lookup_number: str, url: str, source: str):
+    page_html, page_error = await client.get_text(url)
+    if page_html is None:
+        return "", f"{source} request failed: {page_error}"
+
+    LogBuffer.log().write(
+        f"\n 🔎 Av-wiki {source} response: number='{requested_number}' lookup='{lookup_number}' bytes={len(page_html)}"
+    )
+    try:
+        actor_name, candidates = parse_avwiki_actor_search(page_html, requested_number)
+    except ValueError as exc:
+        return "", f"{source} parse failed: {exc}"
+
+    _log_avwiki_candidates(requested_number, candidates, f"{source}[{lookup_number}]")
+    if actor_name:
+        return actor_name, ""
+    return "", f"{source} {_failure_reason(requested_number, candidates)}"
+
+
 async def get_actorname(number: str) -> tuple[bool, str]:
-    """Get the real Japanese actor name from AV-Wiki with a detail-page fallback."""
-    search_url = f"https://av-wiki.net/?s={quote(number.strip())}"
-    detail_slug = quote(number.strip().lower(), safe="-_.")
-    detail_url = f"https://av-wiki.net/{detail_slug}/"
+    """Get the real Japanese actor name from AV-Wiki with prefixed-number fallbacks."""
+    lookup_numbers = _avwiki_number_variants(number)
+    if not lookup_numbers:
+        return False, "empty AV-Wiki lookup number"
+
     failure_reasons: list[str] = []
-
     async with manager.acquire_computed() as computed:
-        search_html, search_error = await computed.async_client.get_text(search_url)
-        if search_html is None:
-            failure_reasons.append(f"search request failed: {search_error}")
-        else:
-            LogBuffer.log().write(f"\n 🔎 Av-wiki search response: number='{number}' bytes={len(search_html)}")
-            try:
-                actor_name, candidates = parse_avwiki_actor_search(search_html, number)
-            except ValueError as exc:
-                failure_reasons.append(f"search parse failed: {exc}")
-            else:
-                _log_avwiki_candidates(number, candidates, "search")
-                if actor_name:
-                    return True, actor_name
-                failure_reasons.append(f"search {_failure_reason(number, candidates)}")
+        for lookup_number in lookup_numbers:
+            search_url = f"https://av-wiki.net/?s={quote(lookup_number)}"
+            actor_name, failure = await _try_avwiki_page(
+                computed.async_client,
+                requested_number=number,
+                lookup_number=lookup_number,
+                url=search_url,
+                source="search",
+            )
+            if actor_name:
+                if lookup_number != number.strip().upper():
+                    LogBuffer.log().write(
+                        f"\n 🟢 Av-wiki matched prefixed number '{number}' via maker number '{lookup_number}'"
+                    )
+                return True, actor_name
+            failure_reasons.append(f"{lookup_number}: {failure}")
 
-        detail_html, detail_error = await computed.async_client.get_text(detail_url)
-        if detail_html is None:
-            failure_reasons.append(f"detail request failed: {detail_error}")
-        else:
-            LogBuffer.log().write(f"\n 🔎 Av-wiki detail response: number='{number}' bytes={len(detail_html)}")
-            try:
-                actor_name, candidates = parse_avwiki_actor_search(detail_html, number)
-            except ValueError as exc:
-                failure_reasons.append(f"detail parse failed: {exc}")
-            else:
-                _log_avwiki_candidates(number, candidates, "detail")
-                if actor_name:
-                    return True, actor_name
-                failure_reasons.append(f"detail {_failure_reason(number, candidates)}")
+        # Search first with every safe alias. Only then try direct detail pages,
+        # prioritising the maker-number form because AV-Wiki article slugs use it.
+        for lookup_number in reversed(lookup_numbers):
+            detail_slug = quote(lookup_number.lower(), safe="-_.")
+            detail_url = f"https://av-wiki.net/{detail_slug}/"
+            actor_name, failure = await _try_avwiki_page(
+                computed.async_client,
+                requested_number=number,
+                lookup_number=lookup_number,
+                url=detail_url,
+                source="detail",
+            )
+            if actor_name:
+                if lookup_number != number.strip().upper():
+                    LogBuffer.log().write(
+                        f"\n 🟢 Av-wiki matched prefixed number '{number}' via maker number '{lookup_number}'"
+                    )
+                return True, actor_name
+            failure_reasons.append(f"{lookup_number}: {failure}")
 
     reason = "; ".join(failure_reasons) or "unknown AV-Wiki lookup failure"
     LogBuffer.log().write(f"\n 🔴 Av-wiki parse failed: number='{number}' reason='{reason}'")

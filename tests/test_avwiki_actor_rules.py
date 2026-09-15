@@ -6,7 +6,11 @@ from mdcx.core.avwiki_rules import (
     is_avwiki_mgs_amateur_metadata,
     is_avwiki_mgs_amateur_number,
 )
-from mdcx.core.translate import _should_query_avwiki_actor
+from mdcx.core.translate import (
+    _has_unknown_or_empty_actor,
+    _replace_actor_with_avwiki,
+    _should_query_avwiki_actor,
+)
 from mdcx.models.types import CrawlersResult
 
 
@@ -88,6 +92,13 @@ def test_existing_suren_behavior_is_preserved():
 
 def test_empty_youma_actor_preserves_existing_fallback():
     result = _result("SSIS-001", actor="")
+    assert _has_unknown_or_empty_actor(result)
+    assert _should_query_avwiki_actor(result)
+
+
+def test_configured_unknown_actor_preserves_existing_fallback():
+    result = _result("SSIS-001", actor=manager.config.actor_no_name)
+    assert _has_unknown_or_empty_actor(result)
     assert _should_query_avwiki_actor(result)
 
 
@@ -124,3 +135,43 @@ def test_force_switch_queries_all_scraping_types():
     manager.config.switch_on = [*manager.config.switch_on, Switch.FORCE_AVWIKI_ACTOR]
     result = _result("HEYZO-1234", scraping_type=FixedScrapingType.WUMA)
     assert _should_query_avwiki_actor(result)
+
+
+def test_avwiki_replacement_overwrites_source_actor_and_preserves_other_all_actors():
+    result = _result("420ERK-085", actor="ゆかちゃん")
+    result.all_actors = ["ゆかちゃん", "男優"]
+
+    _replace_actor_with_avwiki(result, "真实女优")
+
+    assert result.actors == ["真实女优"]
+    assert result.all_actors == ["真实女优", "男優"]
+
+
+def test_avwiki_replacement_seeds_empty_actor_fields():
+    result = _result("583ERKR-1032", actor="")
+    result.all_actors = []
+
+    _replace_actor_with_avwiki(result, "真实女优")
+
+    assert result.actors == ["真实女优"]
+    assert result.all_actors == ["真实女优"]
+
+
+def test_avwiki_replacement_replaces_output_placeholder_without_losing_other_performers():
+    result = _result("821SBTH-005", actor=manager.config.actor_no_name)
+    result.all_actors = [manager.config.actor_no_name, "男優"]
+
+    _replace_actor_with_avwiki(result, "真实女优")
+
+    assert result.actors == ["真实女优"]
+    assert result.all_actors == ["真实女优", "男優"]
+
+
+def test_avwiki_replacement_adds_real_actor_when_all_actors_does_not_contain_source_name():
+    result = _result("435MFC-277", actor="ねね")
+    result.all_actors = ["男優"]
+
+    _replace_actor_with_avwiki(result, "真实女优")
+
+    assert result.actors == ["真实女优"]
+    assert result.all_actors == ["真实女优", "男優"]

@@ -50,6 +50,56 @@ def _should_query_avwiki_actor(res: CrawlersResult) -> bool:
     return False
 
 
+def _split_actor_names(value: str) -> list[str]:
+    return list(dict.fromkeys(name.strip() for name in str(value or "").split(",") if name.strip()))
+
+
+def _replace_actor_with_avwiki(res: CrawlersResult, avwiki_actor: str) -> None:
+    """Apply an AV-Wiki match to the existing actor fields without inventing actors.
+
+    ``actors`` is the female-actor field used by the normal scraper. ``all_actors``
+    may additionally contain other performers. AV-Wiki is authoritative only for
+    the matched female actor names, so keep unrelated entries in ``all_actors``.
+    When the scraper has no actor at all (the normal state behind the configured
+    ``actor_no_name`` output placeholder), seed both fields from the AV-Wiki result.
+    """
+    real_actors = _split_actor_names(avwiki_actor)
+    if not real_actors:
+        return
+
+    unknown_actor = manager.config.actor_no_name.strip()
+    original_actors = [actor.strip() for actor in res.actors if actor.strip()]
+    source_is_unknown = not original_actors or (len(original_actors) == 1 and original_actors[0] == unknown_actor)
+    original_all_actors = [actor.strip() for actor in res.all_actors if actor.strip()]
+
+    res.actors = real_actors.copy()
+
+    if not original_all_actors:
+        res.all_actors = real_actors.copy()
+        return
+
+    if source_is_unknown:
+        remaining = [actor for actor in original_all_actors if actor != unknown_actor]
+        res.all_actors = list(dict.fromkeys([*real_actors, *remaining]))
+        return
+
+    replaced_all_actors: list[str] = []
+    replaced_source_actor = False
+    for item in original_all_actors:
+        if any(actor and actor in item for actor in original_actors):
+            replaced_source_actor = True
+            for actor in real_actors:
+                if actor not in replaced_all_actors:
+                    replaced_all_actors.append(actor)
+            continue
+        if item not in replaced_all_actors:
+            replaced_all_actors.append(item)
+
+    if not replaced_source_actor:
+        replaced_all_actors = list(dict.fromkeys([*real_actors, *replaced_all_actors]))
+    res.all_actors = replaced_all_actors
+
+
 def add_file_tags(json_data: CrawlersResult, has_sub: bool) -> None:
     """Add local-file tags only after taking the shared metadata snapshot."""
     tag_include = manager.config.nfo_tag_include
@@ -222,21 +272,24 @@ async def translate_actor(res: CrawlersResult):
     if actor_realname:
         start_time = time.time()
         if _should_query_avwiki_actor(res):
+            force_avwiki = Switch.FORCE_AVWIKI_ACTOR in manager.config.switch_on
+            source_actor = res.actor or manager.config.actor_no_name
+            LogBuffer.log().write(
+                f"\n 🔎 Actor resolve: number='{res.number}' source_actor='{source_actor}' "
+                f"all_actors='{res.all_actor or '-'}' force_avwiki={str(force_avwiki).lower()}"
+            )
             result, temp_actor = await get_actorname(res.number)
             if result:
-                actor: str = res.actor
-                actor_list = res.all_actors
-                res.actor = temp_actor
-                # 从actor_list中循环查找元素是否包含字符串temp_actor，有则替换
-                for item in actor_list:
-                    if item.find(actor) != -1:
-                        actor_list[actor_list.index(item)] = temp_actor
-                res.all_actors = actor_list
-
+                _replace_actor_with_avwiki(res, temp_actor)
+                LogBuffer.log().write(
+                    f"\n 🟢 Actor resolve: avwiki_actor='{temp_actor}' final_actor='{res.actor}' "
+                    f"final_all_actors='{res.all_actor or '-'}'"
+                )
                 LogBuffer.log().write(
                     f"\n 👩🏻 Av-wiki done! Actor's real Japanese name is '{temp_actor}' ({get_used_time(start_time)}s)"
                 )
             else:
+                LogBuffer.log().write(f"\n 🟡 Actor resolve: AV-Wiki failed; keep source_actor='{source_actor}'")
                 LogBuffer.log().write(f"\n 🔴 Av-wiki failed! {temp_actor} ({get_used_time(start_time)}s)")
 
     # 如果不映射，返回
