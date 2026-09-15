@@ -18,6 +18,10 @@ UA = (
 
 NUMBER_RE = re.compile(r"\b(?:\d{2,4})?[A-Za-z][A-Za-z0-9]{1,15}(?:[-_][A-Za-z0-9]{1,15})+\b")
 FINAL_NUMERIC_SUFFIX_RE = re.compile(r"[-_]\d+[A-Za-z]?$", re.IGNORECASE)
+ARTICLE_RE = re.compile(r"(?is)<article\b[^>]*>.*?</article>")
+ENTRY_TITLE_RE = re.compile(
+    r'(?is)<h[1-4]\b[^>]*class=["\'][^"\']*(?:entry-title|post-title)[^"\']*["\'][^>]*>.*?</h[1-4]>'
+)
 
 
 def fetch(url: str) -> str:
@@ -53,28 +57,40 @@ def visible_text(raw_html: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def extract_numbers(raw_html: str) -> set[str]:
-    text = visible_text(raw_html)
-    numbers: set[str] = set()
+def normalize_number(value: str) -> str:
+    return value.upper().replace("_", "-").strip("- ")
 
-    # Primary signal used by HDblog product posts.
+
+def extract_number_from_entry(raw_entry: str) -> str:
+    text = visible_text(raw_entry)
+
+    # Prefer an explicit product-number label when it appears in the article excerpt.
     for marker in re.finditer(r"品番\s*[:：]?", text, re.IGNORECASE):
-        chunk = text[marker.end() : marker.end() + 100]
-        match = NUMBER_RE.search(chunk)
+        match = NUMBER_RE.search(text[marker.end() : marker.end() + 100])
         if match:
-            numbers.add(match.group(0).upper().replace("_", "-"))
+            return normalize_number(match.group(0))
 
-    # Backup: titles/slugs in this category usually begin with the product number.
+    # Category post titles begin with or contain the product number. Keep only the
+    # first plausible number from the article/title so sidebars and related links
+    # outside the post entry cannot contaminate the family list.
     for match in NUMBER_RE.finditer(text):
-        value = match.group(0).upper().replace("_", "-")
+        value = normalize_number(match.group(0))
         if re.search(r"\d", value) and FINAL_NUMERIC_SUFFIX_RE.search(value):
-            numbers.add(value)
+            return value
+    return ""
 
-    return numbers
+
+def extract_numbers(raw_html: str) -> tuple[set[str], int]:
+    entries = ARTICLE_RE.findall(raw_html)
+    if not entries:
+        entries = ENTRY_TITLE_RE.findall(raw_html)
+
+    numbers = {number for entry in entries if (number := extract_number_from_entry(entry))}
+    return numbers, len(entries)
 
 
 def number_family(number: str) -> str:
-    normalized = number.upper().replace("_", "-").strip("- ")
+    normalized = normalize_number(number)
     return FINAL_NUMERIC_SUFFIX_RE.sub("", normalized).strip("-")
 
 
@@ -97,12 +113,15 @@ def main() -> None:
         if "just a moment" in lowered and "cloudflare" in lowered:
             raise RuntimeError(f"Cloudflare challenge on page {page}")
 
-        page_numbers = extract_numbers(raw)
+        page_numbers, entry_count = extract_numbers(raw)
         pages_fetched = page
         before = len(all_numbers)
         all_numbers.update(page_numbers)
         added = len(all_numbers) - before
-        print(f"PAGE={page} PAGE_NUMBERS={len(page_numbers)} NEW={added} TOTAL={len(all_numbers)}")
+        print(
+            f"PAGE={page} ENTRIES={entry_count} PAGE_NUMBERS={len(page_numbers)} "
+            f"NEW={added} TOTAL={len(all_numbers)}"
+        )
 
         if page_numbers:
             empty_streak = 0
