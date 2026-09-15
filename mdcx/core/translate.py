@@ -9,7 +9,7 @@ from ..base.translate import (
     translate_with_engine,
 )
 from ..base.web import get_actorname
-from ..config.enums import FieldRule, FixedScrapingType, Language, TagInclude
+from ..config.enums import FieldRule, FixedScrapingType, Language, Switch, TagInclude
 from ..config.manager import manager
 from ..config.resources import resources
 from ..gen.field_enums import CrawlerResultFields
@@ -18,6 +18,7 @@ from ..models.types import CrawlersResult
 from ..number import get_number_letters
 from ..utils import clean_list, get_used_time
 from ..utils.language import is_japanese, is_probably_english_for_translation
+from .avwiki_rules import is_avwiki_mgs_amateur_result
 from .mosaic import normalize_mosaic
 
 AVWIKI_SCRAPING_TYPES = {
@@ -35,9 +36,18 @@ def _has_unknown_or_empty_actor(res: CrawlersResult) -> bool:
 
 
 def _should_query_avwiki_actor(res: CrawlersResult) -> bool:
+    if Switch.FORCE_AVWIKI_ACTOR in manager.config.switch_on:
+        return True
+    if res.scraping_type == FixedScrapingType.SUREN:
+        return True
     if res.scraping_type == FixedScrapingType.YOUMA:
-        return _has_unknown_or_empty_actor(res)
-    return res.scraping_type in AVWIKI_SCRAPING_TYPES
+        return _has_unknown_or_empty_actor(res) or is_avwiki_mgs_amateur_result(
+            res.number,
+            res.studio,
+            res.publisher,
+            res.series,
+        )
+    return False
 
 
 def add_file_tags(json_data: CrawlersResult, has_sub: bool) -> None:
