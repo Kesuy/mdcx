@@ -10,7 +10,6 @@ from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
 
 from .config_binding import CompositeBinding, _resolve
 
-
 SETTINGS_SECTION_HORIZONTAL_MARGIN = 20
 
 
