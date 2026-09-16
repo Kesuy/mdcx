@@ -71,6 +71,15 @@ jobs:
           path: ui-captures
           if-no-files-found: error
           retention-days: 7
+      - name: Create source snapshot
+        run: tar --exclude=.git --exclude=.venv --exclude=ui-captures -czf mdcx-source.tgz .
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: MDCx-source-snapshot
+          path: mdcx-source.tgz
+          if-no-files-found: error
+          retention-days: 1
 
   windows-smoke:
     name: Windows smoke and debug build
