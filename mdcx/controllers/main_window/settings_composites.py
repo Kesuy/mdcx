@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtWidgets import QGroupBox, QScrollArea, QWidget
+from PyQt6.QtWidgets import QWidget
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, OutlineShow, Switch, TagInclude
 from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
@@ -121,14 +121,14 @@ def _normalize_settings_section_insets(ui: object) -> None:
 
     for index in range(tab_widget.count()):
         tab = tab_widget.widget(index)
-        for area in tab.findChildren(QScrollArea):
-            if area.parentWidget() is not tab:
+        for area in tab.findChildren(QWidget):
+            if area.parentWidget() is not tab or not area.inherits("QScrollArea"):
                 continue
             content = area.widget()
             if content is None:
                 continue
-            for group in content.findChildren(QGroupBox):
-                if group.parentWidget() is not content:
+            for group in content.findChildren(QWidget):
+                if group.parentWidget() is not content or not group.inherits("QGroupBox"):
                     continue
                 layout = group.layout()
                 if layout is None:
