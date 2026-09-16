@@ -98,11 +98,17 @@ def _assert_target_within_output(target_folder: Path, success_folder: Path) -> N
         raise MediaReorganizationError(f"按当前设置生成的目标目录超出成功输出目录：{target_folder}") from exc
 
 
-def _assert_source_within_output(old_folder: Path, success_folder: Path) -> None:
+def _source_within_output(old_folder: Path, success_folder: Path) -> bool:
     try:
         old_folder.resolve(strict=True).relative_to(success_folder.resolve(strict=True))
-    except (FileNotFoundError, ValueError) as exc:
-        raise MediaReorganizationError(f"当前影片目录不在成功输出目录内，不能安全地自动整理：{old_folder}") from exc
+    except (FileNotFoundError, ValueError):
+        return False
+    return True
+
+
+def _assert_source_within_output(old_folder: Path, success_folder: Path) -> None:
+    if not _source_within_output(old_folder, success_folder):
+        raise MediaReorganizationError(f"当前影片目录不在成功输出目录内，不能安全地自动整理：{old_folder}")
 
 
 def _is_directory_link(path: Path) -> bool:
@@ -334,8 +340,8 @@ def _reorganize_scraped_media_sync(
         raise MediaReorganizationError(f"影片文件不存在：{old_file_path}")
 
     (
-        new_folder,
-        new_file_path,
+        generated_folder,
+        generated_file_path,
         _nfo_path,
         _poster_with_filename,
         _thumb_with_filename,
@@ -346,19 +352,33 @@ def _reorganize_scraped_media_sync(
         _fanart_final_path,
     ) = get_output_name(file_info, data, success_folder, old_file_path.suffix)
 
+    source_within_output = _source_within_output(old_folder, success_folder)
     if not manager.config.success_file_move:
         new_folder = old_folder
+    elif source_within_output:
+        new_folder = generated_folder
+    elif _same_path(generated_folder, success_folder):
+        # 本地文件不在成功输出目录内时不跨目录迁移；若当前设置没有影片子目录，则保留当前目录。
+        new_folder = old_folder
+    else:
+        # 本地 NFO 编辑只改当前影片目录这一层，忽略成功目录及其上层命名层级。
+        new_folder = old_folder.parent / generated_folder.name
+
     if manager.config.success_file_rename:
-        new_file_path = new_folder / new_file_path.name
+        new_file_path = new_folder / generated_file_path.name
     else:
         new_file_path = new_folder / old_file_path.name
 
     folder_relocates = not _same_path(old_folder, new_folder)
     if folder_relocates and os.path.lexists(new_folder):
         raise MediaReorganizationError(f"目标目录已存在，为避免覆盖已停止自动整理：{new_folder}")
-    _assert_target_within_output(new_folder, success_folder)
-    _assert_source_within_output(old_folder, success_folder)
-    _assert_no_linked_source_directory(old_folder, success_folder)
+    if source_within_output:
+        _assert_target_within_output(new_folder, success_folder)
+        _assert_source_within_output(old_folder, success_folder)
+        _assert_no_linked_source_directory(old_folder, success_folder)
+    elif _is_directory_link(old_folder):
+        raise MediaReorganizationError(f"当前影片目录是符号链接或 junction，不能安全地原地整理：{old_folder}")
+
     old_stem = old_file_path.stem
     new_stem = new_file_path.stem
     old_base_stem, old_cd_suffix = _split_cd_stem(old_stem, file_info.cd_part)
@@ -372,7 +392,7 @@ def _reorganize_scraped_media_sync(
         return MediaReorganizationResult(old_file_path, old_file_path, old_folder, old_folder, False)
 
     movie_group = _assert_single_movie_group(old_file_path, old_folder, file_info.cd_part)
-    if folder_changes and _same_path(old_folder, success_folder):
+    if source_within_output and folder_changes and _same_path(old_folder, success_folder):
         raise MediaReorganizationError("当前影片位于成功输出根目录，不能安全地整体迁移该目录")
     if folder_relocates:
         _assert_same_filesystem(old_folder, new_folder)
@@ -400,7 +420,11 @@ def _reorganize_scraped_media_sync(
             _rename_case_safe(old_folder, new_folder)
             folder_moved = True
         elif folder_case_changes:
-            case_folder_renames = _rename_case_only_folder_path(old_folder, new_folder, success_folder)
+            if source_within_output:
+                case_folder_renames = _rename_case_only_folder_path(old_folder, new_folder, success_folder)
+            else:
+                _rename_case_safe(old_folder, new_folder)
+                case_folder_renames = [(old_folder, new_folder)]
 
         active_folder = new_folder if folder_changes else old_folder
         for old_path, target_path in rename_pairs:
@@ -421,7 +445,8 @@ def _reorganize_scraped_media_sync(
                 _rename_case_safe(new_folder, old_folder)
             except Exception as rollback_exc:
                 rollback_errors.append(f"恢复影片目录 {old_folder}: {rollback_exc}")
-        _remove_empty_parents(new_folder.parent, success_folder)
+        if source_within_output:
+            _remove_empty_parents(new_folder.parent, success_folder)
         actual_mapping: list[tuple[Path, Path]] = []
         for movie_path in movie_group:
             renamed_name = _renamed_companion_name(movie_path.name, rename_old_stem, rename_new_stem)
@@ -451,7 +476,7 @@ def _reorganize_scraped_media_sync(
 
     _update_runtime_paths(file_info, other, old_file_path=old_file_path, actual_file_path=new_file_path)
 
-    if folder_changes:
+    if source_within_output and folder_changes:
         _remove_empty_parents(old_folder.parent, success_folder)
 
     path_mapping = tuple(
@@ -470,7 +495,7 @@ async def reorganize_scraped_media(
     other: OtherInfo,
     success_folder: Path,
 ) -> MediaReorganizationResult:
-    """按当前命名设置迁移一个已刮削的单影片目录，并同步其内存路径。"""
+    """按当前命名设置整理一个已刮削的单影片目录，并同步其内存路径。"""
 
     try:
         return await asyncio.to_thread(_reorganize_scraped_media_sync, file_info, data, other, success_folder)
