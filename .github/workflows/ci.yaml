@@ -72,12 +72,12 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Create source snapshot
-        run: tar --exclude=.git --exclude=.venv --exclude=ui-captures -czf mdcx-source.tgz .
+        run: git archive --format=tar.gz --output="$RUNNER_TEMP/mdcx-source.tgz" HEAD
       - name: Upload source snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: MDCx-source-snapshot
-          path: mdcx-source.tgz
+          path: ${{ runner.temp }}/mdcx-source.tgz
           if-no-files-found: error
           retention-days: 1
 
@@ -114,6 +114,19 @@ jobs:
         run: uv run --locked scripts/build.py --debug
       - name: Smoke test frozen executable
         run: .\dist\MDCx.exe --smoke-test
+      - name: Run frozen UI smoke and capture settings
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force frozen-ui-captures | Out-Null
+          $env:MDCX_SMOKE_SCREENSHOT_DIR = (Resolve-Path frozen-ui-captures).Path
+          .\dist\MDCx.exe --smoke-test-ui
+      - name: Upload frozen Windows UI screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: MDCx-Windows-ui-captures
+          path: frozen-ui-captures
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload Windows executable
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
