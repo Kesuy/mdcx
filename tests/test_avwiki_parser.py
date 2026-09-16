@@ -60,7 +60,7 @@ def test_avwiki_parser_falls_back_to_number_and_actor_link_context():
     ],
 )
 def test_avwiki_prefixed_amateur_numbers_add_maker_number_fallback(number: str, maker_number: str):
-    assert _avwiki_number_variants(number) == [number, maker_number]
+    assert _avwiki_number_variants(number) == [maker_number, number]
     assert _numbers_match(number, maker_number)
     assert _numbers_match(maker_number, number)
 
@@ -87,13 +87,12 @@ def test_avwiki_parser_matches_short_maker_number_to_prefixed_request():
     assert candidates == [("ERK-085", "真实演员")]
 
 
-def test_avwiki_lookup_retries_search_with_short_maker_number(monkeypatch):
-    no_result_html = "<html><body><main>no result</main></body></html>"
+def test_avwiki_lookup_queries_short_maker_number_first(monkeypatch):
     matched_html = """
     <html><body><article><header>
       <ul class="post-meta clearfix">
-        <li class="actress-name"><a href="/av-actress/real-name/">真实演员</a></li>
-        <li>ERK-085</li>
+        <li class="actress-name"><a href="/av-actress/onosaka-yuika/">小野坂ゆいか</a></li>
+        <li>HPT-034</li>
       </ul>
     </header></article></body></html>
     """
@@ -104,9 +103,7 @@ def test_avwiki_lookup_retries_search_with_short_maker_number(monkeypatch):
 
         async def get_text(self, url):
             self.urls.append(url)
-            if url == "https://av-wiki.net/?s=420ERK-085":
-                return no_result_html, ""
-            if url == "https://av-wiki.net/?s=ERK-085":
+            if url == "https://av-wiki.net/?s=HPT-034":
                 return matched_html, ""
             raise AssertionError(f"unexpected AV-Wiki request: {url}")
 
@@ -121,14 +118,11 @@ def test_avwiki_lookup_retries_search_with_short_maker_number(monkeypatch):
 
     monkeypatch.setattr(manager, "acquire_computed", lambda: FakeLease())
 
-    success, actor = asyncio.run(get_actorname("420ERK-085"))
+    success, actor = asyncio.run(get_actorname("420HPT-034"))
 
     assert success
-    assert actor == "真实演员"
-    assert client.urls == [
-        "https://av-wiki.net/?s=420ERK-085",
-        "https://av-wiki.net/?s=ERK-085",
-    ]
+    assert actor == "小野坂ゆいか"
+    assert client.urls == ["https://av-wiki.net/?s=HPT-034"]
 
 
 def test_translate_uses_the_new_avwiki_lookup():

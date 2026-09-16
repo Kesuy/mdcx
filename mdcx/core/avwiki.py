@@ -12,22 +12,22 @@ def _normalize_avwiki_number(value: str) -> str:
 
 
 def _avwiki_number_variants(value: str) -> list[str]:
-    """Return lookup forms understood by AV-Wiki, keeping the original first.
+    """Return lookup forms understood by AV-Wiki, preferring maker numbers.
 
     Some FANZA/MGS amateur numbers carry a three-digit distributor prefix in
     MDCx (for example 420HOI-304), while AV-Wiki indexes the maker number
     (HOI-304). We only strip that well-known three-digit form so unrelated
-    numbers are not broadened accidentally.
+    numbers are not broadened accidentally. Querying the indexed form first
+    also avoids an unnecessary request that can trigger AV-Wiki verification.
     """
     original = str(value or "").strip().upper()
     if not original:
         return []
 
-    variants = [original]
     match = re.fullmatch(r"\d{3}([A-Z][A-Z0-9]*-\d+)", original)
     if match:
-        variants.append(match.group(1))
-    return list(dict.fromkeys(variants))
+        return [match.group(1), original]
+    return [original]
 
 
 def _normalized_number_variants(value: str) -> set[str]:
@@ -186,7 +186,7 @@ async def get_actorname(number: str) -> tuple[bool, str]:
 
         # Search first with every safe alias. Only then try direct detail pages,
         # prioritising the maker-number form because AV-Wiki article slugs use it.
-        for lookup_number in reversed(lookup_numbers):
+        for lookup_number in lookup_numbers:
             detail_slug = quote(lookup_number.lower(), safe="-_.")
             detail_url = f"https://av-wiki.net/{detail_slug}/"
             actor_name, failure = await _try_avwiki_page(

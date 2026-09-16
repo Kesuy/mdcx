@@ -40,6 +40,11 @@ from .utils import collapse_inline_script_splits
 def is_cloudflare_challenge_page(text: str, *, cloudflare_response: bool = False) -> bool:
     """Identify blocking pages, not JSD/Precursor scripts injected into normal HTML."""
     lowered = text.lower()
+    # AV-WIKI currently serves an OpenResty JavaScript verification page with
+    # HTTP 200. It has no Cloudflare marker, but needs the same browser/bypass
+    # handling as a blocking Cloudflare challenge.
+    if all(marker in lowered for marker in ("window.location.reload", 'id="outer-container"', 'class="throbber"')):
+        return True
     if "_cf_chl_opt" in lowered or re.search(r"/cdn-cgi/challenge-platform/[^\s'\"]*/orchestrate/", lowered):
         return True
     challenge_text = any(
@@ -623,7 +628,7 @@ class AsyncWebClient:
 
         try:
             response.close = close_wrapper  # type: ignore[method-assign]
-            response.aclose = aclose_wrapper  # type: ignore[method-assign]
+            response.aclose = aclose_wrapper  # type: ignore[attr-defined]
             response._mdcx_release_attached = True  # type: ignore[attr-defined]
         except Exception:
             pass
