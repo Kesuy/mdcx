@@ -35,10 +35,26 @@ class _MasterCheckBox:
 class _ChildCheckBox:
     def __init__(self):
         self.enabled = None
+        self.checked = False
+        self.signals_blocked = False
         self.toggled = _Signal()
 
     def setEnabled(self, value):
         self.enabled = value
+
+    def isChecked(self):
+        return self.checked
+
+    def setChecked(self, value):
+        changed = self.checked != value
+        self.checked = value
+        if changed and not self.signals_blocked:
+            self.toggled.emit(value)
+
+    def blockSignals(self, value):
+        previous = self.signals_blocked
+        self.signals_blocked = value
+        return previous
 
     def objectName(self):
         return "checkBox_force_avwiki_actor"
@@ -106,11 +122,16 @@ def test_force_avwiki_option_uses_separate_indented_child_row(monkeypatch):
         (help_label, 3, 1, 1, 1),
     ]
     assert child.enabled is False
+    assert child.checked is False
 
     master.set_checked(True)
     assert child.enabled is True
+    child.setChecked(True)
+    assert child.checked is True
+
     master.set_checked(False)
     assert child.enabled is False
+    assert child.checked is False
 
 
 def test_force_avwiki_option_keeps_inline_fallback_for_legacy_ui(monkeypatch):
@@ -121,6 +142,8 @@ def test_force_avwiki_option_keeps_inline_fallback_for_legacy_ui(monkeypatch):
     monkeypatch.setattr(module, "QWidget", lambda _parent: container)
     monkeypatch.setattr(module, "Ui_AvwikiActorSettings", _Component)
 
-    module._ensure_force_avwiki_actor_checkbox(ui)
+    child = module._ensure_force_avwiki_actor_checkbox(ui)
 
     assert horizontal_layout.insertions == [(1, container)]
+    assert child.enabled is False
+    assert child.checked is False
