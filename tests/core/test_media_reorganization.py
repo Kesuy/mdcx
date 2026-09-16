@@ -305,23 +305,36 @@ async def test_reorganize_scraped_media_reports_incomplete_rollback_and_tracks_a
 
 
 @pytest.mark.asyncio
-async def test_reorganize_scraped_media_refuses_source_outside_success_folder(
+async def test_reorganize_scraped_media_outside_success_folder_renames_in_place(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     _configure_naming(monkeypatch)
     output = tmp_path / "JAV_output"
     output.mkdir()
-    old_folder = tmp_path / "other-drive" / "望月奈々" / "old"
+    actor_parent = tmp_path / "other-drive" / "三枝れい"
+    old_folder = actor_parent / "H4610-ORI696 望月 奈々 三枝れい"
     old_folder.mkdir(parents=True)
-    old_movie = old_folder / "H4610-ORI696 望月奈々.wmv"
+    old_movie = old_folder / "H4610-ORI696 三枝れい.wmv"
+    old_nfo = old_folder / "H4610-ORI696 三枝れい.nfo"
     old_movie.write_bytes(b"movie")
+    old_nfo.write_text("nfo", encoding="utf-8")
     file_info = _build_file_info(old_movie)
 
-    with pytest.raises(MediaReorganizationError, match="不在成功输出目录内"):
-        await reorganize_scraped_media(file_info, _build_data(), OtherInfo.empty(), output)
+    result = await reorganize_scraped_media(file_info, _build_data(), OtherInfo.empty(), output)
 
-    assert old_movie.exists()
+    expected_folder = actor_parent / "H4610-ORI696 望月 奈々 天宮まりる"
+    expected_movie = expected_folder / "H4610-ORI696 天宮まりる.wmv"
+    assert result.new_file_path == expected_movie
+    assert result.new_folder == expected_folder
+    assert result.moved is True
+    assert expected_movie.read_bytes() == b"movie"
+    assert (expected_folder / "H4610-ORI696 天宮まりる.nfo").read_text(encoding="utf-8") == "nfo"
+    assert not old_folder.exists()
+    assert actor_parent.name == "三枝れい"
+    assert actor_parent.is_dir()
     assert not (output / "天宮まりる").exists()
+    assert file_info.file_path == expected_movie
+    assert file_info.folder_path == expected_folder
 
 
 @pytest.mark.asyncio
