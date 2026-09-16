@@ -75,14 +75,25 @@ def test_all_single_row_settings_controls_are_vertically_centered_at_full_hd():
                     row_items.setdefault(row, []).append(grid.itemAt(index))
 
                 for row, items in row_items.items():
-                    widgets = [widget for item in items for widget in _walk_item_widgets(item) if widget.isVisibleTo(tab)]
+                    widgets = [
+                        widget
+                        for item in items
+                        for widget in _walk_item_widgets(item)
+                        if widget.isVisibleTo(tab)
+                    ]
                     if len(widgets) < 2 or not any(_is_compact_control(widget) for widget in widgets):
                         continue
                     if any(_is_multiline(widget) for widget in widgets):
                         continue
 
                     centers = [widget.mapTo(parent, widget.rect().center()).y() for widget in widgets]
-                    context = (tab_index, tab.objectName(), grid.objectName(), row, [w.objectName() for w in widgets])
+                    context = (
+                        tab_index,
+                        tab.objectName(),
+                        grid.objectName(),
+                        row,
+                        [widget.objectName() for widget in widgets],
+                    )
                     assert max(centers) - min(centers) <= 1, context
                     checked.append(context)
 
