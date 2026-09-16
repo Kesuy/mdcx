@@ -3,12 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QGroupBox, QScrollArea, QWidget
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, OutlineShow, Switch, TagInclude
 from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
 
 from .config_binding import CompositeBinding, _resolve
+
+
+SETTINGS_SECTION_HORIZONTAL_MARGIN = 20
 
 
 @dataclass(frozen=True)
@@ -110,7 +114,35 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
     return CompositeBinding(spec.path, load, save)
 
 
+def _normalize_settings_section_insets(ui: object) -> None:
+    """Give every top-level settings section the same horizontal content inset."""
+    tab_widget = getattr(ui, "tabWidget", None)
+    if tab_widget is None:
+        return
+
+    direct_children = Qt.FindChildOption.FindDirectChildrenOnly
+    for index in range(tab_widget.count()):
+        tab = tab_widget.widget(index)
+        for area in tab.findChildren(QScrollArea, options=direct_children):
+            content = area.widget()
+            if content is None:
+                continue
+            for group in content.findChildren(QGroupBox, options=direct_children):
+                layout = group.layout()
+                if layout is None:
+                    continue
+                margins = layout.contentsMargins()
+                layout.setContentsMargins(
+                    SETTINGS_SECTION_HORIZONTAL_MARGIN,
+                    margins.top(),
+                    SETTINGS_SECTION_HORIZONTAL_MARGIN,
+                    margins.bottom(),
+                )
+
+
 def _ensure_force_avwiki_actor_checkbox(ui: object):
+    _normalize_settings_section_insets(ui)
+
     existing = getattr(ui, "checkBox_force_avwiki_actor", None)
     if existing is not None:
         return existing
@@ -121,7 +153,15 @@ def _ensure_force_avwiki_actor_checkbox(ui: object):
     checkbox = component.checkBox_force_avwiki_actor
     checkbox.setEnabled(ui.checkBox_actor_realname.isChecked())
     ui.checkBox_actor_realname.toggled.connect(checkbox.setEnabled)
-    ui.horizontalLayout_8.insertWidget(1, container)
+
+    grid = getattr(ui, "gridLayout_50", None)
+    help_label = getattr(ui, "label_249", None)
+    if grid is not None and help_label is not None:
+        grid.removeWidget(help_label)
+        grid.addWidget(container, 2, 1, 1, 1)
+        grid.addWidget(help_label, 3, 1, 1, 1)
+    else:
+        ui.horizontalLayout_8.insertWidget(1, container)
 
     ui.avwiki_actor_settings_container = container
     ui.avwiki_actor_settings_ui = component
