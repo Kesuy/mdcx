@@ -26,6 +26,7 @@ AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
         "JDH",  # JDハメハメ (MGS 908JDH)
         "JNT",  # Jackson / Janet (MGS 390JNT)
         "KKJ",  # マジック / 口説き術
+        "MADO",  # はめちゃん。/ ダマちゃん。
         "MFCC",  # MOON FORCE CHEERS omnibus
         "MFCD",  # MOON FORCE omnibus
         "MFCS",  # MOON FORCE 2nd
@@ -49,6 +50,7 @@ AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
         "SIMW",
         "SPAY",  # 素人ペイペイ (MGS 748SPAY)
         "SRMM",
+        "XJR",  # TOPランナー
         "YZF",  # TOPランナー
         "ZRC",  # マジック / 全裸カタログ
     }

@@ -74,11 +74,13 @@ def _result(
         "MFCT-003",
         # Verified omissions from AV-Wiki MGS/FANZA-amateur pages.
         "DAM-045",
+        "MADO-012",
         "JDH-004",
         "JNT-121",
         "PKPK-108",
         "SPAY-358",
         "FZR-023",
+        "XJR-003",
         "YZF-016",
     ],
 )
