@@ -71,6 +71,15 @@ NFO_FIELD_LABELS = {
 }
 
 
+def normalize_nfo_editor_value(value: str, *, multiline: bool) -> str:
+    """Normalize pasted control/Unicode line breaks before persisting NFO edits."""
+    normalized = str(value or "").replace("\r\n", "\n").replace("\r", "\n")
+    normalized = normalized.replace("\u2028", "\n").replace("\u2029", "\n")
+    if not multiline:
+        return " ".join(normalized.split())
+    return "\n".join(line.rstrip() for line in normalized.split("\n")).strip()
+
+
 @dataclass(frozen=True, slots=True)
 class NfoFieldChange:
     field: str
@@ -116,7 +125,14 @@ class NfoController:
     def read_field(self, field_name: str) -> str:
         widget_name, is_plain_text = NFO_EDITOR_WIDGETS[field_name]
         widget = getattr(self.window.Ui, widget_name)
-        return widget.toPlainText() if is_plain_text else widget.text()
+        raw_value = widget.toPlainText() if is_plain_text else widget.text()
+        value = normalize_nfo_editor_value(raw_value, multiline=is_plain_text)
+        if value != raw_value:
+            if is_plain_text:
+                widget.setPlainText(value)
+            else:
+                widget.setText(value)
+        return value
 
     def set_field(self, field_name: str, value: str, *, mixed: bool = False) -> None:
         widget_name, is_plain_text = NFO_EDITOR_WIDGETS[field_name]

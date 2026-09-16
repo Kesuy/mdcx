@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtWidgets import QCheckBox
+from PyQt6.QtWidgets import QWidget
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, OutlineShow, Switch, TagInclude
+from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
 
 from .config_binding import CompositeBinding, _resolve
 
@@ -109,20 +110,21 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
     return CompositeBinding(spec.path, load, save)
 
 
-def _ensure_force_avwiki_actor_checkbox(ui: object) -> QCheckBox:
+def _ensure_force_avwiki_actor_checkbox(ui: object):
     existing = getattr(ui, "checkBox_force_avwiki_actor", None)
-    if isinstance(existing, QCheckBox):
+    if existing is not None:
         return existing
 
-    checkbox = QCheckBox("强制从 AV-Wiki 获取真实演员")
-    checkbox.setObjectName("checkBox_force_avwiki_actor")
-    checkbox.setToolTip(
-        "开启后，只要“使用AV-wiki获取演员真实名字”已启用，所有作品都会尝试查询 AV-Wiki；"
-        "查询失败会保留原演员名，但会增加网络请求。"
-    )
+    container = QWidget(ui.checkBox_actor_realname.parentWidget())
+    component = Ui_AvwikiActorSettings()
+    component.setupUi(container)
+    checkbox = component.checkBox_force_avwiki_actor
     checkbox.setEnabled(ui.checkBox_actor_realname.isChecked())
     ui.checkBox_actor_realname.toggled.connect(checkbox.setEnabled)
-    ui.horizontalLayout_8.addWidget(checkbox)
+    ui.horizontalLayout_8.insertWidget(1, container)
+
+    ui.avwiki_actor_settings_container = container
+    ui.avwiki_actor_settings_ui = component
     ui.checkBox_force_avwiki_actor = checkbox
 
     def mark_dirty(*_args) -> None:
