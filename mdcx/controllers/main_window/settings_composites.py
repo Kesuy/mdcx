@@ -11,6 +11,7 @@ from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
 from .config_binding import CompositeBinding, _resolve
 
 SETTINGS_SECTION_HORIZONTAL_MARGIN = 20
+SETTINGS_FORM_ROW_HEIGHT = 30
 
 
 @dataclass(frozen=True)
@@ -112,6 +113,55 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
     return CompositeBinding(spec.path, load, save)
 
 
+def _normalize_row_buttons(item: object) -> None:
+    widget = item.widget()
+    if widget is not None:
+        if widget.inherits("QAbstractButton") and widget.maximumHeight() >= SETTINGS_FORM_ROW_HEIGHT:
+            widget.setMinimumHeight(max(widget.minimumHeight(), SETTINGS_FORM_ROW_HEIGHT))
+        return
+
+    child_layout = item.layout()
+    if child_layout is None:
+        return
+    for index in range(child_layout.count()):
+        _normalize_row_buttons(child_layout.itemAt(index))
+
+
+def _normalize_settings_form_rows(ui: object) -> None:
+    """Keep form captions and button text on the same 30 px baseline across every settings tab."""
+    tab_widget = getattr(ui, "tabWidget", None)
+    if tab_widget is None:
+        return
+
+    for layout in vars(ui).values():
+        inherits = getattr(layout, "inherits", None)
+        if not callable(inherits) or not layout.inherits("QGridLayout"):
+            continue
+        parent_widget = layout.parentWidget()
+        if parent_widget is None or not tab_widget.isAncestorOf(parent_widget):
+            continue
+
+        for row in range(layout.rowCount()):
+            caption_item = layout.itemAtPosition(row, 0)
+            if caption_item is None:
+                continue
+            caption = caption_item.widget()
+            if caption is None or not caption.inherits("QLabel") or not caption.text().strip():
+                continue
+
+            if caption.maximumHeight() >= SETTINGS_FORM_ROW_HEIGHT:
+                caption.setMinimumHeight(max(caption.minimumHeight(), SETTINGS_FORM_ROW_HEIGHT))
+            layout.setRowMinimumHeight(row, max(layout.rowMinimumHeight(row), SETTINGS_FORM_ROW_HEIGHT))
+
+            seen_items: set[int] = set()
+            for column in range(1, layout.columnCount()):
+                item = layout.itemAtPosition(row, column)
+                if item is None or id(item) in seen_items:
+                    continue
+                seen_items.add(id(item))
+                _normalize_row_buttons(item)
+
+
 def _normalize_settings_section_insets(ui: object) -> None:
     """Give every top-level settings section the same horizontal content inset."""
     tab_widget = getattr(ui, "tabWidget", None)
@@ -140,20 +190,37 @@ def _normalize_settings_section_insets(ui: object) -> None:
                     margins.bottom(),
                 )
 
+    _normalize_settings_form_rows(ui)
+
+
+def _sync_force_avwiki_actor_state(ui: object) -> None:
+    master = getattr(ui, "checkBox_actor_realname", None)
+    checkbox = getattr(ui, "checkBox_force_avwiki_actor", None)
+    if master is None or checkbox is None:
+        return
+
+    enabled = master.isChecked()
+    if not enabled and checkbox.isChecked():
+        previous = checkbox.blockSignals(True)
+        try:
+            checkbox.setChecked(False)
+        finally:
+            checkbox.blockSignals(previous)
+    checkbox.setEnabled(enabled)
+
 
 def _ensure_force_avwiki_actor_checkbox(ui: object):
     _normalize_settings_section_insets(ui)
 
     existing = getattr(ui, "checkBox_force_avwiki_actor", None)
     if existing is not None:
+        _sync_force_avwiki_actor_state(ui)
         return existing
 
     container = QWidget(ui.checkBox_actor_realname.parentWidget())
     component = Ui_AvwikiActorSettings()
     component.setupUi(container)
     checkbox = component.checkBox_force_avwiki_actor
-    checkbox.setEnabled(ui.checkBox_actor_realname.isChecked())
-    ui.checkBox_actor_realname.toggled.connect(checkbox.setEnabled)
 
     grid = getattr(ui, "gridLayout_50", None)
     help_label = getattr(ui, "label_249", None)
@@ -167,6 +234,9 @@ def _ensure_force_avwiki_actor_checkbox(ui: object):
     ui.avwiki_actor_settings_container = container
     ui.avwiki_actor_settings_ui = component
     ui.checkBox_force_avwiki_actor = checkbox
+
+    ui.checkBox_actor_realname.toggled.connect(lambda _checked: _sync_force_avwiki_actor_state(ui))
+    _sync_force_avwiki_actor_state(ui)
 
     def mark_dirty(*_args) -> None:
         controller = getattr(checkbox.window(), "settings_controller", None)
@@ -405,9 +475,11 @@ def build_settings_composites() -> list[CompositeBinding]:
     def load_switches(ui: object, config: object) -> None:
         _ensure_force_avwiki_actor_checkbox(ui)
         switch_binding.load(ui, config)
+        _sync_force_avwiki_actor_state(ui)
 
     def save_switches(ui: object, config: object) -> None:
         _ensure_force_avwiki_actor_checkbox(ui)
+        _sync_force_avwiki_actor_state(ui)
         switch_binding.save(ui, config)
         values = [value for value in config.switch_on if value != Switch.SHOW_LOGS]
         if not ui.textBrowser_log_main_2.isHidden():
