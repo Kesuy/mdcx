@@ -10,10 +10,12 @@ os.environ.setdefault("MDCX_OFFLINE", "1")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QGridLayout, QScrollArea, QWidget
+from PyQt6.QtWidgets import QApplication, QGridLayout, QLabel, QScrollArea, QWidget
 
 from mdcx.controllers.main_window.main_window import MyMAinWindow
 from mdcx.controllers.main_window.responsive_layout import apply_responsive_layout
+from mdcx.controllers.main_window.settings_composites import _ensure_force_avwiki_actor_checkbox
+from mdcx.controllers.main_window.settings_layout_polish import polish_settings_layout
 
 
 def _direct_scroll_area(tab: QWidget) -> QScrollArea | None:
@@ -33,6 +35,13 @@ def _walk_item_widgets(item):
         yield from _walk_item_widgets(layout.itemAt(index))
 
 
+def _is_multiline(widget: QWidget) -> bool:
+    if not isinstance(widget, QLabel):
+        return False
+    text = widget.text().lower()
+    return widget.wordWrap() or "\n" in text or "<br" in text
+
+
 def _audit_rows(ui, tab: QWidget) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for layout in vars(ui).values():
@@ -41,14 +50,17 @@ def _audit_rows(ui, tab: QWidget) -> list[dict[str, object]]:
         parent = layout.parentWidget()
         if parent is None or not tab.isAncestorOf(parent):
             continue
-        for row in range(layout.rowCount()):
+
+        row_items: dict[int, list[object]] = {}
+        for index in range(layout.count()):
+            row, _column, row_span, _column_span = layout.getItemPosition(index)
+            if row_span != 1:
+                continue
+            row_items.setdefault(row, []).append(layout.itemAt(index))
+
+        for row, items in sorted(row_items.items()):
             widgets = []
-            seen: set[int] = set()
-            for column in range(layout.columnCount()):
-                item = layout.itemAtPosition(row, column)
-                if item is None or id(item) in seen:
-                    continue
-                seen.add(id(item))
+            for item in items:
                 for widget in _walk_item_widgets(item):
                     if not widget.isVisibleTo(tab):
                         continue
@@ -66,6 +78,7 @@ def _audit_rows(ui, tab: QWidget) -> list[dict[str, object]]:
                             "w": widget.width(),
                             "h": widget.height(),
                             "center_y": center.y(),
+                            "multiline": _is_multiline(widget),
                         }
                     )
             if len(widgets) < 2:
@@ -91,11 +104,14 @@ def main() -> None:
     MyMAinWindow.load_config = lambda self: None
     MyMAinWindow._finish_startup = lambda self: None
     window = MyMAinWindow()
+    _ensure_force_avwiki_actor_checkbox(window.Ui)
+    polish_settings_layout(window.Ui)
     window.resize(1920, 1080)
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
     window.show()
     app.processEvents()
     apply_responsive_layout(window)
+    polish_settings_layout(window.Ui)
     app.processEvents()
 
     tabs = window.Ui.tabWidget
@@ -104,6 +120,7 @@ def main() -> None:
         tabs.setCurrentIndex(index)
         app.processEvents()
         apply_responsive_layout(window)
+        polish_settings_layout(window.Ui)
         app.processEvents()
 
         tab = tabs.widget(index)
@@ -121,19 +138,26 @@ def main() -> None:
             content_size = None
 
         rows = _audit_rows(window.Ui, tab)
+        suspicious = [
+            row
+            for row in rows
+            if int(row["center_spread"]) > 1
+            and not any(bool(widget["multiline"]) for widget in row["widgets"])
+        ]
         audit["tabs"].append(
             {
                 "index": index,
                 "object_name": tab.objectName(),
                 "title": title,
                 "content_size": content_size,
-                "suspicious_rows": [row for row in rows if int(row["center_spread"]) > 1],
+                "suspicious_rows": suspicious,
                 "all_rows": rows,
             }
         )
 
     (output / "layout_audit.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Captured {tabs.count()} settings tabs to {output}")
+    suspicious_count = sum(len(tab["suspicious_rows"]) for tab in audit["tabs"])
+    print(f"Captured {tabs.count()} settings tabs to {output}; suspicious compact rows: {suspicious_count}")
     window.close()
     window.deleteLater()
     app.processEvents()
