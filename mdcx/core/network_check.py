@@ -79,6 +79,8 @@ DEFAULT_SITE_URLS: dict[Website, str] = {
     Website.OFFICIAL: "",
 }
 
+AVWIKI_CHECK_URL = "https://av-wiki.net/?s=SSIS-001"
+
 GROUP_ORDER = ("基础环境", "基础连通性", "刮削站点", "账号/API", "辅助服务")
 STATUS_ORDER = {
     NetworkCheckStatus.FAILED: 0,
@@ -184,6 +186,8 @@ def _classify_http_result(spec: NetworkCheckSpec, status_code: int, text: str) -
             return NetworkCheckStatus.WARNING, "站点可访问，但 JavBus Cookie 可能无效"
         if "lostpasswd" in text:
             return NetworkCheckStatus.WARNING, "当前节点可能需要 JavBus Cookie"
+        if spec.headers.get("cookie"):
+            return NetworkCheckStatus.OK, "连接正常，Cookie 有效"
         return NetworkCheckStatus.OK, "连接正常"
 
     if spec.site == Website.DMM:
@@ -417,6 +421,12 @@ def _build_static_specs() -> list[NetworkCheckSpec]:
             url="https://www.google.com/generate_204",
             use_proxy=bool(manager.config.use_proxy and manager.config.proxy),
         ),
+        NetworkCheckSpec(
+            name="av-wiki",
+            group="刮削站点",
+            url=AVWIKI_CHECK_URL,
+            enable_cf_bypass=True,
+        ),
     ]
 
     cf_bypass_url = manager.config.cf_bypass_url.strip()
@@ -569,7 +579,10 @@ async def run_network_check_item(
                 status, message = _classify_validated_http_result(spec, int(response.status_code), text)
                 if status == NetworkCheckStatus.OK:
                     mode_text = f"（{bypass_mode}）" if bypass_mode else ""
-                    message = f"连接正常，已通过 CF Bypass{mode_text}"
+                    if "Cookie 有效" in message:
+                        message = f"连接正常，Cookie 有效，已通过 CF Bypass{mode_text}"
+                    else:
+                        message = f"连接正常，已通过 CF Bypass{mode_text}"
                 return NetworkCheckResult(
                     spec=spec,
                     status=status,
