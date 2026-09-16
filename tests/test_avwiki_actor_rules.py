@@ -72,6 +72,14 @@ def _result(
         "MFCC-064",
         "MFCD-003",
         "MFCT-003",
+        # Verified omissions from AV-Wiki MGS/FANZA-amateur pages.
+        "DAM-045",
+        "JDH-004",
+        "JNT-121",
+        "PKPK-108",
+        "SPAY-358",
+        "FZR-023",
+        "YZF-016",
     ],
 )
 def test_known_mgs_amateur_short_numbers_trigger_avwiki(number: str):
@@ -118,6 +126,10 @@ def test_configured_unknown_actor_preserves_existing_fallback():
         "フルセイル",
         "舞ワイフ（MGS）",
         "MOON FORCE（オムニバス）",
+        "JDハメハメ",
+        "素人プカプカ",
+        "素人ペイペイ",
+        "ダマちゃん。",
     ],
 )
 def test_mgs_amateur_metadata_catches_future_short_prefixes(field_value: str):

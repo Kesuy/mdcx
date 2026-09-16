@@ -8,17 +8,23 @@ import re
 #
 # 数字前缀 MGS 番号继续由现有 SUREN 逻辑覆盖；这里补充 AV-Wiki 的 MGS
 # 索引中会以短番号出现的系列，避免因为文件名省略 MGS 数字前缀而漏查。
+# 新增前缀必须至少能在 AV-Wiki 的 MGS 索引/作品页确认，避免用宽泛正则
+# 把普通有码番号误判成 MGS 素人作品并增加无意义请求。
 AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
     {
         "CMI",  # フルセイル / ゲスの極み映像
+        "DAM",  # はめちゃん。/ ダマちゃん。 (MGS 483DAM)
         "DDH",  # ドキュメントdeハメハメ
         "DNW",  # ドキュメントなう。
         "FIV",  # FIVE STARS
+        "FZR",  # TOPランナー
         "GBAN",  # ゲッツ!!
         "GES",  # フルセイル / ゲスの極み女子寮
         "GETS",  # ゲッツ!!
         "GNAB",  # ゲッツ!! / BANG!!
         "GZAP",  # ゲッツ!! / ZAP
+        "JDH",  # JDハメハメ (MGS 908JDH)
+        "JNT",  # Jackson / Janet (MGS 390JNT)
         "KKJ",  # マジック / 口説き術
         "MFCC",  # MOON FORCE CHEERS omnibus
         "MFCD",  # MOON FORCE omnibus
@@ -33,6 +39,7 @@ AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
         "ORESL",
         "OREV",
         "OTIM",  # ONETIME
+        "PKPK",  # 素人プカプカ (MGS 826PKPK)
         "SIMA",  # しろうとまんまん+
         "SIMD",
         "SIMF",
@@ -40,7 +47,9 @@ AVWIKI_MGS_AMATEUR_SHORT_PREFIXES = frozenset(
         "SIMM",
         "SIMT",
         "SIMW",
+        "SPAY",  # 素人ペイペイ (MGS 748SPAY)
         "SRMM",
+        "YZF",  # TOPランナー
         "ZRC",  # マジック / 全裸カタログ
     }
 )
@@ -61,6 +70,7 @@ AVWIKI_MGS_AMATEUR_LABEL_HINTS = frozenset(
         "ENEMA",
         "HHH",
         "JACKSON",
+        "JDハメハメ",
         "KANBI",
         "MOONFORCE",
         "MOMOCO",
@@ -89,6 +99,7 @@ AVWIKI_MGS_AMATEUR_LABEL_HINTS = frozenset(
         "ハーレムTV",
         "ハメタバース",
         "はめちゃん",
+        "ダマちゃん",
         "プレステージプレミアム",
         "マッチングTV",
         "まんまんランド",
@@ -100,6 +111,8 @@ AVWIKI_MGS_AMATEUR_LABEL_HINTS = frozenset(
         "再教育",
         "最強属性",
         "素人こねくしょん",
+        "素人プカプカ",
+        "素人ペイペイ",
         "同人配信",
         "何それえっろ",
         "変態サムライ",
