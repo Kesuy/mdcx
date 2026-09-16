@@ -63,7 +63,7 @@ def test_force_avwiki_option_is_a_real_nested_row_in_actor_section():
     setup_responsive_ui(window)
     child = _ensure_force_avwiki_actor_checkbox(window.Ui)
     window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
-    window.Ui.tabWidget.setCurrentWidget(window.Ui.tab_13)
+    window.Ui.tabWidget.setCurrentWidget(window.Ui.tab_6)
     window.resize(1089, 900)
     window.show()
     APP.processEvents()
