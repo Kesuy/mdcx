@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QGroupBox, QScrollArea, QWidget
+from PyQt6.QtWidgets import QWidget
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, OutlineShow, Switch, TagInclude
 from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
@@ -116,18 +115,23 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
 
 def _normalize_settings_section_insets(ui: object) -> None:
     """Give every top-level settings section the same horizontal content inset."""
+    from PyQt6.QtWidgets import QGroupBox, QScrollArea
+
     tab_widget = getattr(ui, "tabWidget", None)
     if tab_widget is None:
         return
 
-    direct_children = Qt.FindChildOption.FindDirectChildrenOnly
     for index in range(tab_widget.count()):
         tab = tab_widget.widget(index)
-        for area in tab.findChildren(QScrollArea, options=direct_children):
+        for area in tab.findChildren(QScrollArea):
+            if area.parentWidget() is not tab:
+                continue
             content = area.widget()
             if content is None:
                 continue
-            for group in content.findChildren(QGroupBox, options=direct_children):
+            for group in content.findChildren(QGroupBox):
+                if group.parentWidget() is not content:
+                    continue
                 layout = group.layout()
                 if layout is None:
                     continue
