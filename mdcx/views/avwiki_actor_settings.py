@@ -18,7 +18,7 @@ class Ui_AvwikiActorSettings(object):
         sizePolicy.setHeightForWidth(AvwikiActorSettings.sizePolicy().hasHeightForWidth())
         AvwikiActorSettings.setSizePolicy(sizePolicy)
         self.horizontalLayout = QtWidgets.QHBoxLayout(AvwikiActorSettings)
-        self.horizontalLayout.setContentsMargins(12, 0, 0, 0)
+        self.horizontalLayout.setContentsMargins(24, 0, 0, 0)
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.checkBox_force_avwiki_actor = QtWidgets.QCheckBox(parent=AvwikiActorSettings)
         self.checkBox_force_avwiki_actor.setEnabled(False)
@@ -31,4 +31,4 @@ class Ui_AvwikiActorSettings(object):
     def retranslateUi(self, AvwikiActorSettings):
         _translate = QtCore.QCoreApplication.translate
         self.checkBox_force_avwiki_actor.setToolTip(_translate("AvwikiActorSettings", "仅在上级“使用 AV-Wiki 获取演员真实名字”开启时生效。开启后所有作品都会尝试查询 AV-Wiki；查询失败会保留原演员名，但会增加网络请求。"))
-        self.checkBox_force_avwiki_actor.setText(_translate("AvwikiActorSettings", "↳ 强制使用 AV-Wiki（所有作品）"))
+        self.checkBox_force_avwiki_actor.setText(_translate("AvwikiActorSettings", "强制使用 AV-Wiki（所有作品）"))
