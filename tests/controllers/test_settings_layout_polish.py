@@ -1,4 +1,3 @@
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGridLayout, QLabel
 
 from mdcx.controllers.main_window.responsive_layout import apply_responsive_layout, setup_responsive_ui
