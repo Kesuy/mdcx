@@ -141,8 +141,7 @@ def main() -> None:
         suspicious = [
             row
             for row in rows
-            if int(row["center_spread"]) > 1
-            and not any(bool(widget["multiline"]) for widget in row["widgets"])
+            if int(row["center_spread"]) > 1 and not any(bool(widget["multiline"]) for widget in row["widgets"])
         ]
         audit["tabs"].append(
             {
@@ -155,7 +154,10 @@ def main() -> None:
             }
         )
 
-    (output / "layout_audit.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
+    (output / "layout_audit.json").write_text(
+        json.dumps(audit, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     suspicious_count = sum(len(tab["suspicious_rows"]) for tab in audit["tabs"])
     print(f"Captured {tabs.count()} settings tabs to {output}; suspicious compact rows: {suspicious_count}")
     window.close()
