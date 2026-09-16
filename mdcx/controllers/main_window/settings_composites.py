@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QGroupBox, QScrollArea, QWidget
 
 from mdcx.config.enums import EmbyAction, FieldRule, MarkType, NfoInclude, OutlineShow, Switch, TagInclude
 from mdcx.views.avwiki_actor_settings import Ui_AvwikiActorSettings
@@ -115,8 +115,6 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
 
 def _normalize_settings_section_insets(ui: object) -> None:
     """Give every top-level settings section the same horizontal content inset."""
-    from PyQt6.QtWidgets import QGroupBox, QScrollArea
-
     tab_widget = getattr(ui, "tabWidget", None)
     if tab_widget is None:
         return
