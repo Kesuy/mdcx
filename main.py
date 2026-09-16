@@ -83,6 +83,7 @@ def run(argv: list[str] | None = None) -> int:
     from PIL import ImageFile
 
     from mdcx.controllers.main_window.main_window import MyMAinWindow
+    from mdcx.controllers.main_window.settings_layout_polish import polish_settings_layout
     from mdcx.controllers.main_window.style import apply_application_palette
 
     ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -106,6 +107,8 @@ def run(argv: list[str] | None = None) -> int:
         MyMAinWindow.auto_start = lambda self: None
         started = time.perf_counter()
         ui = MyMAinWindow()
+        polish_settings_layout(ui.Ui)
+        ui.resize(1920, 1080)
         ui.show()
         app.processEvents()
         print(f"MDCx first screen: {time.perf_counter() - started:.3f}s", flush=True)
@@ -118,9 +121,24 @@ def run(argv: list[str] | None = None) -> int:
 
         assert all(combo.currentText().strip() for combo in ui.Ui.page_setting.findChildren(QComboBox))
         ui.pushButton_setting_clicked()
+        screenshot_dir = os.environ.get("MDCX_SMOKE_SCREENSHOT_DIR")
+        screenshot_path = Path(screenshot_dir) if screenshot_dir else None
+        if screenshot_path is not None:
+            screenshot_path.mkdir(parents=True, exist_ok=True)
         for page_index in range(ui.Ui.tabWidget.count()):
             ui.Ui.tabWidget.setCurrentIndex(page_index)
+            polish_settings_layout(ui.Ui)
             app.processEvents()
+            if screenshot_path is not None:
+                tab = ui.Ui.tabWidget.widget(page_index)
+                title = ui.Ui.tabWidget.tabText(page_index).strip() or tab.objectName()
+                safe_title = "".join(char if char.isalnum() or char in "-_" else "_" for char in title)
+                ui.grab().save(str(screenshot_path / f"window_{page_index:02d}_{safe_title}.png"))
+                from PyQt6.QtWidgets import QScrollArea
+
+                areas = tab.findChildren(QScrollArea, options=Qt.FindChildOption.FindDirectChildrenOnly)
+                if len(areas) == 1 and areas[0].widget() is not None:
+                    areas[0].widget().grab().save(str(screenshot_path / f"content_{page_index:02d}_{safe_title}.png"))
         for combo in (ui.Ui.comboBox_website_all, ui.Ui.comboBox_fixed_scraping_type):
             for page_index in range(ui.Ui.tabWidget.count()):
                 if ui.Ui.tabWidget.widget(page_index).isAncestorOf(combo):
@@ -134,9 +152,8 @@ def run(argv: list[str] | None = None) -> int:
             combo.showPopup()
             app.processEvents()
             assert combo.view().viewport().height() >= combo.view().sizeHintForRow(0)
-            screenshot_dir = os.environ.get("MDCX_SMOKE_SCREENSHOT_DIR")
-            if screenshot_dir:
-                combo.view().window().grab().save(str(Path(screenshot_dir) / f"{combo.objectName()}.png"))
+            if screenshot_path is not None:
+                combo.view().window().grab().save(str(screenshot_path / f"{combo.objectName()}.png"))
             combo.hidePopup()
         print("MDCx settings tabs and expanded popups passed", flush=True)
         crop_window = ui._get_cutwindow()
@@ -181,6 +198,7 @@ def run(argv: list[str] | None = None) -> int:
     show_constants()
 
     ui = MyMAinWindow()
+    polish_settings_layout(ui.Ui)
     ui.show()
     app.installEventFilter(ui)
     try:
