@@ -15,6 +15,7 @@ UI_TARGETS = (
     (VIEWS / "network_page.ui", VIEWS / "network_page.py"),
     (VIEWS / "tool_page.ui", VIEWS / "tool_page.py"),
     (VIEWS / "settings_page.ui", VIEWS / "settings_page.py"),
+    (VIEWS / "avwiki_actor_settings.ui", VIEWS / "avwiki_actor_settings.py"),
     (VIEWS / "about_page.ui", VIEWS / "about_page.py"),
     (VIEWS / "nfo_overlay.ui", VIEWS / "nfo_overlay.py"),
 )
