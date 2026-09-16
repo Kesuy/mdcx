@@ -76,10 +76,7 @@ def test_all_single_row_settings_controls_are_vertically_centered_at_full_hd():
 
                 for row, items in row_items.items():
                     widgets = [
-                        widget
-                        for item in items
-                        for widget in _walk_item_widgets(item)
-                        if widget.isVisibleTo(tab)
+                        widget for item in items for widget in _walk_item_widgets(item) if widget.isVisibleTo(tab)
                     ]
                     if len(widgets) < 2 or not any(_is_compact_control(widget) for widget in widgets):
                         continue
