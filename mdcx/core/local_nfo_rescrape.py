@@ -97,9 +97,7 @@ async def reorganize_local_nfo_rescrape(file_info, data, other):
 
     await save_success_list()
     signal.show_log_text(
-        "\n 🍀 本地 NFO 原地整理完成"
-        f"\n    原路径: {old_file_path}"
-        f"\n    新路径: {reorganized.new_file_path}"
+        f"\n 🍀 本地 NFO 原地整理完成\n    原路径: {old_file_path}\n    新路径: {reorganized.new_file_path}"
     )
     return reorganized
 
