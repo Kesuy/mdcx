@@ -81,12 +81,31 @@ class LocalNfoInplaceMixin:
             # rescrape of the same path can never inherit local-NFO behavior.
             Flags.again_inplace_paths.discard(file_path)
 
+    def _local_nfo_default_number(self, file_path: Path, main_file_name: str) -> str:
+        """Prefer the canonical number loaded from NFO over the media filename."""
+
+        selected = self._get_single_selected_entry()
+        candidates = []
+        if selected is not None and selected[3] == file_path:
+            candidates.append(selected[2])
+        show_data = getattr(self, "show_data", None)
+        if show_data is not None and show_data.file_info.file_path == file_path:
+            candidates.append(show_data)
+
+        for entry in candidates:
+            if not str(entry.show_name).startswith("本地."):
+                continue
+            number = str(entry.data.number or entry.file_info.number or "").strip()
+            if number:
+                return number.upper()
+        return os.path.splitext(main_file_name)[0].upper()
+
     def search_by_number_clicked(self):
         """主界面输入番号重新刮削；本地 NFO 来源可选择原地整理。"""
         if self._check_main_file_path():
             file_path = self.file_main_open_path
             main_file_name = split_path(file_path)[1]
-            default_text = os.path.splitext(main_file_name)[0].upper()
+            default_text = self._local_nfo_default_number(file_path, main_file_name)
             text, ok = QInputDialog.getText(
                 self,
                 "输入番号重新刮削",

@@ -129,3 +129,52 @@ def test_actor_source_download_link_is_centered_with_radio_buttons():
         window.close()
         window.deleteLater()
         APP.processEvents()
+
+
+def test_multiline_help_text_is_not_clipped_at_common_window_sizes():
+    window = generated_ui_window()
+    SettingsPageController(window)
+    setup_responsive_ui(window)
+    _ensure_force_avwiki_actor_checkbox(window.Ui)
+    polish_settings_layout(window.Ui)
+    window.Ui.stackedWidget.setCurrentWidget(window.Ui.page_setting)
+    window.show()
+    APP.processEvents()
+
+    checked = []
+    try:
+        for width, height in ((1089, 700), (1300, 900), (1366, 768), (1920, 1080)):
+            window.resize(width, height)
+            for _ in range(3):
+                polish_settings_layout(window.Ui)
+                apply_responsive_layout(window)
+                APP.processEvents()
+
+            for tab_index in range(window.Ui.tabWidget.count()):
+                tab = window.Ui.tabWidget.widget(tab_index)
+                window.Ui.tabWidget.setCurrentIndex(tab_index)
+                for _ in range(2):
+                    polish_settings_layout(window.Ui)
+                    apply_responsive_layout(window)
+                    APP.processEvents()
+
+                for label in tab.findChildren(QLabel):
+                    if (
+                        not label.isVisibleTo(tab)
+                        or label.property("semanticRole") != "help"
+                        or not _is_multiline(label)
+                    ):
+                        continue
+                    required = (
+                        label.heightForWidth(label.width()) if label.hasHeightForWidth() else label.sizeHint().height()
+                    )
+                    required = max(label.minimumHeight(), required)
+                    context = (width, height, tab_index, label.objectName(), label.height(), required)
+                    assert label.height() + 2 >= required, context
+                    checked.append(context)
+
+        assert checked
+    finally:
+        window.close()
+        window.deleteLater()
+        APP.processEvents()
