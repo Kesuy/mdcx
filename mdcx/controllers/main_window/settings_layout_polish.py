@@ -16,13 +16,22 @@ def _is_multiline_label(widget: QWidget) -> bool:
 
 def _activate_layout_chain(widget: QWidget) -> None:
     """Recalculate containing layouts after dynamic settings widgets are inserted."""
+    chain = []
     current = widget
     while current is not None:
+        chain.append(current)
+        current = current.parentWidget()
+
+    for current in reversed(chain):
         layout = current.layout()
         if layout is not None:
             layout.invalidate()
             layout.activate()
-        current = current.parentWidget()
+        # QLabel geometry can be stale after word wrapping changes. Recompute
+        # the widget's size hint instead of forcing a fixed label height.
+        current.updateGeometry()
+        if current is not widget:
+            current.adjustSize()
 
 
 def _prepare_multiline_help_label(widget: QLabel) -> None:
