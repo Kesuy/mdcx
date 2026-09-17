@@ -13,7 +13,6 @@ from ...models.flags import Flags
 from ...signals import signal_qt
 from ...utils import get_current_time, split_path
 
-
 _PREFERENCE_KEY = "scrape/local_nfo_inplace_reorganize"
 
 
