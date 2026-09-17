@@ -186,16 +186,8 @@ def main() -> None:
         json.dumps(audit, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    suspicious_count = sum(
-        len(tab["suspicious_rows"])
-        for viewport in audit["viewports"]
-        for tab in viewport["tabs"]
-    )
-    clipped_count = sum(
-        len(tab["clipped_help_labels"])
-        for viewport in audit["viewports"]
-        for tab in viewport["tabs"]
-    )
+    suspicious_count = sum(len(tab["suspicious_rows"]) for viewport in audit["viewports"] for tab in viewport["tabs"])
+    clipped_count = sum(len(tab["clipped_help_labels"]) for viewport in audit["viewports"] for tab in viewport["tabs"])
     print(
         f"Captured {tabs.count()} settings tabs at {len(_CAPTURE_SIZES)} sizes to {output}; "
         f"suspicious compact rows: {suspicious_count}; clipped help labels: {clipped_count}"

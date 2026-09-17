@@ -24,9 +24,7 @@ class _Harness(LocalNfoInplaceMixin):
     def __init__(self, show_data: ShowData | None):
         self.show_data = show_data
         self.selected = (
-            None
-            if show_data is None
-            else (None, show_data.show_name, show_data, show_data.file_info.file_path)
+            None if show_data is None else (None, show_data.show_name, show_data, show_data.file_info.file_path)
         )
 
     def _get_single_selected_entry(self):
