@@ -4,14 +4,14 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
-from mdcx.base.file import save_success_list
-from mdcx.core import scraper as scraper_module
-from mdcx.core.file import get_output_name as build_output_name
-from mdcx.core.media_reorganization import MediaReorganizationError, reorganize_scraped_media
-from mdcx.models.enums import FileMode
-from mdcx.models.flags import Flags
-from mdcx.models.log_buffer import LogBuffer
-from mdcx.signals import signal
+from ..base.file import save_success_list
+from ..models.enums import FileMode
+from ..models.flags import Flags
+from ..models.log_buffer import LogBuffer
+from ..signals import signal
+from . import scraper as scraper_module
+from .file import get_output_name as build_output_name
+from .media_reorganization import MediaReorganizationError, reorganize_scraped_media
 
 
 _INPLACE_ACTIVE: ContextVar[bool] = ContextVar("local_nfo_inplace_rescrape", default=False)
