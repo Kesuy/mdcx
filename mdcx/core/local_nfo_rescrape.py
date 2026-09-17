@@ -13,7 +13,6 @@ from . import scraper as scraper_module
 from .file import get_output_name as build_output_name
 from .media_reorganization import MediaReorganizationError, reorganize_scraped_media
 
-
 _INPLACE_ACTIVE: ContextVar[bool] = ContextVar("local_nfo_inplace_rescrape", default=False)
 _INSTALLED = False
 _ORIGINAL_PROCESS_ONE_FILE: Any = None
