@@ -15,15 +15,12 @@ def _is_multiline_label(widget: QWidget) -> bool:
 
 
 def _prepare_multiline_help_label(widget: QLabel) -> None:
-    """Enable wrapped help text without permanently growing its height.
-
-    Keep the label in normal Qt layout calculation. A previous implementation
-    could leave a zero-height label after repeated responsive layout passes.
-    """
+    """Keep help labels responsive without allowing them to collapse to zero."""
     if widget.property("semanticRole") != "help" or not _is_multiline_label(widget):
         return
 
     widget.setWordWrap(True)
+
     policy = widget.sizePolicy()
     if policy.verticalPolicy() != QSizePolicy.Policy.Preferred:
         policy.setVerticalPolicy(QSizePolicy.Policy.Preferred)
@@ -39,12 +36,18 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
     widget.setMaximumHeight(16777215)
     widget.updateGeometry()
 
-    # Force a geometry hint for labels that were collapsed by a previous
-    # responsive-layout pass. Do not use this as a permanent row expansion;
-    # it only restores the label's own required height.
-    required = widget.heightForWidth(widget.width()) if widget.hasHeightForWidth() else widget.sizeHint().height()
-    if required > 0 and widget.height() == 0:
-        widget.setMinimumHeight(max(widget.minimumHeight(), required))
+    # Responsive layout can temporarily assign a zero height to QLabel after
+    # switching tabs or resizing. Restore the calculated label height itself,
+    # rather than expanding the containing row/layout.
+    required = (
+        widget.heightForWidth(widget.width())
+        if widget.hasHeightForWidth()
+        else widget.sizeHint().height()
+    )
+    required = max(required, widget.minimumHeight())
+    if required > 0 and widget.height() < required:
+        widget.setMinimumHeight(required)
+        widget.resize(widget.width(), required)
         widget.updateGeometry()
 
 
@@ -65,7 +68,7 @@ def _align_item(parent_layout: QLayout, item) -> None:
 
 
 def polish_settings_layout(ui: object) -> None:
-    """Polish settings alignment without changing Designer geometry."""
+    """Polish settings alignment without changing Designer row geometry."""
     tab_widget = getattr(ui, "tabWidget", None)
     if tab_widget is None:
         return
