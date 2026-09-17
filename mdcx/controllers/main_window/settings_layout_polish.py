@@ -39,11 +39,7 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
     # Responsive layout can temporarily assign a zero height to QLabel after
     # switching tabs or resizing. Restore the calculated label height itself,
     # rather than expanding the containing row/layout.
-    required = (
-        widget.heightForWidth(widget.width())
-        if widget.hasHeightForWidth()
-        else widget.sizeHint().height()
-    )
+    required = widget.heightForWidth(widget.width()) if widget.hasHeightForWidth() else widget.sizeHint().height()
     required = max(required, widget.minimumHeight())
     if required > 0 and widget.height() < required:
         widget.setMinimumHeight(required)
