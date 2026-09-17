@@ -6,12 +6,12 @@ from pathlib import Path
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QCheckBox, QInputDialog
 
-from mdcx.config.extend import deal_url
-from mdcx.config.manager import manager
-from mdcx.core.scraper import again_search
-from mdcx.models.flags import Flags
-from mdcx.signals import signal_qt
-from mdcx.utils import get_current_time, split_path
+from ...config.extend import deal_url
+from ...config.manager import manager
+from ...core.scraper import again_search
+from ...models.flags import Flags
+from ...signals import signal_qt
+from ...utils import get_current_time, split_path
 
 
 _PREFERENCE_KEY = "scrape/local_nfo_inplace_reorganize"
