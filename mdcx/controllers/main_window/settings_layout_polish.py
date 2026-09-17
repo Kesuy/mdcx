@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QSizePolicy, QWidget
+from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QScrollArea, QSizePolicy, QWidget
 
 _ALIGNMENT = Qt.AlignmentFlag.AlignVCenter
 _HELP_BASE_HEIGHT_PROPERTY = "mdcx_help_base_minimum_height"
@@ -15,7 +15,7 @@ def _is_multiline_label(widget: QWidget) -> bool:
 
 
 def _activate_layout_chain(widget: QWidget) -> None:
-    """Recalculate containing layouts after dynamic settings widgets are inserted."""
+    """Recalculate layouts including scroll-area content after dynamic inserts."""
     chain = []
     current = widget
     while current is not None:
@@ -27,11 +27,22 @@ def _activate_layout_chain(widget: QWidget) -> None:
         if layout is not None:
             layout.invalidate()
             layout.activate()
-        # QLabel geometry can be stale after word wrapping changes. Recompute
-        # the widget's size hint instead of forcing a fixed label height.
         current.updateGeometry()
         if current is not widget:
             current.adjustSize()
+
+    for parent in chain:
+        if isinstance(parent, QScrollArea):
+            parent.setWidgetResizable(True)
+            content = parent.widget()
+            if content is not None:
+                layout = content.layout()
+                if layout is not None:
+                    layout.invalidate()
+                    layout.activate()
+                content.updateGeometry()
+                content.adjustSize()
+            parent.updateGeometry()
 
 
 def _prepare_multiline_help_label(widget: QLabel) -> None:
@@ -55,9 +66,6 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
 
     widget.setMaximumHeight(16777215)
     widget.updateGeometry()
-
-    # Dynamic settings components can move labels between layouts. Activate the
-    # actual parent chain instead of forcing QLabel geometry with resize/minHeight.
     _activate_layout_chain(widget)
 
 
