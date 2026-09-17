@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QSizePolicy, QWidget
 
 _ALIGNMENT = Qt.AlignmentFlag.AlignVCenter
+_HELP_BASE_HEIGHT_PROPERTY = "mdcx_help_base_minimum_height"
 
 
 def _is_multiline_label(widget: QWidget) -> bool:
@@ -13,29 +14,30 @@ def _is_multiline_label(widget: QWidget) -> bool:
     return widget.wordWrap() or "\n" in text or "<br" in text
 
 
-def _required_help_height(widget: QLabel) -> int:
-    """Return a safe minimum height for wrapped/rich help text."""
-
-    width = widget.width()
-    if width > 0 and widget.hasHeightForWidth():
-        required = widget.heightForWidth(width)
-        if required >= 0:
-            return max(widget.sizeHint().height(), required)
-    return widget.sizeHint().height()
-
-
 def _prepare_multiline_help_label(widget: QLabel) -> None:
-    """Let help text grow vertically instead of clipping at narrower widths."""
+    """Enable wrapped help text without permanently growing its height.
 
+    Qt keeps minimumHeight after a resize. Previous code stored the calculated
+    height-for-width value here, causing a narrow window layout pass to create
+    permanent blank space after returning to a wider window.
+    """
     if widget.property("semanticRole") != "help" or not _is_multiline_label(widget):
         return
+
     widget.setWordWrap(True)
     policy = widget.sizePolicy()
     if policy.verticalPolicy() != QSizePolicy.Policy.Preferred:
         policy.setVerticalPolicy(QSizePolicy.Policy.Preferred)
         widget.setSizePolicy(policy)
+
+    if widget.property(_HELP_BASE_HEIGHT_PROPERTY) is None:
+        widget.setProperty(_HELP_BASE_HEIGHT_PROPERTY, widget.minimumHeight())
+
+    base_height = widget.property(_HELP_BASE_HEIGHT_PROPERTY)
+    if isinstance(base_height, int):
+        widget.setMinimumHeight(base_height)
+
     widget.setMaximumHeight(16777215)
-    widget.setMinimumHeight(max(widget.minimumHeight(), _required_help_height(widget)))
     widget.updateGeometry()
 
 
@@ -56,14 +58,7 @@ def _align_item(parent_layout: QLayout, item) -> None:
 
 
 def polish_settings_layout(ui: object) -> None:
-    """Vertically center compact controls across every settings form row.
-
-    Qt Designer generated several rows where 18/23/26 px labels and controls
-    were top-aligned inside a 30 px grid row. That creates the 2-6 px baseline
-    drift visible on Windows. Keep wrapped help text untouched, but center all
-    compact widgets and nested horizontal layouts inside their existing cells.
-    """
-
+    """Polish settings alignment without changing Designer geometry."""
     tab_widget = getattr(ui, "tabWidget", None)
     if tab_widget is None:
         return
@@ -76,9 +71,7 @@ def polish_settings_layout(ui: object) -> None:
             row, _column, row_span, _column_span = grid.getItemPosition(index)
             if row_span != 1:
                 continue
-            item = grid.itemAt(index)
-            _align_item(grid, item)
-            grid.setRowMinimumHeight(row, max(grid.rowMinimumHeight(row), 30))
+            _align_item(grid, grid.itemAt(index))
 
     for horizontal in tab_widget.findChildren(QHBoxLayout):
         for index in range(horizontal.count()):
