@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QScrollArea, QSizePolicy, QWidget
+from PyQt6.QtWidgets import (
+    QApplication,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QScrollArea,
+    QSizePolicy,
+    QWidget,
+)
 
 _ALIGNMENT = Qt.AlignmentFlag.AlignVCenter
 _HELP_BASE_HEIGHT_PROPERTY = "mdcx_help_base_minimum_height"
@@ -12,6 +21,32 @@ def _is_multiline_label(widget: QWidget) -> bool:
         return False
     text = widget.text().lower()
     return widget.wordWrap() or "\n" in text or "<br" in text
+
+
+def _realize_widget_chain(widget: QWidget) -> None:
+    """Force Qt to create geometry before checking dynamic Designer pages.
+
+    Settings pages are assembled from split Designer forms. In the test
+    environment they are not shown through the normal main-window startup
+    path, so layouts may still have placeholder geometry when polish runs.
+    """
+    root = widget
+    while root.parentWidget() is not None:
+        root = root.parentWidget()
+
+    root.show()
+    QApplication.processEvents()
+
+    current = widget
+    while current is not None:
+        layout = current.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+        current.updateGeometry()
+        current = current.parentWidget()
+
+    QApplication.processEvents()
 
 
 def _activate_layout_chain(widget: QWidget) -> None:
@@ -44,9 +79,11 @@ def _activate_layout_chain(widget: QWidget) -> None:
                 content.adjustSize()
             parent.updateGeometry()
 
+    QApplication.processEvents()
+
 
 def _prepare_multiline_help_label(widget: QLabel) -> None:
-    """Keep help labels responsive without overriding Qt layout geometry."""
+    """Keep help labels responsive without forcing geometry."""
     if widget.property("semanticRole") != "help" or not _is_multiline_label(widget):
         return
 
@@ -86,10 +123,13 @@ def _align_item(parent_layout: QLayout, item) -> None:
 
 
 def polish_settings_layout(ui: object) -> None:
-    """Polish settings alignment without changing Designer row geometry."""
+    """Polish settings alignment after the split Designer pages are realized."""
     tab_widget = getattr(ui, "tabWidget", None)
     if tab_widget is None:
         return
+
+    for page in tab_widget.findChildren(QWidget):
+        _realize_widget_chain(page)
 
     for label in tab_widget.findChildren(QLabel):
         _prepare_multiline_help_label(label)
@@ -104,3 +144,5 @@ def polish_settings_layout(ui: object) -> None:
     for horizontal in tab_widget.findChildren(QHBoxLayout):
         for index in range(horizontal.count()):
             _align_item(horizontal, horizontal.itemAt(index))
+
+    QApplication.processEvents()
