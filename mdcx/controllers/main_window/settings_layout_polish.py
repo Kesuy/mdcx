@@ -15,7 +15,7 @@ def _is_multiline_label(widget: QWidget) -> bool:
 
 
 def _prepare_multiline_help_label(widget: QLabel) -> None:
-    """Keep help labels responsive without allowing them to collapse to zero."""
+    """Keep help labels responsive without overriding Qt layout geometry."""
     if widget.property("semanticRole") != "help" or not _is_multiline_label(widget):
         return
 
@@ -36,15 +36,13 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
     widget.setMaximumHeight(16777215)
     widget.updateGeometry()
 
-    # Responsive layout can temporarily assign a zero height to QLabel after
-    # switching tabs or resizing. Restore the calculated label height itself,
-    # rather than expanding the containing row/layout.
-    required = widget.heightForWidth(widget.width()) if widget.hasHeightForWidth() else widget.sizeHint().height()
-    required = max(required, widget.minimumHeight())
-    if required > 0 and widget.height() < required:
-        widget.setMinimumHeight(required)
-        widget.resize(widget.width(), required)
-        widget.updateGeometry()
+    # Do not call resize() here. QLabel geometry belongs to the parent layout;
+    # forcing geometry here can be overwritten by responsive layout passes and
+    # can create unstable spacing in the settings page.
+    layout = widget.parentWidget().layout() if widget.parentWidget() else None
+    if layout is not None:
+        layout.invalidate()
+        layout.activate()
 
 
 def _align_item(parent_layout: QLayout, item) -> None:
