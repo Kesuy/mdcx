@@ -13,6 +13,17 @@ def _is_multiline_label(widget: QWidget) -> bool:
     return widget.wordWrap() or "\n" in text or "<br" in text
 
 
+def _required_help_height(widget: QLabel) -> int:
+    """Return a safe minimum height for wrapped/rich help text."""
+
+    width = widget.width()
+    if width > 0 and widget.hasHeightForWidth():
+        required = widget.heightForWidth(width)
+        if required >= 0:
+            return max(widget.sizeHint().height(), required)
+    return widget.sizeHint().height()
+
+
 def _prepare_multiline_help_label(widget: QLabel) -> None:
     """Let help text grow vertically instead of clipping at narrower widths."""
 
@@ -24,6 +35,7 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
         policy.setVerticalPolicy(QSizePolicy.Policy.Preferred)
         widget.setSizePolicy(policy)
     widget.setMaximumHeight(16777215)
+    widget.setMinimumHeight(max(widget.minimumHeight(), _required_help_height(widget)))
     widget.updateGeometry()
 
 
