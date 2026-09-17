@@ -17,9 +17,8 @@ def _is_multiline_label(widget: QWidget) -> bool:
 def _prepare_multiline_help_label(widget: QLabel) -> None:
     """Enable wrapped help text without permanently growing its height.
 
-    Qt keeps minimumHeight after a resize. Previous code stored the calculated
-    height-for-width value here, causing a narrow window layout pass to create
-    permanent blank space after returning to a wider window.
+    Keep the label in normal Qt layout calculation. A previous implementation
+    could leave a zero-height label after repeated responsive layout passes.
     """
     if widget.property("semanticRole") != "help" or not _is_multiline_label(widget):
         return
@@ -39,6 +38,14 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
 
     widget.setMaximumHeight(16777215)
     widget.updateGeometry()
+
+    # Force a geometry hint for labels that were collapsed by a previous
+    # responsive-layout pass. Do not use this as a permanent row expansion;
+    # it only restores the label's own required height.
+    required = widget.heightForWidth(widget.width()) if widget.hasHeightForWidth() else widget.sizeHint().height()
+    if required > 0 and widget.height() == 0:
+        widget.setMinimumHeight(max(widget.minimumHeight(), required))
+        widget.updateGeometry()
 
 
 def _align_item(parent_layout: QLayout, item) -> None:
