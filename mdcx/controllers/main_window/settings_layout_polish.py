@@ -14,6 +14,17 @@ def _is_multiline_label(widget: QWidget) -> bool:
     return widget.wordWrap() or "\n" in text or "<br" in text
 
 
+def _activate_layout_chain(widget: QWidget) -> None:
+    """Recalculate containing layouts after dynamic settings widgets are inserted."""
+    current = widget
+    while current is not None:
+        layout = current.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+        current = current.parentWidget()
+
+
 def _prepare_multiline_help_label(widget: QLabel) -> None:
     """Keep help labels responsive without overriding Qt layout geometry."""
     if widget.property("semanticRole") != "help" or not _is_multiline_label(widget):
@@ -36,13 +47,9 @@ def _prepare_multiline_help_label(widget: QLabel) -> None:
     widget.setMaximumHeight(16777215)
     widget.updateGeometry()
 
-    # Do not call resize() here. QLabel geometry belongs to the parent layout;
-    # forcing geometry here can be overwritten by responsive layout passes and
-    # can create unstable spacing in the settings page.
-    layout = widget.parentWidget().layout() if widget.parentWidget() else None
-    if layout is not None:
-        layout.invalidate()
-        layout.activate()
+    # Dynamic settings components can move labels between layouts. Activate the
+    # actual parent chain instead of forcing QLabel geometry with resize/minHeight.
+    _activate_layout_chain(widget)
 
 
 def _align_item(parent_layout: QLayout, item) -> None:
