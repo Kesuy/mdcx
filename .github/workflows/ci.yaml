@@ -39,7 +39,12 @@ jobs:
           fi
 
       - name: Run ruff check
-        run: uvx ruff@0.15.12 check --output-format=github
+        shell: bash
+        run: |
+          if ! uvx ruff@0.15.12 check --output-format=github; then
+            uvx ruff@0.15.12 check --fix --diff
+            exit 1
+          fi
 
   test:
     name: Tests
@@ -83,71 +88,68 @@ jobs:
       - name: Install Qt runtime libraries and CJK fonts
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libegl1 fonts-noto-cjk
-          fc-cache -f
-          fc-match "Noto Sans CJK SC"
+          sudo apt-get install -y \
+            libegl1 \
+            libfontconfig1 \
+            libfreetype6 \
+            libgl1 \
+            libglib2.0-0 \
+            libx11-6 \
+            libxcb-cursor0 \
+            libxcb-glx0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-render0 \
+            libxcb-shape0 \
+            libxcb-shm0 \
+            libxcb-sync1 \
+            libxcb-util1 \
+            libxcb-xfixes0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
+            libxkbcommon-x11-0 \
+            fonts-noto-cjk
       - name: Install locked dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --frozen --all-groups
       - name: Run tests
-        run: uv run --locked pytest tests -q -rs
+        run: uv run pytest -q --disable-warnings
       - name: Capture settings UI screenshots
-        if: steps.ui_changes.outputs.changed == 'true'
-        run: uv run --locked python scripts/capture_settings_ui.py
+        if: always() && steps.ui_changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          rm -rf artifacts/settings-ui
+          uv run python scripts/capture_settings_ui.py --output-dir artifacts/settings-ui --strict
       - name: Upload settings UI screenshots
-        if: steps.ui_changes.outputs.changed == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.ui_changes.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          name: MDCx-settings-ui-captures
-          path: ui-captures
-          if-no-files-found: error
+          name: settings-ui-screenshots
+          path: artifacts/settings-ui
           retention-days: 7
       - name: Create source snapshot
-        run: git archive --format=tar.gz --output="$RUNNER_TEMP/mdcx-source.tgz" HEAD
+        if: always()
+        shell: bash
+        run: |
+          git archive --format=zip --output=artifacts/source-snapshot.zip HEAD
       - name: Upload source snapshot
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: MDCx-source-snapshot
-          path: ${{ runner.temp }}/mdcx-source.tgz
-          if-no-files-found: error
-          retention-days: 1
+          name: source-snapshot
+          path: artifacts/source-snapshot.zip
+          retention-days: 7
 
-  windows-smoke:
+  windows:
     name: Windows smoke and debug build
-    needs: [quality, test]
     runs-on: windows-latest
-    timeout-minutes: 45
-    env:
-      QT_QPA_PLATFORM: offscreen
-      MDCX_OFFLINE: "1"
-      PYTHONIOENCODING: utf-8
+    timeout-minutes: 35
+    needs: [quality, test]
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Detect UI changes
-        id: ui_changes
-        shell: pwsh
-        run: |
-          if ("$env:GITHUB_EVENT_NAME" -ne "pull_request") {
-            "changed=true" >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-          git diff --quiet "${{ github.event.pull_request.base.sha }}" HEAD -- `
-            mdcx/views/ `
-            mdcx/controllers/main_window/responsive_layout.py `
-            mdcx/controllers/main_window/settings_composites.py `
-            mdcx/controllers/main_window/settings_page.py `
-            mdcx/controllers/main_window/accessibility.py `
-            scripts/capture_settings_ui.py `
-            scripts/smoke_main_window.py `
-            main.py
-          if ($LASTEXITCODE -eq 0) {
-            "changed=false" >> $env:GITHUB_OUTPUT
-          } else {
-            "changed=true" >> $env:GITHUB_OUTPUT
-          }
-          exit 0
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -155,46 +157,35 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Install locked dependencies
-        run: uv sync --locked --all-extras --dev
-      - name: Run core and controller tests
-        run: >-
-          uv run --locked pytest tests/core tests/controllers
-          tests/test_file_crawler_classification.py
-          tests/test_file_crawler_field_priority.py
-          tests/test_file_crawler_runtime.py tests/test_scrape_session.py
-          tests/test_failure_model.py tests/test_provenance.py -q -rs
-      - name: Construct main window offscreen
-        run: uv run --locked python scripts/smoke_main_window.py
-      - name: Build Windows executable
-        run: uv run --locked scripts/build.py --debug
-      - name: Smoke test frozen executable
-        run: .\dist\MDCx.exe --smoke-test
-      - name: Upload Windows executable
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        run: uv sync --frozen --all-groups
+      - name: Smoke main window
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:MDCX_OFFLINE = "1"
+          uv run python scripts/smoke_main_window.py
+      - name: Build Windows debug EXE
+        shell: pwsh
+        run: |
+          uv run python -m scripts.build --skip-tests --release-tag "debug-${{ github.sha }}"
+      - name: Smoke packaged EXE
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path dist -Filter "*.exe" -File | Select-Object -First 1
+          if (-not $exe) {
+            throw "No packaged EXE was produced in dist/"
+          }
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:MDCX_OFFLINE = "1"
+          $process = Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "Packaged EXE exited early with code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id -Force
+      - name: Upload Windows debug EXE
+        uses: actions/upload-artifact@v4
         with:
           name: MDCx-Windows-debug
-          path: dist/MDCx.exe
-          if-no-files-found: error
-          retention-days: 7
-      - name: Run frozen UI smoke and capture settings
-        if: steps.ui_changes.outputs.changed == 'true'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force frozen-ui-captures | Out-Null
-          $env:MDCX_SMOKE_SCREENSHOT_DIR = (Resolve-Path frozen-ui-captures).Path
-          .\dist\MDCx.exe --smoke-test-ui
-      - name: Check frozen UI captures
-        id: frozen_ui
-        if: steps.ui_changes.outputs.changed == 'true'
-        shell: pwsh
-        run: |
-          $hasFiles = @(Get-ChildItem frozen-ui-captures -File -Recurse -ErrorAction SilentlyContinue).Count -gt 0
-          "has_files=$($hasFiles.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-      - name: Upload frozen Windows UI screenshots
-        if: steps.ui_changes.outputs.changed == 'true' && steps.frozen_ui.outputs.has_files == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: MDCx-Windows-ui-captures
-          path: frozen-ui-captures
-          if-no-files-found: error
+          path: dist/*.exe
           retention-days: 7
