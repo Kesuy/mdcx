@@ -152,3 +152,87 @@ def test_generate_server_url_uses_new_jellyfin_endpoints(monkeypatch: pytest.Mon
     assert "api_key" not in backdrop_url
     assert "api_key" not in backdrop_url_0
     assert "api_key" not in update_url
+
+@pytest.mark.asyncio
+async def test_get_emby_actor_list_filters_multiple_emby_libraries(monkeypatch: pytest.MonkeyPatch):
+    calls: list[str] = []
+
+    async def fake_get_json(url: str, *, headers=None, use_proxy=True, **kwargs):
+        calls.append(url)
+        query = parse_qs(urlparse(url).query)
+        library_id = query["ParentId"][0]
+        if library_id == "139975":
+            return {"Items": [{"Id": "actor-1", "Name": "演员A"}, {"Id": "actor-2", "Name": "演员B"}]}, ""
+        return {"Items": [{"Id": "actor-2", "Name": "演员B"}, {"Id": "actor-3", "Name": "演员C"}]}, ""
+
+    monkeypatch.setattr(manager.config, "server_type", "emby")
+    monkeypatch.setattr(manager.config, "emby_url", "http://127.0.0.1:8096")
+    monkeypatch.setattr(manager.config, "api_key", "secret-token")
+    monkeypatch.setattr(manager.config, "user_id", "user-1")
+    monkeypatch.setattr(manager.config, "actor_photo_library_scope", "selected")
+    monkeypatch.setattr(manager.config, "actor_photo_library_ids", ["139975", "246810"])
+    monkeypatch.setattr(manager.computed.async_client, "get_json", fake_get_json)
+    monkeypatch.setattr(emby_actor_image.signal, "show_log_text", lambda text: None)
+
+    actor_list = await emby_actor_image._get_emby_actor_list()
+
+    assert [actor["Id"] for actor in actor_list] == ["actor-1", "actor-2", "actor-3"]
+    assert len(calls) == 2
+    for expected_id, url in zip(("139975", "246810"), calls, strict=True):
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        assert parsed.path == "/emby/Persons"
+        assert query["ParentId"] == [expected_id]
+        assert query["api_key"] == ["secret-token"]
+        assert query["userid"] == ["user-1"]
+
+
+@pytest.mark.asyncio
+async def test_get_emby_actor_list_filters_multiple_jellyfin_libraries(monkeypatch: pytest.MonkeyPatch):
+    calls: list[tuple[str, dict | None]] = []
+
+    async def fake_get_json(url: str, *, headers=None, use_proxy=True, **kwargs):
+        calls.append((url, headers))
+        query = parse_qs(urlparse(url).query)
+        library_id = query["parentId"][0]
+        if library_id == "lib-a":
+            return {"Items": [{"Id": "actor-1", "Name": "演员A"}, {"Id": "actor-2", "Name": "演员B"}]}, ""
+        return {"Items": [{"Id": "actor-2", "Name": "演员B"}, {"Id": "actor-3", "Name": "演员C"}]}, ""
+
+    monkeypatch.setattr(manager.config, "server_type", "jellyfin")
+    monkeypatch.setattr(manager.config, "emby_url", "http://127.0.0.1:8096")
+    monkeypatch.setattr(manager.config, "api_key", "secret-token")
+    monkeypatch.setattr(manager.config, "user_id", "user-1")
+    monkeypatch.setattr(manager.config, "actor_photo_library_scope", "selected")
+    monkeypatch.setattr(manager.config, "actor_photo_library_ids", ["lib-a", "lib-b"])
+    monkeypatch.setattr(manager.computed.async_client, "get_json", fake_get_json)
+    monkeypatch.setattr(emby_actor_image.signal, "show_log_text", lambda text: None)
+
+    actor_list = await emby_actor_image._get_emby_actor_list()
+
+    assert [actor["Id"] for actor in actor_list] == ["actor-1", "actor-2", "actor-3"]
+    assert len(calls) == 2
+    for expected_id, (url, headers) in zip(("lib-a", "lib-b"), calls, strict=True):
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        assert parsed.path == "/Persons"
+        assert query["parentId"] == [expected_id]
+        assert query["personTypes"] == ["Actor"]
+        assert query["userId"] == ["user-1"]
+        assert headers == {"Authorization": 'MediaBrowser Token="secret-token"'}
+
+
+@pytest.mark.asyncio
+async def test_get_emby_actor_list_stops_when_selected_library_ids_are_empty(monkeypatch: pytest.MonkeyPatch):
+    async def fake_get_json(*args, **kwargs):
+        raise AssertionError("未填写指定媒体库 ID 时不应请求服务器")
+
+    monkeypatch.setattr(manager.config, "server_type", "emby")
+    monkeypatch.setattr(manager.config, "api_key", "secret-token")
+    monkeypatch.setattr(manager.config, "actor_photo_library_scope", "selected")
+    monkeypatch.setattr(manager.config, "actor_photo_library_ids", [])
+    monkeypatch.setattr(manager.computed.async_client, "get_json", fake_get_json)
+    monkeypatch.setattr(emby_actor_image.signal, "show_log_text", lambda text: None)
+
+    assert await emby_actor_image._get_emby_actor_list() == []
+

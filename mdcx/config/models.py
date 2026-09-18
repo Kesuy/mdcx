@@ -568,6 +568,8 @@ class Config(BaseModel):
     emby_url: HttpUrl = Field(default=HttpUrl("http://127.0.0.1:8096"), title="Emby网址")
     api_key: str = Field(default="", title="API密钥")
     user_id: str = Field(default="", title="用户ID")
+    actor_photo_library_scope: Literal["all", "selected"] = Field(default="all", title="演员头像媒体库范围")
+    actor_photo_library_ids: list[str] = Field(default_factory=list, title="演员头像媒体库ID")
     emby_on: list[EmbyAction] = Field(
         default_factory=lambda: [
             EmbyAction.ACTOR_INFO_ZH_CN,

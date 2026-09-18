@@ -84,30 +84,19 @@ async def update_emby_actor_photo() -> None:
         signal.reset_buttons_status.emit()
 
 
+def _configured_actor_library_ids() -> list[str]:
+    if manager.config.actor_photo_library_scope != "selected":
+        return []
+    return list(dict.fromkeys(str(item).strip() for item in manager.config.actor_photo_library_ids if str(item).strip()))
+
+
 async def _get_emby_actor_list() -> list[dict]:
     _raise_if_stop_requested()
     base_url = str(manager.config.emby_url).rstrip("/")
-    headers = None
-    # 获取 emby 的演员列表
-    if "emby" == manager.config.server_type:
-        server_name = "Emby"
-        url = base_url + "/emby/Persons?api_key=" + manager.config.api_key
-        # http://192.168.5.191:8096/emby/Persons?api_key=ee9a2f2419704257b1dd60b975f2d64e
-        # http://192.168.5.191:8096/emby/Persons/梦乃爱华?api_key=ee9a2f2419704257b1dd60b975f2d64e
-        if manager.config.user_id:
-            url += f"&userid={manager.config.user_id}"
-    else:
-        server_name = "Jellyfin"
-        headers = _build_jellyfin_headers()
-        url = _append_query(
-            base_url + "/Persons",
-            {
-                "personTypes": "Actor",
-                "fields": ",".join(JELLYFIN_PERSON_FIELDS),
-                "enableImages": "true",
-                "userId": manager.config.user_id,
-            },
-        )
+    server_type = manager.config.server_type
+    server_name = "Emby" if server_type == "emby" else "Jellyfin"
+    selected_libraries = manager.config.actor_photo_library_scope == "selected"
+    library_ids = _configured_actor_library_ids()
 
     signal.show_log_text(f"⏳ 连接 {server_name} 服务器...")
 
@@ -115,16 +104,73 @@ async def _get_emby_actor_list() -> list[dict]:
         signal.show_log_text(f"🔴 {server_name} API 密钥未填写！")
         signal.show_log_text("================================================================================")
         return []
-
-    async with manager.acquire_computed() as computed:
-        response, error = await computed.async_client.get_json(url, headers=headers, use_proxy=False)
-    _raise_if_stop_requested()
-    if response is None:
-        signal.show_log_text(f"🔴 {server_name} 连接失败！请检查 {server_name} 地址 和 API 密钥是否正确填写！ {error}")
+    if selected_libraries and not library_ids:
+        signal.show_log_text("🔴 已选择“只补全指定媒体库”，但未填写媒体库 ID！")
+        signal.show_log_text("================================================================================")
         return []
 
-    actor_list = response.get("Items", [])
-    signal.show_log_text(f"✅ {server_name} 连接成功！共有 {len(actor_list)} 个演员！")
+    query_library_ids: list[str | None] = library_ids if selected_libraries else [None]
+    actor_list: list[dict] = []
+    seen_actors: set[str] = set()
+    successful_queries = 0
+
+    for library_id in query_library_ids:
+        _raise_if_stop_requested()
+        headers = None
+        if server_type == "emby":
+            url = _append_query(
+                base_url + "/emby/Persons",
+                {
+                    "api_key": manager.config.api_key,
+                    "userid": manager.config.user_id,
+                    "ParentId": library_id,
+                },
+            )
+        else:
+            headers = _build_jellyfin_headers()
+            url = _append_query(
+                base_url + "/Persons",
+                {
+                    "personTypes": "Actor",
+                    "fields": ",".join(JELLYFIN_PERSON_FIELDS),
+                    "enableImages": "true",
+                    "userId": manager.config.user_id,
+                    "parentId": library_id,
+                },
+            )
+
+        async with manager.acquire_computed() as computed:
+            response, error = await computed.async_client.get_json(url, headers=headers, use_proxy=False)
+        _raise_if_stop_requested()
+        if response is None:
+            if library_id is not None:
+                signal.show_log_text(f"🔴 {server_name} 媒体库 {library_id} 查询失败！ {error}")
+                continue
+            signal.show_log_text(
+                f"🔴 {server_name} 连接失败！请检查 {server_name} 地址 和 API 密钥是否正确填写！ {error}"
+            )
+            return []
+
+        successful_queries += 1
+        for actor in response.get("Items", []):
+            actor_key = str(actor.get("Id") or actor.get("Name") or "").strip()
+            if actor_key and actor_key in seen_actors:
+                continue
+            if actor_key:
+                seen_actors.add(actor_key)
+            actor_list.append(actor)
+
+    if not successful_queries:
+        signal.show_log_text(f"🔴 {server_name} 指定媒体库均查询失败！补全已停止！")
+        signal.show_log_text("================================================================================")
+        return []
+
+    if selected_libraries:
+        signal.show_log_text(
+            f"✅ {server_name} 连接成功！已查询 {successful_queries}/{len(library_ids)} 个指定媒体库，共有 {len(actor_list)} 个演员！"
+        )
+    else:
+        signal.show_log_text(f"✅ {server_name} 连接成功！共有 {len(actor_list)} 个演员！")
     if not actor_list:
         signal.show_log_text("================================================================================")
     return actor_list

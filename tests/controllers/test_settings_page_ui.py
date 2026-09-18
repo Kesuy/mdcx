@@ -342,3 +342,28 @@ def test_local_image_preference_switch_saves_and_restores():
         assert window.Ui.label_local_number_images.wordWrap()
     finally:
         window.close()
+
+def test_actor_photo_library_scope_controls_and_download_link_layout():
+    window, controller = _controller()
+    ui = window.Ui
+    config = manager.config.model_copy(deep=True)
+    config.actor_photo_library_scope = "all"
+    config.actor_photo_library_ids = []
+    controller.binder.load(config)
+
+    assert ui.label_download_actor_zip.parentWidget() is ui.widget_actor_photo_local_help
+    assert ui.widget_actor_photo_local_help.layout().indexOf(ui.label_77) >= 0
+    assert ui.widget_actor_photo_local_help.layout().indexOf(ui.label_download_actor_zip) >= 0
+    assert ui.radioButton_actor_photo_library_all.isChecked()
+    assert not ui.lineEdit_actor_photo_library_ids.isEnabled()
+
+    ui.radioButton_actor_photo_library_selected.click()
+    assert ui.lineEdit_actor_photo_library_ids.isEnabled()
+    ui.lineEdit_actor_photo_library_ids.setText("139975, 246810\n246810；abc")
+    controller.binder.save(config)
+
+    assert config.actor_photo_library_scope == "selected"
+    assert config.actor_photo_library_ids == ["139975", "246810", "abc"]
+
+    window.close()
+
