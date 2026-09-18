@@ -153,6 +153,7 @@ def test_generate_server_url_uses_new_jellyfin_endpoints(monkeypatch: pytest.Mon
     assert "api_key" not in backdrop_url_0
     assert "api_key" not in update_url
 
+
 @pytest.mark.asyncio
 async def test_get_emby_actor_list_filters_multiple_emby_libraries(monkeypatch: pytest.MonkeyPatch):
     calls: list[str] = []
