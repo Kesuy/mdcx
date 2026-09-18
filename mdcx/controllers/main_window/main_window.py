@@ -16,6 +16,7 @@ from mdcx.base.file import get_success_list, save_remain_list
 from mdcx.base.web import check_version
 from mdcx.config.resources import resources
 from mdcx.consts import LOCAL_VERSION
+from mdcx.core.local_nfo_rescrape import install_local_nfo_rescrape_hooks
 from mdcx.image import PreviewImageLoader
 from mdcx.models.types import CrawlersResult, ShowData
 from mdcx.runtime import ApplicationServices
@@ -28,6 +29,7 @@ from .handlers import show_netstatus
 from .help_controller import HelpControllerMixin
 from .init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget, install_result_tree_view
 from .load_config import load_config
+from .local_nfo_inplace import LocalNfoInplaceMixin, setup_local_nfo_inplace_setting
 from .log_controller import LogControllerMixin
 from .main_page_mixin import MainPageMixin
 from .network_controller import NetworkController
@@ -52,6 +54,7 @@ if TYPE_CHECKING:
 
 class MyMAinWindow(
     PageSetupMixin,
+    LocalNfoInplaceMixin,
     MainPageMixin,
     SettingsToolSlotsMixin,
     WindowLifecycleMixin,
@@ -156,6 +159,8 @@ class MyMAinWindow(
         resources.get_fonts()
         self.Ui = Ui_MDCx()  # 实例化 Ui
         self.Ui.setupUi(self)  # 初始化 Ui
+        setup_local_nfo_inplace_setting(self)
+        install_local_nfo_rescrape_hooks()
         self.file_controller = FileController(self)
         self.network_controller = NetworkController(self)
         self.nfo_controller = NfoController(self)
