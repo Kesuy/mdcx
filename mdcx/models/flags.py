@@ -41,6 +41,8 @@ class _Flags:
     _remain_version: int = field(default=0, repr=False)
     new_again_dic: dict[Path, tuple[str, str, str]] = field(default_factory=dict)
     again_dic: dict[Path, tuple[str, str, str]] = field(default_factory=dict)  # 待重新刮削的字典
+    again_inplace_paths: set[Path] = field(default_factory=set)
+    new_again_inplace_paths: set[Path] = field(default_factory=set)
     start_time: float = 0.0
     file_mode: FileMode = FileMode.Default  # 默认刮削待刮削目录
     counting_order: int = 0  # 刮削顺序
