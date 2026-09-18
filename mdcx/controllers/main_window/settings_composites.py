@@ -110,22 +110,48 @@ def _scalar_choice_binding(spec: ScalarChoiceSpec) -> CompositeBinding:
     return CompositeBinding(spec.path, load, save)
 
 
+def _sync_force_avwiki_actor_state(ui: object) -> None:
+    master = getattr(ui, "checkBox_actor_realname", None)
+    checkbox = getattr(ui, "checkBox_force_avwiki_actor", None)
+    if master is None or checkbox is None:
+        return
+
+    enabled = master.isChecked()
+    if not enabled and checkbox.isChecked():
+        previous = checkbox.blockSignals(True)
+        try:
+            checkbox.setChecked(False)
+        finally:
+            checkbox.blockSignals(previous)
+    checkbox.setEnabled(enabled)
+
+
 def _ensure_force_avwiki_actor_checkbox(ui: object):
     existing = getattr(ui, "checkBox_force_avwiki_actor", None)
     if existing is not None:
+        _sync_force_avwiki_actor_state(ui)
         return existing
 
     container = QWidget(ui.checkBox_actor_realname.parentWidget())
     component = Ui_AvwikiActorSettings()
     component.setupUi(container)
     checkbox = component.checkBox_force_avwiki_actor
-    checkbox.setEnabled(ui.checkBox_actor_realname.isChecked())
-    ui.checkBox_actor_realname.toggled.connect(checkbox.setEnabled)
-    ui.horizontalLayout_8.insertWidget(1, container)
+
+    grid = getattr(ui, "gridLayout_50", None)
+    help_label = getattr(ui, "label_249", None)
+    if grid is not None and help_label is not None:
+        grid.removeWidget(help_label)
+        grid.addWidget(container, 2, 1, 1, 1)
+        grid.addWidget(help_label, 3, 1, 1, 1)
+    else:
+        ui.horizontalLayout_8.insertWidget(1, container)
 
     ui.avwiki_actor_settings_container = container
     ui.avwiki_actor_settings_ui = component
     ui.checkBox_force_avwiki_actor = checkbox
+
+    ui.checkBox_actor_realname.toggled.connect(lambda _checked: _sync_force_avwiki_actor_state(ui))
+    _sync_force_avwiki_actor_state(ui)
 
     def mark_dirty(*_args) -> None:
         controller = getattr(checkbox.window(), "settings_controller", None)
@@ -364,9 +390,11 @@ def build_settings_composites() -> list[CompositeBinding]:
     def load_switches(ui: object, config: object) -> None:
         _ensure_force_avwiki_actor_checkbox(ui)
         switch_binding.load(ui, config)
+        _sync_force_avwiki_actor_state(ui)
 
     def save_switches(ui: object, config: object) -> None:
         _ensure_force_avwiki_actor_checkbox(ui)
+        _sync_force_avwiki_actor_state(ui)
         switch_binding.save(ui, config)
         values = [value for value in config.switch_on if value != Switch.SHOW_LOGS]
         if not ui.textBrowser_log_main_2.isHidden():
