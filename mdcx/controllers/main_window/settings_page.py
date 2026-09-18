@@ -69,7 +69,7 @@ def format_duration(value: timedelta) -> str:
 def parse_actor_photo_library_ids(value: str) -> list[str]:
     """Parse multiple media-library IDs while preserving the user's order."""
 
-    return list(dict.fromkeys(part for part in re.split(r"[,，;\s]+", value.strip()) if part))
+    return list(dict.fromkeys(part for part in re.split(r"[,，;；\s]+", value.strip()) if part))
 
 
 def is_valid_http_url(value: str) -> bool:
