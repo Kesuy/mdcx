@@ -343,9 +343,11 @@ def test_local_image_preference_switch_saves_and_restores():
     finally:
         window.close()
 
+
 def test_actor_photo_library_scope_controls_and_download_link_layout():
     window, controller = _controller()
     ui = window.Ui
+    controller.install_search_bar(QVBoxLayout())
     config = manager.config.model_copy(deep=True)
     config.actor_photo_library_scope = "all"
     config.actor_photo_library_ids = []
