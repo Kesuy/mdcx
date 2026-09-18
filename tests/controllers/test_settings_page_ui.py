@@ -368,4 +368,3 @@ def test_actor_photo_library_scope_controls_and_download_link_layout():
     assert config.actor_photo_library_ids == ["139975", "246810", "abc"]
 
     window.close()
-

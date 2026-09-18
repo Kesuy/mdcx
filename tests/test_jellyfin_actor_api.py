@@ -236,4 +236,3 @@ async def test_get_emby_actor_list_stops_when_selected_library_ids_are_empty(mon
     monkeypatch.setattr(emby_actor_image.signal, "show_log_text", lambda text: None)
 
     assert await emby_actor_image._get_emby_actor_list() == []
-
