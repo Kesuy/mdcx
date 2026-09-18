@@ -87,7 +87,9 @@ async def update_emby_actor_photo() -> None:
 def _configured_actor_library_ids() -> list[str]:
     if manager.config.actor_photo_library_scope != "selected":
         return []
-    return list(\n        dict.fromkeys(str(item).strip() for item in manager.config.actor_photo_library_ids if str(item).strip())\n    )
+    return list(
+        dict.fromkeys(str(item).strip() for item in manager.config.actor_photo_library_ids if str(item).strip())
+    )
 
 
 async def _get_emby_actor_list() -> list[dict]:
