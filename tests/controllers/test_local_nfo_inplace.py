@@ -1,6 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 
+from mdcx.controllers.main_window import local_nfo_inplace as module
 from mdcx.controllers.main_window.local_nfo_inplace import LocalNfoInplaceMixin
+from mdcx.models.flags import Flags
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo, ShowData
 
 
@@ -20,12 +23,21 @@ def _show_data(file_path: Path, *, number: str, local: bool = True) -> ShowData:
     )
 
 
+class _CheckBox:
+    def __init__(self, checked: bool):
+        self.checked = checked
+
+    def isChecked(self):
+        return self.checked
+
+
 class _Harness(LocalNfoInplaceMixin):
-    def __init__(self, show_data: ShowData | None):
+    def __init__(self, show_data: ShowData | None, *, inplace_enabled: bool = False):
         self.show_data = show_data
         self.selected = (
             None if show_data is None else (None, show_data.show_name, show_data, show_data.file_info.file_path)
         )
+        self.Ui = SimpleNamespace(checkBox_local_nfo_inplace_reorganize=_CheckBox(inplace_enabled))
 
     def _get_single_selected_entry(self):
         return self.selected
@@ -43,3 +55,36 @@ def test_non_local_rescrape_keeps_filename_stem_fallback():
     harness = _Harness(_show_data(file_path, number="FZ88", local=False))
 
     assert harness._local_nfo_default_number(file_path, file_path.name) == "FZ88 御藤静"
+
+
+def test_inplace_marker_is_added_only_for_main_panel_local_nfo_entry(monkeypatch):
+    local_path = Path("local.mp4")
+    normal_path = Path("normal.mp4")
+    local = _Harness(_show_data(local_path, number="LOCAL-001"), inplace_enabled=True)
+    normal = _Harness(_show_data(normal_path, number="NORMAL-001", local=False), inplace_enabled=True)
+
+    monkeypatch.setattr(module, "signal_qt", SimpleNamespace(show_log_text=lambda _message: None))
+    original = Flags.again_inplace_paths
+    try:
+        Flags.again_inplace_paths = set()
+        local._mark_local_nfo_inplace_request(local_path)
+        normal._mark_local_nfo_inplace_request(normal_path)
+
+        assert Flags.again_inplace_paths == {local_path}
+    finally:
+        Flags.again_inplace_paths = original
+
+
+def test_inplace_marker_is_not_added_when_switch_is_off(monkeypatch):
+    file_path = Path("local.mp4")
+    harness = _Harness(_show_data(file_path, number="LOCAL-001"), inplace_enabled=False)
+
+    monkeypatch.setattr(module, "signal_qt", SimpleNamespace(show_log_text=lambda _message: None))
+    original = Flags.again_inplace_paths
+    try:
+        Flags.again_inplace_paths = set()
+        harness._mark_local_nfo_inplace_request(file_path)
+
+        assert Flags.again_inplace_paths == set()
+    finally:
+        Flags.again_inplace_paths = original
