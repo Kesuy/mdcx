@@ -175,7 +175,10 @@ def _classify_http_result(spec: NetworkCheckSpec, status_code: int, text: str) -
         if status_code == 429:
             return NetworkCheckStatus.WARNING, f"站点可访问，但 {site_name} 请求被限流（HTTP 429）"
         if status_code in {401, 403, 404} and spec.headers.get("cookie"):
-            return NetworkCheckStatus.WARNING, f"站点可访问，但 {site_name} Cookie 可能无效或当前访问受限（HTTP {status_code}）"
+            return (
+                NetworkCheckStatus.WARNING,
+                f"站点可访问，但 {site_name} Cookie 可能无效或当前访问受限（HTTP {status_code}）",
+            )
         return NetworkCheckStatus.WARNING, f"站点可访问，但暂时无法验证登录状态（HTTP {status_code}）"
 
     if spec.site == Website.JAVDB:
@@ -666,7 +669,10 @@ def _classify_fc2cmadb(status_code: int, text: str) -> tuple[NetworkCheckStatus,
     if status_code in {401, 404}:
         return NetworkCheckStatus.WARNING, "站点可访问，但 FC2CMADB Cookie 无效或已过期"
     if status_code == 403:
-        return NetworkCheckStatus.WARNING, "站点可访问，但 FC2CMADB 请求被拒绝；请检查 Cookie、节点或站点防护（HTTP 403）"
+        return (
+            NetworkCheckStatus.WARNING,
+            "站点可访问，但 FC2CMADB 请求被拒绝；请检查 Cookie、节点或站点防护（HTTP 403）",
+        )
     if status_code == 429:
         return NetworkCheckStatus.WARNING, "站点可访问，但 FC2CMADB 请求过于频繁（HTTP 429）"
     if _is_cloudflare_challenge(text):
