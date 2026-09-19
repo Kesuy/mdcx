@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from mdcx.controllers.main_window.main_page_mixin import MainPageMixin
 from mdcx.controllers.main_window.result_snapshot import load_result_snapshot, save_result_snapshot
 from mdcx.gen.field_enums import CrawlerResultFields
