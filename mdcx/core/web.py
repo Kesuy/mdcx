@@ -56,6 +56,7 @@ POSTER_COPY_POLICY_MAP = {
     FixedScrapingType.GUOCHAN: DownloadableFile.IGNORE_GUOCHAN,
     FixedScrapingType.OUMEI: DownloadableFile.IGNORE_OUMEI,
 }
+FC2_POSTER_SOURCE_NAMES = {"fc2", "fc2ppvdb", "fc2hub", "fc2club"}
 POSTER_DIRECT_DOWNLOAD_TYPES = {
     FixedScrapingType.WUMA,
     FixedScrapingType.FC2,
@@ -120,7 +121,38 @@ def _should_search_amazon(result: CrawlersResult) -> bool:
     return has_leak_mark(result.mosaic) or has_umr_mark(result.mosaic) or result.mosaic in AMAZON_SEARCH_SPECIAL_MOSAICS
 
 
+def _is_fc2_poster_result(result: CrawlersResult) -> bool:
+    """Keep FC2's poster policy isolated from the generic uncensored policy.
+
+    Older/read-mode metadata can occasionally carry an uncensored scraping type
+    even though the item is clearly FC2. Prefer stable FC2 identity signals so
+    IGNORE_WUMA can never silently replace the dedicated IGNORE_FC2 switch.
+    """
+
+    if result.scraping_type == FixedScrapingType.FC2:
+        return True
+    if "FC2" in str(result.number or "").upper():
+        return True
+
+    sources: set[str] = set()
+    if result.poster_from:
+        sources.add(str(result.poster_from).strip().casefold())
+    for source in result.field_sources.values():
+        if source:
+            sources.add(str(source).strip().casefold())
+    for provenance in result.provenance.values():
+        source = getattr(provenance, "source", "")
+        if source:
+            sources.add(str(source).strip().casefold())
+        for candidate in getattr(provenance, "priority_chain", ()) or ():
+            if candidate:
+                sources.add(str(candidate).strip().casefold())
+    return bool(sources & FC2_POSTER_SOURCE_NAMES)
+
+
 def _get_poster_copy_policy(result: CrawlersResult, download_files: list[DownloadableFile]) -> bool:
+    if _is_fc2_poster_result(result):
+        return DownloadableFile.IGNORE_FC2 in download_files
     ignore_file = POSTER_COPY_POLICY_MAP.get(result.scraping_type)
     return bool(ignore_file and ignore_file in download_files)
 
