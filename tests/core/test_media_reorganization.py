@@ -246,7 +246,9 @@ async def test_batch_move_keeps_two_movies_from_same_shared_actor_folder_isolate
     assert first_result.new_file_path.read_bytes() == b"first"
     assert second_result.new_file_path.read_bytes() == b"second"
     assert first_result.new_file_path.parent != second_result.new_file_path.parent
-    assert not shared_folder.exists()
+    assert first_result.new_file_path.parent.parent == shared_folder
+    assert second_result.new_file_path.parent.parent == shared_folder
+    assert shared_folder.is_dir()
 
 
 @pytest.mark.asyncio
