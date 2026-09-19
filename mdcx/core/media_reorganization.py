@@ -28,6 +28,7 @@ class MediaReorganizationResult:
     new_folder: Path
     moved: bool
     path_mapping: tuple[tuple[Path, Path], ...] = ()
+    all_path_mapping: tuple[tuple[Path, Path], ...] = ()
 
 
 def _same_path(left: Path, right: Path) -> bool:
@@ -285,7 +286,8 @@ def _update_runtime_paths(
     file_info.folder_path = actual_folder
     file_info.file_name = actual_file_path.stem
     file_info.file_ex = actual_file_path.suffix
-    file_info.file_show_name = actual_file_path.name
+    # file_show_name is the scrape/display identity (including the CD marker),
+    # not a filesystem basename. Keep it stable when only the path changes.
     file_info.file_show_path = actual_file_path
     file_info.sub_list = [str(path) for path in mapped_sub_list if path is not None]
 
@@ -317,9 +319,18 @@ def update_runtime_paths_after_reorganization(
     other: OtherInfo,
     old_file_path: Path,
     new_file_path: Path,
+    *,
+    all_path_mapping: tuple[tuple[Path, Path], ...] = (),
 ) -> None:
-    """将同一多 CD 组中其他结果项的内存路径同步到整理后位置。"""
+    """将同一多 CD 组中其他结果项的内存路径同步到整理后位置。
 
+    手动移动共享目录时只会搬当前影片组，不能用“整个目录已移动”的假设
+    推导图片/字幕路径；此时优先使用真实文件映射。
+    """
+
+    if all_path_mapping:
+        _update_runtime_paths_from_mapping(file_info, other, dict(all_path_mapping), new_file_path)
+        return
     _update_runtime_paths(
         file_info,
         other,
@@ -403,6 +414,7 @@ def _reorganize_scraped_media_sync(
         return MediaReorganizationResult(old_file_path, old_file_path, old_folder, old_folder, False)
 
     movie_group = _assert_single_movie_group(old_file_path, old_folder, file_info.cd_part)
+    original_tree_paths = [old_folder, *sorted(old_folder.rglob("*"), key=lambda path: str(path).casefold())]
     if source_within_output and folder_changes and _same_path(old_folder, success_folder):
         raise MediaReorganizationError("当前影片位于成功输出根目录，不能安全地整体迁移该目录")
     if folder_relocates:
@@ -497,7 +509,26 @@ def _reorganize_scraped_media_sync(
         )
         for path in movie_group
     )
-    return MediaReorganizationResult(old_file_path, new_file_path, old_folder, new_folder, True, path_mapping)
+    all_path_mapping_items: list[tuple[Path, Path]] = []
+    for path in original_tree_paths:
+        if _same_path(path, old_folder):
+            mapped_path = new_folder
+        else:
+            relative = path.relative_to(old_folder)
+            if len(relative.parts) == 1 and path.is_file():
+                relative = Path(_renamed_companion_name(relative.name, rename_old_stem, rename_new_stem))
+            mapped_path = new_folder / relative
+        if not _same_path(path, mapped_path):
+            all_path_mapping_items.append((path, mapped_path))
+    return MediaReorganizationResult(
+        old_file_path,
+        new_file_path,
+        old_folder,
+        new_folder,
+        True,
+        path_mapping,
+        tuple(all_path_mapping_items),
+    )
 
 
 def _movie_group_with_unrelated(
@@ -548,7 +579,7 @@ def _update_runtime_paths_from_mapping(
     file_info.folder_path = new_file_path.parent
     file_info.file_name = new_file_path.stem
     file_info.file_ex = new_file_path.suffix
-    file_info.file_show_name = new_file_path.name
+    # Preserve file_show_name/cd_part and other parsed multi-CD metadata.
     file_info.file_show_path = new_file_path
     file_info.sub_list = [str(mapping.get(Path(path), Path(path))) for path in file_info.sub_list]
     if other.fanart_path is not None:
@@ -671,6 +702,7 @@ def _move_shared_folder_movie_sync(
         new_folder,
         True,
         path_mapping,
+        tuple(completed),
     )
 
 
