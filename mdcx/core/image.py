@@ -64,8 +64,7 @@ def find_local_number_images(
             and folder_path / name not in excluded
         ),
         key=lambda path: tuple(
-            (1, int(part)) if part.isdigit() else (0, part)
-            for part in re.split(r"(\d+)", path.name.casefold())
+            (1, int(part)) if part.isdigit() else (0, part) for part in re.split(r"(\d+)", path.name.casefold())
         ),
     )
 
