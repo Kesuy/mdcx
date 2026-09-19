@@ -345,6 +345,15 @@ def test_format_result_line_does_not_duplicate_error():
     assert line.count("GET https://example.test 失败: HTTP 403") == 1
 
 
+def test_format_result_line_shows_url_for_scraper_sites():
+    from mdcx.core.network_check import NetworkCheckResult
+
+    spec = NetworkCheckSpec(name="javdb", group="刮削站点", url="https://javdb.example/v/ABC")
+    result = NetworkCheckResult(spec=spec, status=NetworkCheckStatus.OK, message="连接正常")
+    line = format_result_line(result)
+    assert "URL: https://javdb.example/v/ABC" in line
+
+
 @pytest.mark.anyio
 async def test_run_network_check_item_actively_uses_cf_bypass_on_challenge(monkeypatch: pytest.MonkeyPatch):
     class BypassConfig(FakeConfig):
