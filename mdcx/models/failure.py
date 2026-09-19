@@ -127,7 +127,7 @@ def classify_failure(
         )
     ):
         category = FailureCategory.SEARCH_NO_RESULT
-        retryable = True
+        retryable = False
     elif any(
         token in normalized
         for token in (
