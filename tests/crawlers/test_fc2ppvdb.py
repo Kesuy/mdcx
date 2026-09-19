@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 
@@ -5,6 +6,7 @@ import pytest
 
 from mdcx.config.enums import Language
 from mdcx.config.manager import manager
+from mdcx.crawlers import fc2ppvdb as fc2ppvdb_module
 from mdcx.crawlers.fc2ppvdb import (
     FC2CMADB_AUTH_PROBE_NUMBER,
     Fc2ppvdbCrawler,
@@ -389,6 +391,31 @@ async def test_fc2ppvdb_crawler_keeps_partial_metadata_and_warns_when_actor_requ
     assert res.data.actors == []
     assert client.requests == 2
     assert any("Cookie 可能已失效" in line and "已保留其他字段" in line for line in logs)
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_batches_are_serialized(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(fc2ppvdb_module, "FC2CMADB_BATCH_INTERVAL_SECONDS", 0.0)
+    active = 0
+    max_active = 0
+
+    async def fake_fetch_article_info(*_args, **_kwargs):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0)
+        active -= 1
+        return {"article": {"title": "ok"}, "deferred_props": set(), "inertia_version": ""}, ""
+
+    monkeypatch.setattr(fc2ppvdb_module, "fetch_article_info", fake_fetch_article_info)
+
+    crawler = Fc2ppvdbCrawler(client=object())
+    await asyncio.gather(
+        crawler._fetch_article_serialized(number="1", cookies={}, use_proxy=True),
+        crawler._fetch_article_serialized(number="2", cookies={}, use_proxy=True),
+    )
+
+    assert max_active == 1
 
 
 @pytest.mark.asyncio
