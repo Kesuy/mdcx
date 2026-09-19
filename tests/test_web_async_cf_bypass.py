@@ -52,6 +52,27 @@ def _patch_session_request(client: AsyncWebClient, request):
 
 
 @pytest.mark.asyncio
+async def test_request_logs_non_retryable_http_failure():
+    logs: list[str] = []
+    client = AsyncWebClient(timeout=1, cf_bypass_url="", log_fn=logs.append)
+    _patch_session_request(
+        client,
+        lambda method, url, **kwargs: _fake_response(
+            status_code=404,
+            headers={"Content-Type": "text/html"},
+            content=b"missing",
+            url=url,
+        ),
+    )
+
+    response, error = await client.request("GET", "https://example.com/missing", retry_count=3)
+
+    assert response is None
+    assert "HTTP 404" in error
+    assert "🔴 GET https://example.com/missing 失败: HTTP 404" in logs
+
+
+@pytest.mark.asyncio
 async def test_detect_cf_bypass_service_recognizes_and_caches_flaresolverr():
     client = AsyncWebClient(timeout=1, cf_bypass_url="http://127.0.0.1:8191")
     calls = 0
