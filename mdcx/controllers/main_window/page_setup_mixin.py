@@ -267,7 +267,7 @@ class PageSetupMixin:
         self.menu_website = QAction(QIcon(resources.input_website_icon), "  输入网址重新刮削\tCtrl+L", self)
         self.menu_del_file = QAction(QIcon(resources.del_file_icon), "  删除文件\tDelete", self)
         self.menu_del_folder = QAction(QIcon(resources.del_folder_icon), "  删除文件和文件夹\tShift+Delete", self)
-        self.menu_move_by_rule = QAction(QIcon(resources.open_folder_icon), "  按设置的目录结构移动", self)
+        self.menu_move_by_rule = QAction(QIcon(resources.open_folder_icon), "  选择目标目录并按规则移动", self)
         self.menu_make_symlink = QAction(QIcon(resources.open_folder_icon), "  在指定位置创建软链接", self)
         self.menu_make_symlink_in_dir = QAction(
             QIcon(resources.open_folder_icon), "  在指定位置创建软链接（按文件名建目录）", self
