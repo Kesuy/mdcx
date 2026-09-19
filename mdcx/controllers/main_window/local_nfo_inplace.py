@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import configparser
 import os
 from pathlib import Path
 
-from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QCheckBox, QInputDialog
 
 from ...config.extend import deal_url
@@ -13,21 +13,37 @@ from ...models.flags import Flags
 from ...signals import signal_qt
 from ...utils import get_current_time, split_path
 
-_PREFERENCE_KEY = "scrape/local_nfo_inplace_reorganize"
+_LEGACY_PREFERENCE_FILE = "ui_preferences.ini"
 
 
-def _preference_store() -> QSettings:
-    return QSettings(str(manager.data_folder / "ui_preferences.ini"), QSettings.Format.IniFormat)
+def _migrate_legacy_preference() -> None:
+    legacy_path = manager.data_folder / _LEGACY_PREFERENCE_FILE
+    if not legacy_path.is_file():
+        return
+
+    try:
+        parser = configparser.ConfigParser()
+        parser.read(legacy_path, encoding="utf-8")
+        if parser.has_option("scrape", "local_nfo_inplace_reorganize"):
+            manager.config.local_nfo_inplace_reorganize = parser.getboolean(
+                "scrape",
+                "local_nfo_inplace_reorganize",
+            )
+            manager.save()
+        legacy_path.unlink(missing_ok=True)
+    except (OSError, ValueError, configparser.Error):
+        # Keep startup usable if an old preference file is damaged or locked.
+        return
 
 
 def local_nfo_inplace_enabled() -> bool:
-    return bool(_preference_store().value(_PREFERENCE_KEY, False, type=bool))
+    _migrate_legacy_preference()
+    return bool(manager.config.local_nfo_inplace_reorganize)
 
 
 def _save_local_nfo_inplace_enabled(enabled: bool) -> None:
-    settings = _preference_store()
-    settings.setValue(_PREFERENCE_KEY, bool(enabled))
-    settings.sync()
+    manager.config.local_nfo_inplace_reorganize = bool(enabled)
+    manager.save()
 
 
 def setup_local_nfo_inplace_setting(window) -> QCheckBox:
