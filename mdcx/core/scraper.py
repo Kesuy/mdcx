@@ -270,9 +270,7 @@ class Scraper:
         if restored:
             self.session.state.failures[:0] = restored
             legacy_paths = {path for path, _message in Flags.failed_list}
-            Flags.failed_list[:0] = [
-                record.legacy_tuple() for record in restored if record.path not in legacy_paths
-            ]
+            Flags.failed_list[:0] = [record.legacy_tuple() for record in restored if record.path not in legacy_paths]
         self.preserved_failures.clear()
         Flags.failed_records = self.session.state.failures
         signal.view_failed_list_settext.emit(f"失败 {len(Flags.failed_records)}")
