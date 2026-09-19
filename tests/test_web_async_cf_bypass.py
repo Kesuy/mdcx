@@ -94,10 +94,7 @@ async def test_request_logs_redirect_instead_of_plain_success():
 
     assert response is not None
     assert error == ""
-    assert (
-        "🟡 GET https://fc2cmadb.com/articles/1817847 已重定向: https://fc2cmadb.com/login"
-        in logs
-    )
+    assert "🟡 GET https://fc2cmadb.com/articles/1817847 已重定向: https://fc2cmadb.com/login" in logs
     assert "✅ GET https://fc2cmadb.com/articles/1817847 成功" not in logs
 
 
