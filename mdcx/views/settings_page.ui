@@ -6956,7 +6956,7 @@
                                 </size>
                               </property>
                               <property name="text">
-                                <string>无码封面不裁剪，直接复制缩略图</string>
+                                <string>无码封面不裁剪（不含 FC2），直接复制缩略图</string>
                               </property>
                             </widget>
                           </item>
