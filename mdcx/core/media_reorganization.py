@@ -414,7 +414,10 @@ def _reorganize_scraped_media_sync(
         return MediaReorganizationResult(old_file_path, old_file_path, old_folder, old_folder, False)
 
     movie_group = _assert_single_movie_group(old_file_path, old_folder, file_info.cd_part)
-    original_tree_paths = [old_folder, *sorted(old_folder.rglob("*"), key=lambda path: str(path).casefold())]
+    original_tree_paths = [
+        (path, path.is_file())
+        for path in [old_folder, *sorted(old_folder.rglob("*"), key=lambda item: str(item).casefold())]
+    ]
     if source_within_output and folder_changes and _same_path(old_folder, success_folder):
         raise MediaReorganizationError("当前影片位于成功输出根目录，不能安全地整体迁移该目录")
     if folder_relocates:
@@ -510,12 +513,12 @@ def _reorganize_scraped_media_sync(
         for path in movie_group
     )
     all_path_mapping_items: list[tuple[Path, Path]] = []
-    for path in original_tree_paths:
+    for path, was_file in original_tree_paths:
         if _same_path(path, old_folder):
             mapped_path = new_folder
         else:
             relative = path.relative_to(old_folder)
-            if len(relative.parts) == 1 and path.is_file():
+            if len(relative.parts) == 1 and was_file:
                 relative = Path(_renamed_companion_name(relative.name, rename_old_stem, rename_new_stem))
             mapped_path = new_folder / relative
         if not _same_path(path, mapped_path):
