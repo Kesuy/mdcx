@@ -109,6 +109,36 @@ def test_failure_center_filters_by_category_and_retry_state():
     dialog.close()
 
 
+def test_failure_center_focus_path_reveals_matching_filtered_record():
+    first = FailureRecord(
+        Path("A.mp4"),
+        "crawl",
+        FailureCategory.NETWORK,
+        "timeout",
+        True,
+        context={"number": "ABC-001"},
+    )
+    second = FailureRecord(
+        Path("B.mp4"),
+        "crawl",
+        FailureCategory.AUTHENTICATION,
+        "cookie expired",
+        False,
+        context={"number": "ABC-002"},
+    )
+    dialog = FailureCenterDialog()
+    dialog.set_records([first, second])
+    dialog.search.setText("ABC-001")
+    assert dialog.tree.topLevelItemCount() == 1
+
+    assert dialog.focus_path(Path("B.mp4")) is True
+
+    assert dialog.search.text() == ""
+    assert dialog.tree.topLevelItemCount() == 2
+    assert dialog.tree.currentItem().text(0) == "B.mp4"
+    dialog.close()
+
+
 def test_failure_debug_detail_is_hidden_until_requested():
     record = FailureRecord(
         Path("A.mp4"),
