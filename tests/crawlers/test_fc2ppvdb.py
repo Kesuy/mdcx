@@ -345,6 +345,53 @@ async def test_fetch_article_info_keeps_inline_actresses_without_partial_request
 
 
 @pytest.mark.asyncio
+async def test_fc2ppvdb_crawler_keeps_partial_metadata_and_warns_when_actor_request_loses_auth(monkeypatch):
+    class PartialAuthClient:
+        def __init__(self):
+            self.requests = 0
+
+        async def request(self, method, url, **kwargs):
+            self.requests += 1
+            headers = kwargs.get("headers") or {}
+            if headers.get("X-Inertia-Partial-Data") == "actresses":
+                return None, f"GET {url} 失败: HTTP 404"
+
+            class Response:
+                status_code = 200
+                headers = {"content-type": "text/html; charset=utf-8"}
+                text = make_article_page()
+
+            return Response(), ""
+
+    logs = []
+    monkeypatch.setattr(manager.config, "fields_rule", "")
+    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=session-token")
+    monkeypatch.setattr("mdcx.crawlers.fc2ppvdb.signal.add_log", logs.append)
+
+    client = PartialAuthClient()
+    crawler = Fc2ppvdbCrawler(client=client)
+    res = await crawler.run(
+        CrawlerInput(
+            appoint_number="",
+            appoint_url="",
+            file_path=None,
+            mosaic="",
+            number="FC2-2701833",
+            short_number="FC2-2701833",
+            language=Language.UNDEFINED,
+            org_language=Language.UNDEFINED,
+        )
+    )
+
+    assert res.debug_info.error is None
+    assert res.data is not None
+    assert res.data.title == "FC2 Sample"
+    assert res.data.actors == []
+    assert client.requests == 2
+    assert any("Cookie 可能已失效" in line and "已保留其他字段" in line for line in logs)
+
+
+@pytest.mark.asyncio
 async def test_fc2ppvdb_crawler_reports_login_page(monkeypatch):
     monkeypatch.setattr(manager.config, "fields_rule", "")
     client = FakeFc2ppvdbHtmlClient()
