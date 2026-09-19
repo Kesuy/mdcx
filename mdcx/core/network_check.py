@@ -175,10 +175,7 @@ def _classify_http_result(spec: NetworkCheckSpec, status_code: int, text: str) -
         if status_code == 429:
             return NetworkCheckStatus.WARNING, f"站点可访问，但 {site_name} 请求被限流（HTTP 429）"
         if status_code in {401, 403, 404} and spec.headers.get("cookie"):
-            return (
-                NetworkCheckStatus.WARNING,
-                f"站点可访问，但 {site_name} Cookie 可能无效或当前访问受限（HTTP {status_code}）",
-            )
+            return NetworkCheckStatus.WARNING, f"站点可访问，但 {site_name} Cookie 可能无效或当前访问受限（HTTP {status_code}）"
         return NetworkCheckStatus.WARNING, f"站点可访问，但暂时无法验证登录状态（HTTP {status_code}）"
 
     if spec.site == Website.JAVDB:
