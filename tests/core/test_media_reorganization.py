@@ -338,6 +338,10 @@ async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_grou
 
     file_info = _build_file_info(old_cd1)
     file_info.cd_part = f"{cd_prefix}1"
+    file_info.file_show_name = f"H4610-ORI696{cd_prefix}1"
+    file_info.definition = "4K"
+    file_info.codec = "H265"
+    file_info.has_sub = True
 
     result = await reorganize_scraped_media(file_info, _build_data(), OtherInfo.empty(), output)
 
@@ -347,6 +351,13 @@ async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_grou
     expected_cd2 = expected_folder / f"{new_base}{cd_prefix}2.mp4"
     assert result.new_file_path == expected_cd1
     assert dict(result.path_mapping) == {old_cd1: expected_cd1, old_cd2: expected_cd2}
+    all_mapping = dict(result.all_path_mapping)
+    assert all_mapping[old_cd1] == expected_cd1
+    assert all_mapping[old_cd2] == expected_cd2
+    assert all_mapping[old_cd1.with_suffix(".nfo")] == expected_cd1.with_suffix(".nfo")
+    assert all_mapping[old_cd2.with_suffix(".nfo")] == expected_cd2.with_suffix(".nfo")
+    assert all_mapping[old_subtitle] == expected_folder / f"{new_base}{cd_prefix}2.zh.srt"
+    assert all_mapping[old_folder / "poster.jpg"] == expected_folder / "poster.jpg"
     assert sorted(path.name for path in expected_folder.iterdir()) == sorted(
         [
             f"{new_base}{cd_prefix}1.mp4",
@@ -358,6 +369,11 @@ async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_grou
         ]
     )
     assert file_info.file_path == expected_cd1
+    assert file_info.cd_part == f"{cd_prefix}1"
+    assert file_info.file_show_name == f"H4610-ORI696{cd_prefix}1"
+    assert file_info.definition == "4K"
+    assert file_info.codec == "H265"
+    assert file_info.has_sub is True
 
 
 @pytest.mark.asyncio
