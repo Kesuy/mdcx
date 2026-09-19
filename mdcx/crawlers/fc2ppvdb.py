@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import html
 import json
+import re
 import threading
 from http.cookies import SimpleCookie
 from typing import Any, override
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from ..config.manager import manager
 from ..config.models import Website
+from ..signals import signal
 from .base import BaseCrawler, Context, CralwerException, CrawlerData
 
 # This known article returns 404 anonymously and Articles/Show for an authenticated session.
@@ -223,6 +225,28 @@ def get_response_final_url(response) -> str:
     return str(headers.get("x-mdcx-final-url") or getattr(response, "url", "") or "")
 
 
+def _fc2cmadb_actor_request_warning(error: str) -> str:
+    match = re.search(r"\bHTTP\s+(\d{3})\b", str(error or ""), flags=re.IGNORECASE)
+    status_code = int(match.group(1)) if match else None
+    if status_code in {401, 404}:
+        return (
+            f"FC2CMADB 演员数据请求返回 HTTP {status_code}；详情页仍可访问，"
+            "Cookie 可能已失效或登录状态已刷新，已保留其他字段。"
+        )
+    if status_code == 403:
+        return "FC2CMADB 演员数据请求被拒绝（HTTP 403），可能是站点防护或 Cookie 状态异常，已保留其他字段。"
+    if status_code == 429:
+        return "FC2CMADB 演员数据请求过于频繁（HTTP 429），已保留其他字段；建议降低并发并暂停后重试。"
+    return ""
+
+
+def _keep_partial_article_with_warning(article_info: dict[str, Any], warning: str) -> dict[str, Any]:
+    warnings = article_info.setdefault("_mdcx_warnings", [])
+    if isinstance(warnings, list) and warning:
+        warnings.append(warning)
+    return article_info
+
+
 async def fetch_article_info(
     async_client,
     *,
@@ -278,20 +302,28 @@ async def fetch_article_info(
         fingerprint_id=FC2CMADB_FINGERPRINT_ID,
     )
     if deferred_response is None:
+        warning = _fc2cmadb_actor_request_warning(error)
+        if warning:
+            return _keep_partial_article_with_warning(article_info, warning), ""
         return None, f"演员数据请求失败: {error}"
     refresh_cookies_from_response(cookies, deferred_response)
     if deferred_response.status_code != 200:
+        warning = _fc2cmadb_actor_request_warning(f"HTTP {deferred_response.status_code}")
+        if warning:
+            return _keep_partial_article_with_warning(article_info, warning), ""
         return None, f"演员数据请求失败: HTTP {deferred_response.status_code}"
     final_url = get_response_final_url(deferred_response)
     if "/login" in final_url:
-        return None, f"演员数据请求跳转到登录页，fc2cmadb Cookie 未生效: {final_url}"
+        warning = "FC2CMADB 演员数据请求跳转到登录页；Cookie 已失效或登录状态已刷新，已保留其他字段。"
+        return _keep_partial_article_with_warning(article_info, warning), ""
 
     deferred_text = str(getattr(deferred_response, "text", "") or "")
     try:
         actresses = parse_deferred_actresses(deferred_text)
     except Exception as e:
         if "ログイン" in deferred_text or "login" in deferred_text.lower():
-            return None, f"演员数据返回登录页面，fc2cmadb Cookie 可能无效或已过期: {e}"
+            warning = "FC2CMADB 演员数据返回登录页面；Cookie 可能无效或已过期，已保留其他字段。"
+            return _keep_partial_article_with_warning(article_info, warning), ""
         return None, f"演员数据解析失败: {e}"
 
     article_info["article"]["actresses"] = actresses
@@ -332,6 +364,9 @@ class Fc2ppvdbCrawler(BaseCrawler):
         if html_info is None:
             raise CralwerException(error)
         persist_fc2cmadb_cookies(cookies)
+        for warning in html_info.get("_mdcx_warnings", []):
+            ctx.debug(warning)
+            signal.add_log(f"⚠️ {warning}")
 
         title = get_title(html_info)
         if not title:
