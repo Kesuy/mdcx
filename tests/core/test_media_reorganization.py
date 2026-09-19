@@ -201,6 +201,55 @@ async def test_move_finished_media_moves_only_selected_movie_from_shared_actor_f
 
 
 @pytest.mark.asyncio
+async def test_batch_move_keeps_two_movies_from_same_shared_actor_folder_isolated(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    shared_folder = output / "天宮まりる"
+    shared_folder.mkdir(parents=True)
+
+    first_movie = shared_folder / "H4610-ORI696 天宮まりる.wmv"
+    first_nfo = shared_folder / "H4610-ORI696 天宮まりる.nfo"
+    second_movie = shared_folder / "OTHER-001 天宮まりる.mp4"
+    second_nfo = shared_folder / "OTHER-001 天宮まりる.nfo"
+    first_movie.write_bytes(b"first")
+    first_nfo.write_text("first nfo", encoding="utf-8")
+    second_movie.write_bytes(b"second")
+    second_nfo.write_text("second nfo", encoding="utf-8")
+
+    first_info = _build_file_info(first_movie)
+    first_data = _build_data()
+    first_result = await move_finished_media_to_configured_folder(
+        first_info,
+        first_data,
+        OtherInfo.empty(),
+        output,
+        preserve_source_folder=True,
+    )
+
+    second_info = _build_file_info(second_movie)
+    second_info.number = "OTHER-001"
+    second_data = CrawlersResult.empty()
+    second_data.number = "OTHER-001"
+    second_data.title = "Second"
+    second_data.actor = "天宮まりる"
+    second_result = await move_finished_media_to_configured_folder(
+        second_info,
+        second_data,
+        OtherInfo.empty(),
+        output,
+        preserve_source_folder=True,
+    )
+
+    assert first_result.new_file_path.read_bytes() == b"first"
+    assert second_result.new_file_path.read_bytes() == b"second"
+    assert first_result.new_file_path.parent != second_result.new_file_path.parent
+    assert not shared_folder.exists()
+
+
+@pytest.mark.asyncio
 async def test_move_finished_media_forces_configured_success_tree_when_auto_move_is_disabled(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
