@@ -198,7 +198,13 @@ async def move_movie(other: OtherInfo, file_info: FileInfo, file_path: Path, fil
         return False
 
 
-def _get_folder_path(success_folder: Path, file_info: FileInfo, res: CrawlersResult) -> tuple[Path, str]:
+def _get_folder_path(
+    success_folder: Path,
+    file_info: FileInfo,
+    res: CrawlersResult,
+    *,
+    force_success_folder: bool = False,
+) -> tuple[Path, str]:
     folder_name: str = manager.config.folder_name.replace("\\", "/")  # 设置-命名-视频目录名
     folder_path = file_info.file_path.parent
 
@@ -224,7 +230,7 @@ def _get_folder_path(success_folder: Path, file_info: FileInfo, res: CrawlersRes
     # 正常模式 或 整理模式
     else:
         # 关闭软链接，并且成功后移动文件关时，使用原来文件夹
-        if manager.config.soft_link == 0 and not manager.config.success_file_move:
+        if manager.config.soft_link == 0 and not manager.config.success_file_move and not force_success_folder:
             return folder_path, folder_name
 
     # 当根据刮削模式得到的视频目录名为空时，使用成功输出目录
@@ -302,10 +308,20 @@ def _generate_file_name(cd_part, file_info: FileInfo, res: CrawlersResult) -> st
 
 
 def get_output_name(
-    file_info: FileInfo, json_data: CrawlersResult, success_folder: Path, file_ex: str
+    file_info: FileInfo,
+    json_data: CrawlersResult,
+    success_folder: Path,
+    file_ex: str,
+    *,
+    force_success_folder: bool = False,
 ) -> tuple[Path, Path, Path, Path, Path, Path, str, Path, Path, Path]:
     # =====================================================================================更新输出文件夹名
-    folder_new_path, folder_name = _get_folder_path(success_folder, file_info, json_data)
+    folder_new_path, folder_name = _get_folder_path(
+        success_folder,
+        file_info,
+        json_data,
+        force_success_folder=force_success_folder,
+    )
     # =====================================================================================更新实体文件命名规则
     naming_rule = _generate_file_name(file_info.cd_part, file_info, json_data)
     # =====================================================================================生成文件和nfo新路径

@@ -114,7 +114,9 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
 
     search_row = window._main_result_search_row
     sort_row = window._main_result_sort_row
+    actions_row = window._main_result_actions_row
     assert search_row.geometry().bottom() < sort_row.geometry().top()
+    assert sort_row.geometry().bottom() < actions_row.geometry().top()
     assert window.result_filter_edit.geometry().right() < window.Ui.pushButton_tree_clear.geometry().left()
     assert window.result_status_combo.geometry().right() < window.result_sort_combo.geometry().left()
     assert window.result_sort_combo.geometry().right() < window.result_sort_order_button.geometry().left()
@@ -123,6 +125,9 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
     assert window.result_sort_combo.width() >= 116
     assert window.result_sort_order_button.width() == 32
     assert window.Ui.pushButton_tree_clear.width() == 28
+    assert window.result_open_button.height() == 28
+    assert window.result_save_button.height() == 28
+    assert window.result_open_button.geometry().right() < window.result_save_button.geometry().left()
 
     for control in (
         window.result_filter_edit,
@@ -130,6 +135,8 @@ def test_main_page_uses_complete_three_pane_splitter_with_layout_managed_control
         window.result_sort_combo,
         window.result_sort_order_button,
         window.Ui.pushButton_tree_clear,
+        window.result_open_button,
+        window.result_save_button,
     ):
         top_left = control.mapTo(window._main_result_pane, QPoint(0, 0))
         assert top_left.x() >= 0
@@ -169,6 +176,7 @@ def test_result_toolbar_remains_usable_at_baseline_window_width():
     assert window._main_splitter.orientation() == Qt.Orientation.Horizontal
     assert window._main_result_pane.width() >= 252
     assert window._main_result_search_row.geometry().bottom() < window._main_result_sort_row.geometry().top()
+    assert window._main_result_sort_row.geometry().bottom() < window._main_result_actions_row.geometry().top()
     assert window.result_filter_edit.width() >= 100
     assert window.result_sort_combo.width() >= 116
     assert window.result_status_combo.width() >= window.result_status_combo.minimumSizeHint().width()

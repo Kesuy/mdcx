@@ -1661,7 +1661,11 @@ class AsyncWebClient:
                         if retry and attempt < retry_count - 1:
                             await self._record_retryable_response_failure(error_msg, pool_key=pool_key)
                     else:
-                        self._log(f"✅ {method} {url} 成功")
+                        final_url = str(getattr(resp, "url", "") or "").strip()
+                        if final_url and final_url.rstrip("/") != url.rstrip("/"):
+                            self._log(f"🟡 {method} {url} 已重定向: {final_url}")
+                        else:
+                            self._log(f"✅ {method} {url} 成功")
                         if host:
                             self._cf_host_challenge_hits[host] = 0
                         await self._record_transport_success(pool_key=pool_key)
@@ -1687,6 +1691,7 @@ class AsyncWebClient:
                     retry = True
                     await self._record_transport_failure(error_msg, pool_key=pool_key)
                 if not retry:
+                    self._log(f"🔴 {method} {url} 失败: {error_msg}")
                     if stream:
                         await self._close_response(resp)
                     break

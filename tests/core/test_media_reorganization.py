@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from mdcx.config.manager import manager
-from mdcx.core.media_reorganization import MediaReorganizationError, reorganize_scraped_media
+from mdcx.core.media_reorganization import (
+    MediaReorganizationError,
+    move_finished_media_to_configured_folder,
+    reorganize_scraped_media,
+)
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo
 
 
@@ -156,6 +160,162 @@ async def test_reorganize_scraped_media_refuses_folder_with_another_movie(
 
 
 @pytest.mark.asyncio
+async def test_move_finished_media_moves_only_selected_movie_from_shared_actor_folder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    shared_folder = output / "望月奈々"
+    shared_folder.mkdir(parents=True)
+
+    selected_movie = shared_folder / "H4610-ORI696 望月奈々.wmv"
+    selected_nfo = shared_folder / "H4610-ORI696 望月奈々.nfo"
+    unrelated_movie = shared_folder / "OTHER-001.mp4"
+    unrelated_nfo = shared_folder / "OTHER-001.nfo"
+    selected_movie.write_bytes(b"selected")
+    selected_nfo.write_text("selected nfo", encoding="utf-8")
+    unrelated_movie.write_bytes(b"other")
+    unrelated_nfo.write_text("other nfo", encoding="utf-8")
+
+    file_info = _build_file_info(selected_movie)
+    result = await move_finished_media_to_configured_folder(
+        file_info,
+        _build_data(),
+        OtherInfo.empty(),
+        output,
+    )
+
+    target_folder = output / "天宮まりる" / "H4610-ORI696 望月 奈々 天宮まりる"
+    target_movie = target_folder / "H4610-ORI696 天宮まりる.wmv"
+    target_nfo = target_folder / "H4610-ORI696 天宮まりる.nfo"
+
+    assert result.new_file_path == target_movie
+    assert target_movie.read_bytes() == b"selected"
+    assert target_nfo.read_text(encoding="utf-8") == "selected nfo"
+    assert unrelated_movie.read_bytes() == b"other"
+    assert unrelated_nfo.read_text(encoding="utf-8") == "other nfo"
+    assert shared_folder.is_dir()
+    assert file_info.file_path == target_movie
+    assert file_info.folder_path == target_folder
+
+
+@pytest.mark.asyncio
+async def test_move_finished_media_can_create_movie_subfolder_inside_existing_actor_folder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    actor_folder = output / "天宮まりる"
+    actor_folder.mkdir(parents=True)
+    movie = actor_folder / "H4610-ORI696 天宮まりる.wmv"
+    nfo = actor_folder / "H4610-ORI696 天宮まりる.nfo"
+    movie.write_bytes(b"movie")
+    nfo.write_text("nfo", encoding="utf-8")
+
+    file_info = _build_file_info(movie)
+    result = await move_finished_media_to_configured_folder(
+        file_info,
+        _build_data(),
+        OtherInfo.empty(),
+        output,
+    )
+
+    expected_folder = actor_folder / "H4610-ORI696 望月 奈々 天宮まりる"
+    expected_movie = expected_folder / "H4610-ORI696 天宮まりる.wmv"
+    assert result.new_file_path == expected_movie
+    assert expected_movie.read_bytes() == b"movie"
+    assert (expected_folder / "H4610-ORI696 天宮まりる.nfo").read_text(encoding="utf-8") == "nfo"
+    assert actor_folder.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_batch_move_keeps_two_movies_from_same_shared_actor_folder_isolated(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    shared_folder = output / "天宮まりる"
+    shared_folder.mkdir(parents=True)
+
+    first_movie = shared_folder / "H4610-ORI696 天宮まりる.wmv"
+    first_nfo = shared_folder / "H4610-ORI696 天宮まりる.nfo"
+    second_movie = shared_folder / "OTHER-001 天宮まりる.mp4"
+    second_nfo = shared_folder / "OTHER-001 天宮まりる.nfo"
+    first_movie.write_bytes(b"first")
+    first_nfo.write_text("first nfo", encoding="utf-8")
+    second_movie.write_bytes(b"second")
+    second_nfo.write_text("second nfo", encoding="utf-8")
+
+    first_info = _build_file_info(first_movie)
+    first_data = _build_data()
+    first_result = await move_finished_media_to_configured_folder(
+        first_info,
+        first_data,
+        OtherInfo.empty(),
+        output,
+        preserve_source_folder=True,
+    )
+
+    second_info = _build_file_info(second_movie)
+    second_info.number = "OTHER-001"
+    second_data = CrawlersResult.empty()
+    second_data.number = "OTHER-001"
+    second_data.title = "Second"
+    second_data.actor = "天宮まりる"
+    second_result = await move_finished_media_to_configured_folder(
+        second_info,
+        second_data,
+        OtherInfo.empty(),
+        output,
+        preserve_source_folder=True,
+    )
+
+    assert first_result.new_file_path.read_bytes() == b"first"
+    assert second_result.new_file_path.read_bytes() == b"second"
+    assert first_result.new_file_path.parent != second_result.new_file_path.parent
+    assert first_result.new_file_path.parent.parent == shared_folder
+    assert second_result.new_file_path.parent.parent == shared_folder
+    assert shared_folder.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_move_finished_media_forces_configured_success_tree_when_auto_move_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    monkeypatch.setattr(manager.config, "success_file_move", False)
+
+    output = tmp_path / "JAV_output"
+    output.mkdir()
+    source_folder = tmp_path / "incoming" / "single"
+    source_folder.mkdir(parents=True)
+    source_movie = source_folder / "H4610-ORI696 望月奈々.wmv"
+    source_nfo = source_folder / "H4610-ORI696 望月奈々.nfo"
+    source_movie.write_bytes(b"movie")
+    source_nfo.write_text("nfo", encoding="utf-8")
+
+    file_info = _build_file_info(source_movie)
+    result = await move_finished_media_to_configured_folder(
+        file_info,
+        _build_data(),
+        OtherInfo.empty(),
+        output,
+    )
+
+    target_folder = output / "天宮まりる" / "H4610-ORI696 望月 奈々 天宮まりる"
+    target_movie = target_folder / "H4610-ORI696 天宮まりる.wmv"
+    assert result.new_file_path == target_movie
+    assert target_movie.read_bytes() == b"movie"
+    assert (target_folder / "H4610-ORI696 天宮まりる.nfo").read_text(encoding="utf-8") == "nfo"
+    assert not source_folder.exists()
+    assert file_info.file_path == target_movie
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("cd_prefix", ["-cd", "-CD", "-"])
 async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_group(
     monkeypatch: pytest.MonkeyPatch,
@@ -178,6 +338,10 @@ async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_grou
 
     file_info = _build_file_info(old_cd1)
     file_info.cd_part = f"{cd_prefix}1"
+    file_info.file_show_name = f"H4610-ORI696{cd_prefix}1"
+    file_info.definition = "4K"
+    file_info.codec = "H265"
+    file_info.has_sub = True
 
     result = await reorganize_scraped_media(file_info, _build_data(), OtherInfo.empty(), output)
 
@@ -187,6 +351,13 @@ async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_grou
     expected_cd2 = expected_folder / f"{new_base}{cd_prefix}2.mp4"
     assert result.new_file_path == expected_cd1
     assert dict(result.path_mapping) == {old_cd1: expected_cd1, old_cd2: expected_cd2}
+    all_mapping = dict(result.all_path_mapping)
+    assert all_mapping[old_cd1] == expected_cd1
+    assert all_mapping[old_cd2] == expected_cd2
+    assert all_mapping[old_cd1.with_suffix(".nfo")] == expected_cd1.with_suffix(".nfo")
+    assert all_mapping[old_cd2.with_suffix(".nfo")] == expected_cd2.with_suffix(".nfo")
+    assert all_mapping[old_subtitle] == expected_folder / f"{new_base}{cd_prefix}2.zh.srt"
+    assert all_mapping[old_folder / "poster.jpg"] == expected_folder / "poster.jpg"
     assert sorted(path.name for path in expected_folder.iterdir()) == sorted(
         [
             f"{new_base}{cd_prefix}1.mp4",
@@ -198,6 +369,11 @@ async def test_reorganize_scraped_media_moves_and_renames_complete_multi_cd_grou
         ]
     )
     assert file_info.file_path == expected_cd1
+    assert file_info.cd_part == f"{cd_prefix}1"
+    assert file_info.file_show_name == f"H4610-ORI696{cd_prefix}1"
+    assert file_info.definition == "4K"
+    assert file_info.codec == "H265"
+    assert file_info.has_sub is True
 
 
 @pytest.mark.asyncio

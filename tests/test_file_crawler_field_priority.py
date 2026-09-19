@@ -1,6 +1,6 @@
 import pytest
 
-from mdcx.config.enums import DownloadableFile, Website
+from mdcx.config.enums import DownloadableFile, FixedScrapingType, Website
 from mdcx.config.models import Config
 from mdcx.core.file_crawler import FileScraper, classify_scrape_task
 from mdcx.gen.field_enums import CrawlerResultFields
@@ -156,6 +156,69 @@ async def test_call_crawlers_collects_all_image_candidates_when_enabled(monkeypa
         (Website.AVBASE.value, "https://example.test/avbase-thumb.jpg"),
         (Website.JAVDB.value, "https://example.test/javdb-thumb.jpg"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_local_number_image_disables_try_all_web_image_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        ManualConfig,
+        "REDUCED_FIELDS",
+        (CrawlerResultFields.TITLE, CrawlerResultFields.POSTER, CrawlerResultFields.THUMB),
+    )
+    media = tmp_path / "SCUTE-1354.mp4"
+    media.write_bytes(b"movie")
+    (tmp_path / "SCUTE-1354 local.jpg").write_bytes(b"local-image")
+
+    records: list[Website] = []
+    provider = ResultRecordingCrawlerProvider(
+        {
+            Website.AVBASE: ResultRecordingCrawler(
+                Website.AVBASE,
+                records,
+                build_image_result(
+                    Website.AVBASE,
+                    poster="https://example.test/avbase-poster.jpg",
+                    thumb="https://example.test/avbase-thumb.jpg",
+                ),
+            ),
+            Website.JAVDB: ResultRecordingCrawler(
+                Website.JAVDB,
+                records,
+                build_image_result(
+                    Website.JAVDB,
+                    poster="https://example.test/javdb-poster.jpg",
+                    thumb="https://example.test/javdb-thumb.jpg",
+                ),
+            ),
+        }
+    )
+    config = Config(
+        scrape_like="info",
+        field_priority_try_all_images=True,
+        use_local_number_images=True,
+        soft_link=0,
+        website_youma=[Website.AVBASE, Website.JAVDB],
+    )
+    for field in (CrawlerResultFields.TITLE, CrawlerResultFields.POSTER, CrawlerResultFields.THUMB):
+        config.set_field_sites(field, [Website.AVBASE, Website.JAVDB])
+        config.set_type_field_sites(FixedScrapingType.YOUMA, field, [Website.AVBASE, Website.JAVDB])
+
+    scraper = FileScraper(config, provider)
+    task_input = CrawlTask.empty()
+    task_input.number = "SCUTE-1354"
+    task_input.file_path = media
+
+    result = await scraper.run(task_input, FileMode.Default)
+
+    assert result is not None
+    assert result.title == "avbase title"
+    assert result.poster == ""
+    assert result.thumb == ""
+    assert records == [Website.AVBASE]
+    assert "已命中同番号本地图片" in result.field_log
 
 
 @pytest.mark.asyncio

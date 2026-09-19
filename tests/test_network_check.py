@@ -252,6 +252,51 @@ async def test_fc2cmadb_network_check_validates_configured_cookie(monkeypatch: p
 
 
 @pytest.mark.anyio
+async def test_fc2cmadb_http_404_is_reported_as_cookie_failure_not_network_outage():
+    class HttpErrorClient:
+        async def request(self, method, url, **kwargs):
+            return None, f"GET {url} 失败: HTTP 404"
+
+    spec = NetworkCheckSpec(
+        name="fc2cmadb",
+        group="刮削站点",
+        url="https://fc2cmadb.com/articles/1817847",
+        site=Website.FC2PPVDB,
+        validator="fc2cmadb",
+    )
+    result = await run_network_check_item(spec, client=HttpErrorClient())
+    assert result.status == NetworkCheckStatus.WARNING
+    assert result.status_code == 404
+    assert result.message == "站点可访问，但 FC2CMADB Cookie 无效或已过期"
+    assert result.error == ""
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("site", "name", "status_code"),
+    [(Website.JAVDB, "javdb", 403), (Website.JAVBUS, "javbus", 404)],
+)
+async def test_cookie_site_http_errors_are_not_reported_as_network_outage(site, name, status_code):
+    class HttpErrorClient:
+        async def request(self, method, url, **kwargs):
+            return None, f"GET {url} 失败: HTTP {status_code}"
+
+    spec = NetworkCheckSpec(
+        name=name,
+        group="刮削站点",
+        url=f"https://{name}.example/detail",
+        site=site,
+        headers={"cookie": "configured"},
+    )
+    result = await run_network_check_item(spec, client=HttpErrorClient())
+    assert result.status == NetworkCheckStatus.WARNING
+    assert result.status_code == status_code
+    assert "站点可访问" in result.message
+    assert "Cookie" in result.message
+    assert result.error == ""
+
+
+@pytest.mark.anyio
 async def test_fc2cmadb_network_check_validates_page_after_cf_bypass(monkeypatch: pytest.MonkeyPatch):
     class BypassConfig(FakeConfig):
         fc2ppvdb = "fc2cmadb-session=session-token"
@@ -298,6 +343,15 @@ def test_format_result_line_does_not_duplicate_error():
     line = format_result_line(result)
 
     assert line.count("GET https://example.test 失败: HTTP 403") == 1
+
+
+def test_format_result_line_shows_url_for_scraper_sites():
+    from mdcx.core.network_check import NetworkCheckResult
+
+    spec = NetworkCheckSpec(name="javdb", group="刮削站点", url="https://javdb.example/v/ABC")
+    result = NetworkCheckResult(spec=spec, status=NetworkCheckStatus.OK, message="连接正常")
+    line = format_result_line(result)
+    assert "URL: https://javdb.example/v/ABC" in line
 
 
 @pytest.mark.anyio

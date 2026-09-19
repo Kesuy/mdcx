@@ -1,3 +1,4 @@
+import asyncio
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -14,6 +15,7 @@ from ..models.log_buffer import LogBuffer
 from ..models.types import CrawlerInput, CrawlerResponse, CrawlerResult, CrawlersResult, CrawlTask
 from ..number import is_uncensored
 from ..utils.dataclass import update
+from .image import find_local_number_images
 from .mosaic import is_guochan_mosaic, is_plain_uncensored_mosaic, normalize_mosaic
 
 if TYPE_CHECKING:
@@ -317,11 +319,26 @@ class FileScraper:
         failed: set[tuple[Website, Language]] = set()  # 记录失败的网站
         reduced = CrawlersResult.empty()
         req_info: list[str] = []  # 请求信息列表
+        image_fields = {CrawlerResultFields.THUMB, CrawlerResultFields.POSTER}
+        prefer_local_images = False
+        if (
+            getattr(self.config, "use_local_number_images", False)
+            and getattr(self.config, "soft_link", 0) == 0
+            and task_input.file_path is not None
+            and not task_input.appoint_url
+        ):
+            local_images = await asyncio.to_thread(
+                find_local_number_images,
+                task_input.number,
+                task_input.file_path.parent,
+            )
+            prefer_local_images = bool(local_images)
+
         try_all_images = bool(
             getattr(self.config, "scrape_like", "") == "info"
             and getattr(self.config, "field_priority_try_all_images", False)
+            and not prefer_local_images
         )
-        image_fields = {CrawlerResultFields.THUMB, CrawlerResultFields.POSTER}
 
         # 按字段分别处理，每个字段按优先级尝试获取
         for field in ManualConfig.REDUCED_FIELDS:
@@ -338,6 +355,10 @@ class FileScraper:
                 f"\n\n    📌 {field} \n    ====================================\n"
                 f"    🌐 优先级设置: {' -> '.join(s.value for s in f_sites)}"
             )
+
+            if prefer_local_images and field in image_fields:
+                reduced.field_log += "\n    🖼 已命中同番号本地图片，跳过网站图片候选请求"
+                continue
 
             # 按优先级依次尝试获取字段值
             for site in f_sites:

@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 
@@ -5,6 +6,7 @@ import pytest
 
 from mdcx.config.enums import Language
 from mdcx.config.manager import manager
+from mdcx.crawlers import fc2ppvdb as fc2ppvdb_module
 from mdcx.crawlers.fc2ppvdb import (
     FC2CMADB_AUTH_PROBE_NUMBER,
     Fc2ppvdbCrawler,
@@ -342,6 +344,113 @@ async def test_fetch_article_info_keeps_inline_actresses_without_partial_request
     assert data is not None
     assert data["article"]["actresses"] == [{"name": "内联演员"}]
     assert len(client.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_fc2ppvdb_crawler_keeps_partial_metadata_and_warns_when_actor_request_loses_auth(monkeypatch):
+    class PartialAuthClient:
+        def __init__(self):
+            self.requests = 0
+
+        async def request(self, method, url, **kwargs):
+            self.requests += 1
+            headers = kwargs.get("headers") or {}
+            if headers.get("X-Inertia-Partial-Data") == "actresses":
+                return None, f"GET {url} 失败: HTTP 404"
+
+            class Response:
+                status_code = 200
+                headers = {"content-type": "text/html; charset=utf-8"}
+                text = make_article_page()
+
+            return Response(), ""
+
+    logs = []
+    monkeypatch.setattr(manager.config, "fields_rule", "")
+    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=session-token")
+    monkeypatch.setattr("mdcx.crawlers.fc2ppvdb.signal.add_log", logs.append)
+
+    client = PartialAuthClient()
+    crawler = Fc2ppvdbCrawler(client=client)
+    res = await crawler.run(
+        CrawlerInput(
+            appoint_number="",
+            appoint_url="",
+            file_path=None,
+            mosaic="",
+            number="FC2-2701833",
+            short_number="FC2-2701833",
+            language=Language.UNDEFINED,
+            org_language=Language.UNDEFINED,
+        )
+    )
+
+    assert res.debug_info.error is None
+    assert res.data is not None
+    assert res.data.title == "FC2 Sample"
+    assert res.data.actors == []
+    assert client.requests == 2
+    assert any("Cookie 可能已失效" in line and "已保留其他字段" in line for line in logs)
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_batches_are_serialized(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(fc2ppvdb_module, "FC2CMADB_BATCH_INTERVAL_SECONDS", 0.0)
+    active = 0
+    max_active = 0
+
+    async def fake_fetch_article_info(*_args, **_kwargs):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0)
+        active -= 1
+        return {"article": {"title": "ok"}, "deferred_props": set(), "inertia_version": ""}, ""
+
+    monkeypatch.setattr(fc2ppvdb_module, "fetch_article_info", fake_fetch_article_info)
+
+    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=session-token")
+    monkeypatch.setattr(fc2ppvdb_module, "persist_fc2cmadb_cookies", lambda _cookies: False)
+
+    crawler = Fc2ppvdbCrawler(client=object())
+    await asyncio.gather(
+        crawler._fetch_article_serialized(number="1", use_proxy=True),
+        crawler._fetch_article_serialized(number="2", use_proxy=True),
+    )
+
+    assert max_active == 1
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_serialized_batch_reads_refreshed_cookie_after_previous_request(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(fc2ppvdb_module, "FC2CMADB_BATCH_INTERVAL_SECONDS", 0.0)
+    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=old-session")
+    seen_sessions: list[str] = []
+
+    async def fake_fetch_article_info(*_args, **kwargs):
+        cookies = kwargs["cookies"]
+        seen_sessions.append(cookies["fc2cmadb-session"])
+        if len(seen_sessions) == 1:
+            cookies["fc2cmadb-session"] = "refreshed-session"
+        await asyncio.sleep(0)
+        return {"article": {"title": "ok"}, "deferred_props": set(), "inertia_version": ""}, ""
+
+    def fake_persist(cookies):
+        manager.config.fc2ppvdb = fc2ppvdb_module.cookie_dict_to_str(cookies)
+        return True
+
+    monkeypatch.setattr(fc2ppvdb_module, "fetch_article_info", fake_fetch_article_info)
+    monkeypatch.setattr(fc2ppvdb_module, "persist_fc2cmadb_cookies", fake_persist)
+
+    crawler = Fc2ppvdbCrawler(client=object())
+    await asyncio.gather(
+        crawler._fetch_article_serialized(number="1", use_proxy=True),
+        crawler._fetch_article_serialized(number="2", use_proxy=True),
+    )
+
+    assert seen_sessions == ["old-session", "refreshed-session"]
 
 
 @pytest.mark.asyncio

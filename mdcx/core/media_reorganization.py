@@ -28,6 +28,7 @@ class MediaReorganizationResult:
     new_folder: Path
     moved: bool
     path_mapping: tuple[tuple[Path, Path], ...] = ()
+    all_path_mapping: tuple[tuple[Path, Path], ...] = ()
 
 
 def _same_path(left: Path, right: Path) -> bool:
@@ -285,7 +286,8 @@ def _update_runtime_paths(
     file_info.folder_path = actual_folder
     file_info.file_name = actual_file_path.stem
     file_info.file_ex = actual_file_path.suffix
-    file_info.file_show_name = actual_file_path.name
+    # file_show_name is the scrape/display identity (including the CD marker),
+    # not a filesystem basename. Keep it stable when only the path changes.
     file_info.file_show_path = actual_file_path
     file_info.sub_list = [str(path) for path in mapped_sub_list if path is not None]
 
@@ -317,9 +319,18 @@ def update_runtime_paths_after_reorganization(
     other: OtherInfo,
     old_file_path: Path,
     new_file_path: Path,
+    *,
+    all_path_mapping: tuple[tuple[Path, Path], ...] = (),
 ) -> None:
-    """将同一多 CD 组中其他结果项的内存路径同步到整理后位置。"""
+    """将同一多 CD 组中其他结果项的内存路径同步到整理后位置。
 
+    手动移动共享目录时只会搬当前影片组，不能用“整个目录已移动”的假设
+    推导图片/字幕路径；此时优先使用真实文件映射。
+    """
+
+    if all_path_mapping:
+        _update_runtime_paths_from_mapping(file_info, other, dict(all_path_mapping), new_file_path)
+        return
     _update_runtime_paths(
         file_info,
         other,
@@ -333,6 +344,9 @@ def _reorganize_scraped_media_sync(
     data: CrawlersResult,
     other: OtherInfo,
     success_folder: Path,
+    *,
+    force_move: bool = False,
+    force_target_folder: bool = False,
 ) -> MediaReorganizationResult:
     old_file_path = file_info.file_path
     old_folder = old_file_path.parent
@@ -350,10 +364,18 @@ def _reorganize_scraped_media_sync(
         _poster_final_path,
         _thumb_final_path,
         _fanart_final_path,
-    ) = get_output_name(file_info, data, success_folder, old_file_path.suffix)
+    ) = get_output_name(
+        file_info,
+        data,
+        success_folder,
+        old_file_path.suffix,
+        force_success_folder=force_target_folder,
+    )
 
     source_within_output = _source_within_output(old_folder, success_folder)
-    if not manager.config.success_file_move:
+    if force_target_folder:
+        new_folder = generated_folder
+    elif not (manager.config.success_file_move or force_move):
         new_folder = old_folder
     elif source_within_output:
         new_folder = generated_folder
@@ -392,6 +414,10 @@ def _reorganize_scraped_media_sync(
         return MediaReorganizationResult(old_file_path, old_file_path, old_folder, old_folder, False)
 
     movie_group = _assert_single_movie_group(old_file_path, old_folder, file_info.cd_part)
+    original_tree_paths = [
+        (path, path.is_file())
+        for path in [old_folder, *sorted(old_folder.rglob("*"), key=lambda item: str(item).casefold())]
+    ]
     if source_within_output and folder_changes and _same_path(old_folder, success_folder):
         raise MediaReorganizationError("当前影片位于成功输出根目录，不能安全地整体迁移该目录")
     if folder_relocates:
@@ -486,7 +512,226 @@ def _reorganize_scraped_media_sync(
         )
         for path in movie_group
     )
-    return MediaReorganizationResult(old_file_path, new_file_path, old_folder, new_folder, True, path_mapping)
+    all_path_mapping_items: list[tuple[Path, Path]] = []
+    for path, was_file in original_tree_paths:
+        if _same_path(path, old_folder):
+            mapped_path = new_folder
+        else:
+            relative = path.relative_to(old_folder)
+            if len(relative.parts) == 1 and was_file:
+                relative = Path(_renamed_companion_name(relative.name, rename_old_stem, rename_new_stem))
+            mapped_path = new_folder / relative
+        if not _same_path(path, mapped_path):
+            all_path_mapping_items.append((path, mapped_path))
+    return MediaReorganizationResult(
+        old_file_path,
+        new_file_path,
+        old_folder,
+        new_folder,
+        True,
+        path_mapping,
+        tuple(all_path_mapping_items),
+    )
+
+
+def _movie_group_with_unrelated(
+    old_file_path: Path,
+    old_folder: Path,
+    cd_part: str,
+) -> tuple[list[Path], list[Path]]:
+    media_extensions = _media_extensions()
+    movies = [
+        path
+        for path in old_folder.iterdir()
+        if path.is_file() and path.suffix.lower() in media_extensions and not path.stem.lower().endswith("-trailer")
+    ]
+    base_stem, current_suffix = _split_cd_stem(old_file_path.stem, cd_part)
+    if not current_suffix:
+        grouped = [old_file_path]
+    else:
+        grouped = [path for path in movies if _matching_cd_suffix(path.stem, base_stem, cd_part) is not None]
+    unrelated = [path for path in movies if not any(_same_path(path, grouped_path) for grouped_path in grouped)]
+    return sorted(grouped, key=lambda path: path.name.lower()), unrelated
+
+
+def _belongs_to_movie_bundle(path: Path, movie_group: list[Path], number: str, cd_part: str) -> bool:
+    if any(_same_path(path, movie_path) for movie_path in movie_group):
+        return True
+    name = path.name.casefold()
+    number_key = str(number or "").strip().casefold()
+    if number_key and number_key in name:
+        return True
+    for movie_path in movie_group:
+        base_stem, _suffix = _split_cd_stem(movie_path.stem, cd_part)
+        for stem in (movie_path.stem, base_stem):
+            stem_key = stem.casefold()
+            if name == stem_key or name.startswith(stem_key + ".") or name.startswith(stem_key + "-"):
+                return True
+            if name.startswith(stem_key + "_") or name.startswith(stem_key + " "):
+                return True
+    return False
+
+
+def _update_runtime_paths_from_mapping(
+    file_info: FileInfo,
+    other: OtherInfo,
+    mapping: dict[Path, Path],
+    new_file_path: Path,
+) -> None:
+    file_info.file_path = new_file_path
+    file_info.folder_path = new_file_path.parent
+    file_info.file_name = new_file_path.stem
+    file_info.file_ex = new_file_path.suffix
+    # Preserve file_show_name/cd_part and other parsed multi-CD metadata.
+    file_info.file_show_path = new_file_path
+    file_info.sub_list = [str(mapping.get(Path(path), Path(path))) for path in file_info.sub_list]
+    if other.fanart_path is not None:
+        other.fanart_path = mapping.get(other.fanart_path, other.fanart_path)
+    if other.poster_path is not None:
+        other.poster_path = mapping.get(other.poster_path, other.poster_path)
+    if other.thumb_path is not None:
+        other.thumb_path = mapping.get(other.thumb_path, other.thumb_path)
+
+
+def _move_shared_folder_movie_sync(
+    file_info: FileInfo,
+    data: CrawlersResult,
+    other: OtherInfo,
+    success_folder: Path,
+    *,
+    preserve_source_folder: bool = False,
+) -> MediaReorganizationResult:
+    old_file_path = file_info.file_path
+    old_folder = old_file_path.parent
+    if not old_file_path.is_file():
+        raise MediaReorganizationError(f"影片文件不存在：{old_file_path}")
+
+    movie_group, unrelated = _movie_group_with_unrelated(old_file_path, old_folder, file_info.cd_part)
+    (
+        generated_folder,
+        generated_file_path,
+        _nfo_path,
+        _poster_with_filename,
+        _thumb_with_filename,
+        _fanart_with_filename,
+        _naming_rule,
+        _poster_final_path,
+        _thumb_final_path,
+        _fanart_final_path,
+    ) = get_output_name(
+        file_info,
+        data,
+        success_folder,
+        old_file_path.suffix,
+        force_success_folder=True,
+    )
+    new_folder = generated_folder
+
+    target_inside_source = False
+    if not _same_path(new_folder, old_folder):
+        try:
+            new_folder.resolve(strict=False).relative_to(old_folder.resolve(strict=False))
+            target_inside_source = True
+        except ValueError:
+            pass
+
+    if not unrelated and not preserve_source_folder and not target_inside_source:
+        return _reorganize_scraped_media_sync(
+            file_info,
+            data,
+            other,
+            success_folder,
+            force_move=True,
+            force_target_folder=True,
+        )
+    _assert_target_within_output(new_folder, success_folder)
+    if _same_path(old_folder, new_folder):
+        return MediaReorganizationResult(old_file_path, old_file_path, old_folder, old_folder, False)
+
+    if os.path.lexists(new_folder):
+        raise MediaReorganizationError(f"目标目录已存在，为避免与其它影片混合已停止移动：{new_folder}")
+    _assert_same_filesystem(old_folder, new_folder)
+
+    old_stem = old_file_path.stem
+    new_stem = generated_file_path.stem if manager.config.success_file_rename else old_stem
+    old_base_stem, old_cd_suffix = _split_cd_stem(old_stem, file_info.cd_part)
+    new_base_stem, new_cd_suffix = _split_cd_stem(new_stem, file_info.cd_part)
+    rename_old_stem = old_base_stem if old_cd_suffix and new_cd_suffix else old_stem
+    rename_new_stem = new_base_stem if old_cd_suffix and new_cd_suffix else new_stem
+
+    bundle_files = [
+        path
+        for path in old_folder.iterdir()
+        if path.is_file()
+        and _belongs_to_movie_bundle(path, movie_group, data.number or file_info.number, file_info.cd_part)
+    ]
+    if not bundle_files:
+        raise MediaReorganizationError(f"未找到可移动的影片文件：{old_file_path}")
+
+    new_folder.parent.mkdir(parents=True, exist_ok=True)
+    new_folder.mkdir()
+    completed: list[tuple[Path, Path]] = []
+    try:
+        for source in sorted(bundle_files, key=lambda path: (not _same_path(path, old_file_path), path.name.lower())):
+            target_name = _renamed_companion_name(source.name, rename_old_stem, rename_new_stem)
+            target = new_folder / target_name
+            _rename_case_safe(source, target)
+            completed.append((source, target))
+    except Exception as exc:
+        rollback_errors: list[str] = []
+        for source, target in reversed(completed):
+            _try_rollback_rename(source, target, rollback_errors, f"恢复文件 {source}")
+        try:
+            new_folder.rmdir()
+        except OSError:
+            pass
+        detail = f"；回滚不完整：{'；'.join(rollback_errors)}" if rollback_errors else ""
+        raise MediaReorganizationError(f"移动失败，已尝试回滚：{exc}{detail}") from exc
+
+    mapping = dict(completed)
+    new_file_path = mapping.get(old_file_path)
+    if new_file_path is None:
+        raise MediaReorganizationError(f"移动后未找到主影片路径：{old_file_path}")
+    _update_runtime_paths_from_mapping(file_info, other, mapping, new_file_path)
+
+    if _source_within_output(old_folder, success_folder):
+        _remove_empty_parents(old_folder, success_folder)
+
+    path_mapping = tuple((movie_path, mapping[movie_path]) for movie_path in movie_group if movie_path in mapping)
+    return MediaReorganizationResult(
+        old_file_path,
+        new_file_path,
+        old_folder,
+        new_folder,
+        True,
+        path_mapping,
+        tuple(completed),
+    )
+
+
+async def move_finished_media_to_configured_folder(
+    file_info: FileInfo,
+    data: CrawlersResult,
+    other: OtherInfo,
+    success_folder: Path,
+    *,
+    preserve_source_folder: bool = False,
+) -> MediaReorganizationResult:
+    """按当前目录/命名设置移动一个完成项；共享演员目录时只移动当前影片文件组。"""
+
+    try:
+        return await asyncio.to_thread(
+            _move_shared_folder_movie_sync,
+            file_info,
+            data,
+            other,
+            success_folder,
+            preserve_source_folder=preserve_source_folder,
+        )
+    except MediaReorganizationError:
+        raise
+    except Exception as exc:
+        raise MediaReorganizationError(f"移动失败：{exc}") from exc
 
 
 async def reorganize_scraped_media(

@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-ResultSortMode = Literal["完成顺序", "番号", "演员"]
+ResultSortMode = Literal["完成顺序", "番号", "演员", "来源"]
 
 
 @dataclass(frozen=True)
@@ -11,6 +11,7 @@ class ResultSortEntry:
     number: str
     actor: str
     insertion_index: int
+    source: str = ""
 
 
 def _natural_key(value: str) -> tuple[tuple[int, object], ...]:
@@ -34,6 +35,12 @@ def sort_result_entries(
         return sorted(
             entries,
             key=lambda entry: (_natural_key(entry.actor), _natural_key(entry.number), entry.insertion_index),
+            reverse=descending,
+        )
+    if mode == "来源":
+        return sorted(
+            entries,
+            key=lambda entry: (_natural_key(entry.source), _natural_key(entry.number), entry.insertion_index),
             reverse=descending,
         )
     return sorted(entries, key=lambda entry: entry.insertion_index, reverse=descending)

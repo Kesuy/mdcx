@@ -43,6 +43,39 @@ class _Harness(LocalNfoInplaceMixin):
         return self.selected
 
 
+def test_inplace_preference_is_saved_in_main_config_without_sidecar_ini(monkeypatch, tmp_path):
+    saves = []
+    fake_manager = SimpleNamespace(
+        data_folder=tmp_path,
+        config=SimpleNamespace(local_nfo_inplace_reorganize=False),
+        save=lambda: saves.append(True),
+    )
+    monkeypatch.setattr(module, "manager", fake_manager)
+
+    module._save_local_nfo_inplace_enabled(True)
+
+    assert fake_manager.config.local_nfo_inplace_reorganize is True
+    assert saves == [True]
+    assert not (tmp_path / "ui_preferences.ini").exists()
+
+
+def test_legacy_ui_preferences_ini_is_migrated_then_removed(monkeypatch, tmp_path):
+    legacy = tmp_path / "ui_preferences.ini"
+    legacy.write_text("[scrape]\nlocal_nfo_inplace_reorganize=true\n", encoding="utf-8")
+    saves = []
+    fake_manager = SimpleNamespace(
+        data_folder=tmp_path,
+        config=SimpleNamespace(local_nfo_inplace_reorganize=False),
+        save=lambda: saves.append(True),
+    )
+    monkeypatch.setattr(module, "manager", fake_manager)
+
+    assert module.local_nfo_inplace_enabled() is True
+    assert fake_manager.config.local_nfo_inplace_reorganize is True
+    assert saves == [True]
+    assert not legacy.exists()
+
+
 def test_local_nfo_rescrape_prefills_canonical_nfo_number_not_filename_stem():
     file_path = Path("FZ88 御藤静.mp4")
     harness = _Harness(_show_data(file_path, number="FZ88"))

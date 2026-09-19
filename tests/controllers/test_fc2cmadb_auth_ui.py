@@ -19,6 +19,10 @@ def test_fc2cmadb_ui_only_exposes_manual_cookie_controls():
 
     assert window.Ui.plainTextEdit_cookie_fc2ppvdb.placeholderText().startswith("登录 fc2cmadb 后")
     assert window.Ui.pushButton_check_fc2ppvdb_cookie.text() == "检查cookie"
+    guidance = window.Ui.label_fc2cmadb_cookie_guidance.text()
+    assert "并发尽量设为 1" in guidance
+    assert "间隔" in guidance and "2 秒" in guidance
+    assert "单批" in guidance and "20 个" in guidance
     for removed_control in (
         "radioButton_fc2cmadb_manual",
         "radioButton_fc2cmadb_auto",

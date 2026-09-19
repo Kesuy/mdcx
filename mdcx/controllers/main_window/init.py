@@ -127,9 +127,11 @@ def Init_Ui(self: "MyMAinWindow"):
     self.Ui.pushButton_tips_hard.setToolTip(
         """<html><head/><body><p><b>创建硬链接：</b><br/>1，硬链接适合 PT 用户。PT 用户视频文件一般存放在 NAS 中，为保证上传分享率，不能修改原文件信息。<br/>2，硬链接指向和原文件相同的硬盘索引，和原文件必须同盘。使用硬链接，可以在同盘单独存放刮削资料，不影响原文件信息。<br/>3，删除硬链接，原文件还在；删除原文件，硬链接还在。两个都删除，文件才会被删除。<br/><span style=" font-weight:700; color:#ff2600;">注意：Mac 平台仅支持本地磁盘创建硬链接（权限问题），非本地磁盘请选择创建软链接。Windows 平台没有这个问题。</span></p></body></html>"""
     )
-    self.Ui.textBrowser_log_main_3.hide()  # 失败列表隐藏
+    self.Ui.textBrowser_log_main_3.hide()  # 旧失败列表保留兼容，不再作为主入口
     self.Ui.pushButton_scraper_failed_list.hide()
     self.Ui.pushButton_save_failed_list.hide()
+    self.Ui.pushButton_view_failed_list.setText("失败中心 0")
+    self.Ui.pushButton_view_failed_list.setToolTip("打开失败中心，查看、筛选和重试失败任务")
     supported_websites = get_registered_crawler_site_values()
     self.Ui.comboBox_website_all.clear()
     self.Ui.comboBox_website_all.addItems([website_display_name(Website(website)) for website in supported_websites])
@@ -170,7 +172,7 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
     self.result_sort_combo = QComboBox(self.Ui.page_main)
     self.result_sort_combo.setObjectName("result_sort_combo")
     self.result_sort_combo.setGeometry(600, 110, 130, 26)
-    self.result_sort_combo.addItems(["完成顺序", "番号", "演员"])
+    self.result_sort_combo.addItems(["完成顺序", "番号", "演员", "来源"])
     self.result_sort_combo.setToolTip("成功结果排序方式（只改变显示顺序）")
     self.result_sort_combo.currentTextChanged.connect(self._sort_success_results)
 
@@ -189,10 +191,23 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
     self.result_status_combo.setObjectName("result_status_combo")
     self.result_status_combo.addItems(["全部", "成功", "失败"])
     self.result_status_combo.currentTextChanged.connect(getattr(self, "_filter_results", lambda *_: None))
+
+    self.result_open_button = QPushButton("打开结果", self.Ui.page_main)
+    self.result_open_button.setObjectName("result_open_button")
+    self.result_open_button.setToolTip("打开之前保存的结果列表")
+    self.result_open_button.clicked.connect(getattr(self, "open_result_snapshot_clicked", lambda: None))
+
+    self.result_save_button = QPushButton("保存结果", self.Ui.page_main)
+    self.result_save_button.setObjectName("result_save_button")
+    self.result_save_button.setToolTip("保存当前成功和失败结果列表")
+    self.result_save_button.clicked.connect(getattr(self, "save_result_snapshot_clicked", lambda: None))
+
     self.result_sort_combo.show()
     self.result_sort_order_button.show()
     self.result_filter_edit.show()
     self.result_status_combo.show()
+    self.result_open_button.show()
+    self.result_save_button.show()
 
 
 def setup_local_nfo_button(self: "MyMAinWindow") -> None:

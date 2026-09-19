@@ -58,6 +58,14 @@ def test_theporndb_api_test_controls_are_in_token_layout():
     assert ui.label_theporndb_api_result.wordWrap()
 
 
+def test_naming_template_preview_is_compact():
+    window, _ = _controller()
+    preview = window.Ui.plainTextEdit_name_template_preview
+
+    assert preview.minimumHeight() == 48
+    assert preview.maximumHeight() == 52
+
+
 def test_ca_certificate_is_selected_with_file_picker(monkeypatch, tmp_path):
     window, controller = _controller()
     certificate = tmp_path / "proxy-ca.pem"
@@ -367,4 +375,12 @@ def test_actor_photo_library_scope_controls_and_download_link_layout():
     assert config.actor_photo_library_scope == "selected"
     assert config.actor_photo_library_ids == ["139975", "246810", "abc"]
 
+    window.close()
+
+
+def test_uncensored_poster_no_crop_label_explicitly_excludes_fc2():
+    window, _controller_instance = _controller()
+
+    assert "不含 FC2" in window.Ui.checkBox_ignore_wuma.text()
+    assert window.Ui.checkBox_ignore_fc2.text().startswith("FC2 ")
     window.close()

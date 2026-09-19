@@ -10,9 +10,15 @@ from PyQt6.QtCore import QEvent, QItemSelectionModel, QPointF, Qt, QTimer
 from PyQt6.QtGui import QHoverEvent
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox, QPushButton
 
-from mdcx.config.extend import deal_url
+from mdcx.base.file import save_success_list
+from mdcx.config.extend import deal_url, get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.core.local_nfo_loader import LocalNfoLoadError, load_local_nfo
+from mdcx.core.media_reorganization import (
+    MediaReorganizationError,
+    move_finished_media_to_configured_folder,
+    update_runtime_paths_after_reorganization,
+)
 from mdcx.core.scraper import again_search
 from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.flags import Flags
@@ -26,11 +32,21 @@ from .file_controller import FileOperationKind, classify_file_failure
 from .nfo_controller import NfoController
 from .responsive_layout import show_responsive_overlay
 from .result_model import RESULT_DATA_ROLE, RESULT_NAME_ROLE, ResultItem, ResultTreeItem, create_result_item
+from .result_snapshot import ResultSnapshotError, load_result_snapshot, save_result_snapshot
 from .result_sorting import ResultSortEntry, ResultSortMode, sort_result_entries
 
 
 def _result_item_name(item: ResultItem) -> str:
     return str(item.data(0, RESULT_NAME_ROLE) or item.text(0))
+
+
+def _result_source(show_data: ShowData | None) -> str:
+    if show_data is None:
+        return ""
+    provenance = show_data.data.get_provenance(CrawlerResultFields.TITLE)
+    if provenance is not None:
+        return provenance.source
+    return show_data.data.field_sources.get(CrawlerResultFields.TITLE, "")
 
 
 class MainPageMixin:
@@ -55,18 +71,14 @@ class MainPageMixin:
         if show_data is not None:
             node.setData(0, RESULT_DATA_ROLE, show_data)
             number = show_data.data.number or show_data.file_info.number
-            provenance = show_data.data.get_provenance(CrawlerResultFields.TITLE)
-            source = (
-                provenance.source
-                if provenance is not None
-                else show_data.data.field_sources.get(CrawlerResultFields.TITLE, "")
-            )
+            source = _result_source(show_data)
+            source_label = source or ("本地" if result == "succ" else "未获取")
             state = "完成" if result == "succ" else "失败"
             icon = "✓" if result == "succ" else "⚠"
             primary = number or filename
             # The task name usually repeats the number with an order prefix.
             # Keep it in the tooltip and identity role, not in the narrow row.
-            display_text = f"{icon} {primary} · {source or '本地'}"
+            display_text = f"{icon} {primary} · {source_label}"
             warnings = []
             if result == "succ":
                 if show_data.other.fanart_failed:
@@ -78,7 +90,7 @@ class MainPageMixin:
             node.setData(
                 0,
                 Qt.ItemDataRole.ToolTipRole,
-                f"状态：{state}\n番号/名称：{number or filename}\n来源：{source or '本地'}\n{filename}"
+                f"状态：{state}\n番号/名称：{number or filename}\n来源：{source_label}\n{filename}"
                 + ("\n双击打开失败中心并重试" if result == "fail" else "")
                 + ("\n" + "\n".join(warnings) if warnings else ""),
             )
@@ -142,6 +154,7 @@ class MainPageMixin:
                     number=show_data.data.number if show_data else "",
                     actor=show_data.data.actor if show_data else "",
                     insertion_index=insertion_index,
+                    source=_result_source(show_data) or "本地",
                 )
             )
             item_by_insertion[insertion_index] = item
@@ -163,6 +176,103 @@ class MainPageMixin:
         self._result_sort_descending = not getattr(self, "_result_sort_descending", False)
         self.result_sort_order_button.setText("↓" if self._result_sort_descending else "↑")
         self._sort_success_results()
+
+    def _result_snapshot_records(self) -> list[tuple[Literal["succ", "fail"], ShowData]]:
+        records: list[tuple[Literal["succ", "fail"], ShowData]] = []
+        for status, root in (("succ", self.item_succ), ("fail", self.item_fail)):
+            for index in range(root.childCount()):
+                item = root.child(index)
+                show_name = _result_item_name(item)
+                show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
+                if show_data is not None:
+                    records.append((status, show_data))
+        return records
+
+    def save_result_snapshot_clicked(self) -> None:
+        records = self._result_snapshot_records()
+        if not records:
+            QMessageBox.information(self, "保存结果", "当前结果列表为空。")
+            return
+
+        default_path = manager.data_folder / "mdcx-results.json"
+        filename, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "保存结果列表",
+            default_path.as_posix(),
+            "MDCx 结果文件 (*.json)",
+            options=self.options,
+        )
+        if not filename:
+            return
+
+        target = Path(filename)
+        if target.suffix.casefold() != ".json":
+            target = target.with_suffix(".json")
+        try:
+            save_result_snapshot(target, records)
+        except OSError as error:
+            QMessageBox.warning(self, "保存结果失败", str(error))
+            return
+
+        signal_qt.show_scrape_info(f"💡 已保存 {len(records)} 条结果！{get_current_time()}")
+        signal_qt.show_log_text(f" 💾 已保存结果列表：{target}")
+
+    def open_result_snapshot_clicked(self) -> None:
+        if self.Ui.pushButton_start_cap.text() != "开始":
+            QMessageBox.warning(self, "无法打开结果", "请先停止当前刮削任务。")
+            return
+
+        filename, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "打开结果列表",
+            manager.data_folder.as_posix(),
+            "MDCx 结果文件 (*.json);;JSON 文件 (*.json)",
+            options=self.options,
+        )
+        if not filename:
+            return
+
+        try:
+            records = load_result_snapshot(Path(filename))
+        except ResultSnapshotError as error:
+            QMessageBox.warning(self, "打开结果失败", str(error))
+            return
+
+        if self.item_succ.childCount() or self.item_fail.childCount():
+            answer = QMessageBox.question(
+                self,
+                "替换当前结果",
+                f"将用文件中的 {len(records)} 条结果替换当前结果列表，是否继续？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        self.json_array.clear()
+        self.init_QTreeWidget()
+        first_item = None
+        success_count = 0
+        failure_count = 0
+        for status, show_data in records:
+            self._addTreeChild(status, show_data.show_name, show_data)
+            self.json_array[show_data.show_name] = show_data
+            if status == "succ":
+                success_count += 1
+                item = self.item_succ.child(self.item_succ.childCount() - 1)
+            else:
+                failure_count += 1
+                item = self.item_fail.child(self.item_fail.childCount() - 1)
+            if first_item is None:
+                first_item = item
+
+        self._sort_success_results()
+        self._filter_results()
+        self.label_result.emit(f" 已打开结果：成功：{success_count} 失败：{failure_count}")
+        if first_item is not None:
+            self._set_result_item_as_current_selection(first_item)
+            self._show_result_item(first_item)
+        signal_qt.show_log_text(f" 📂 已打开结果列表：{filename}（{len(records)} 条）")
 
     def _filter_results(self, *_args) -> None:
         if not hasattr(self, "item_succ") or not hasattr(self, "result_filter_edit"):
@@ -206,15 +316,42 @@ class MainPageMixin:
             selected_items.append(item)
         return selected_items
 
+    def _resolve_result_file_path(self, show_data: ShowData) -> Path:
+        file_info = show_data.file_info
+        file_path = Path(file_info.file_path)
+        if file_path.is_file():
+            return file_path
+
+        for record in reversed(Flags.failed_records):
+            if record.context.get("show_name") != show_data.show_name:
+                continue
+            candidate = Path(record.path)
+            if not candidate.is_file():
+                continue
+            file_info.file_path = candidate
+            file_info.folder_path = candidate.parent
+            file_info.file_name = candidate.stem
+            file_info.file_ex = candidate.suffix
+            file_info.file_show_path = candidate
+            file_info.file_show_name = candidate.stem
+            return candidate
+        return file_path
+
     def _get_selected_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:
         result = []
         for item in self._get_selected_result_items():
             show_name = _result_item_name(item)
             show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
-            if show_data is None or not show_data.file_info.file_path:
+            if show_data is None:
                 continue
-            result.append((item, show_name, show_data, show_data.file_info.file_path))
+            file_path = self._resolve_result_file_path(show_data)
+            if file_path == Path():
+                continue
+            result.append((item, show_name, show_data, file_path))
         return result
+
+    def _get_selected_success_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:
+        return [entry for entry in self._get_selected_entries() if entry[0].parent() is self.item_succ]
 
     def _build_delete_preview(self, paths: list[Path], limit: int = 8) -> str:
         plan = self._get_file_controller().build_plan(FileOperationKind.DELETE_FILES, paths)
@@ -418,7 +555,9 @@ class MainPageMixin:
         item_from_index = getattr(self.Ui.treeWidget_number, "itemFromIndex", None)
         item = item_from_index(index) if callable(item_from_index) else None
         if item is not None and item.parent() is self.item_fail and hasattr(self, "show_failure_center"):
-            self.show_failure_center()
+            show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(_result_item_name(item))
+            focus_path = show_data.file_info.file_path if show_data is not None else None
+            self.show_failure_center(focus_path=focus_path)
 
     def treeWidget_number_clicked(self, *_args):
         selected_items = self._get_selected_result_items()
@@ -708,6 +847,207 @@ class MainPageMixin:
             self.show_scrape_info(f"💡 已删除文件夹！{get_current_time()}")
         else:
             self.show_scrape_info(f"💡 已删除 {success_folder_count} 个文件夹！{get_current_time()}")
+
+    @staticmethod
+    def _remap_runtime_path_set(paths: set[Path], mapping: dict[Path, Path]) -> None:
+        remapped = {mapping.get(Path(path), Path(path)) for path in paths}
+        paths.clear()
+        paths.update(remapped)
+
+    def _sync_moved_runtime_caches(self, all_path_mapping: tuple[tuple[Path, Path], ...]) -> None:
+        mapping = dict(all_path_mapping)
+        if not mapping:
+            return
+
+        # Same-number CD tasks can still be running while the user moves an
+        # already-completed CD. Keep their shared artwork/resource cache valid.
+        for resources in Flags.file_done_dic.values():
+            for key, value in list(resources.items()):
+                if value is None:
+                    continue
+                resources[key] = mapping.get(Path(value), Path(value))
+
+        for attr in (
+            "pic_catch_set",
+            "extrafanart_deal_set",
+            "trailer_deal_set",
+            "theme_videos_deal_set",
+            "nfo_deal_set",
+        ):
+            paths = getattr(Flags, attr, None)
+            if isinstance(paths, set):
+                self._remap_runtime_path_set(paths, mapping)
+
+        if Flags.file_new_path_dic:
+            remapped_file_paths = {
+                mapping.get(Path(key), Path(key)): [mapping.get(Path(value), Path(value)) for value in values]
+                for key, values in Flags.file_new_path_dic.items()
+            }
+            Flags.file_new_path_dic.clear()
+            Flags.file_new_path_dic.update(remapped_file_paths)
+
+    def _sync_related_moved_paths(
+        self,
+        path_mapping: tuple[tuple[Path, Path], ...],
+        selected: ShowData,
+        *,
+        all_path_mapping: tuple[tuple[Path, Path], ...] = (),
+    ) -> None:
+        mapping = dict(path_mapping)
+        if not mapping:
+            return
+        resource_mapping = all_path_mapping or path_mapping
+        for show_data in self.json_array.values():
+            if show_data is selected:
+                continue
+            old_path = show_data.file_info.file_path
+            new_path = mapping.get(old_path)
+            if new_path is not None:
+                update_runtime_paths_after_reorganization(
+                    show_data.file_info,
+                    show_data.other,
+                    old_path,
+                    new_path,
+                    all_path_mapping=resource_mapping,
+                )
+
+        self._sync_moved_runtime_caches(resource_mapping)
+
+        for old_path, new_path in mapping.items():
+            if old_path in Flags.success_list:
+                Flags.success_list.discard(old_path)
+                Flags.success_list.add(new_path)
+            if self.file_main_open_path == old_path:
+                self.file_main_open_path = new_path
+
+    def main_move_by_rule_click(self) -> None:
+        """Move selected successful results using the current configured folder structure."""
+
+        selected_entries = self._get_selected_success_entries()
+        if not selected_entries:
+            QMessageBox.information(self, "没有可移动项目", "请在“完成”列表中选择一个或多个影片。")
+            return
+
+        if len(selected_entries) != len(self._get_selected_entries()):
+            QMessageBox.warning(self, "无法移动", "移动功能仅适用于“完成”列表，请不要同时选择失败项目。")
+            return
+
+        folder_rule = str(manager.config.folder_name or "").strip() or "（未设置子目录规则）"
+        first_path = selected_entries[0][3]
+        configured_folder = get_movie_path_setting(first_path).success_folder
+        start_folder = configured_folder if configured_folder.is_dir() else first_path.parent
+        selected_folder = QFileDialog.getExistingDirectory(
+            self,
+            "选择移动目标根目录",
+            start_folder.as_posix(),
+            options=self.options,
+        )
+        if not selected_folder:
+            return
+        target_root = Path(selected_folder)
+
+        answer = QMessageBox.question(
+            self,
+            "按目录结构移动",
+            f"将按当前设置移动 {len(selected_entries)} 个完成项目。\n\n"
+            f"目标根目录：{target_root}\n"
+            f"目录规则：{folder_rule}\n"
+            "最终路径会在所选目标根目录下按以上规则生成。\n"
+            "同一番号的多 CD 会作为一个影片组整体移动并保留关联文件。\n"
+            "同一演员的其它影片不会随当前影片一起移动。\n"
+            "文件是否重命名仍遵循“刮削成功后重命名文件”设置。\n\n是否继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        success_count = 0
+        skipped_count = 0
+        failure_details: list[tuple[Path, str]] = []
+
+        # 多 CD 在结果列表里会占多行，但移动时必须按“同一影片组”处理。
+        # 只有同一源目录中确实选中了多个不同番号时，才需要保留源目录，
+        # 避免把共享演员目录整体搬走；同番号的 CD1/CD2 不应触发该保护。
+        selected_parent_groups: dict[Path, set[str]] = {}
+        selected_original_paths = {entry[3] for entry in selected_entries}
+        for _item, show_name, show_data, selected_path in selected_entries:
+            number = str(show_data.data.number or show_data.file_info.number or show_name).strip().casefold()
+            selected_parent_groups.setdefault(selected_path.parent, set()).add(number)
+
+        processed_paths: set[Path] = set()
+        for _item, _show_name, show_data, old_path in selected_entries:
+            if old_path in processed_paths:
+                continue
+
+            preserve_source_folder = len(selected_parent_groups.get(old_path.parent, set())) > 1
+            try:
+                result = executor.run(
+                    move_finished_media_to_configured_folder(
+                        show_data.file_info,
+                        show_data.data,
+                        show_data.other,
+                        target_root,
+                        preserve_source_folder=preserve_source_folder,
+                    )
+                )
+            except MediaReorganizationError as error:
+                failure_details.append((old_path, str(error)))
+                processed_paths.add(old_path)
+                signal_qt.show_log_text(f"\n 🔴 按目录结构移动失败：{old_path}\n    {error}")
+                continue
+            except Exception:
+                detail = traceback.format_exc()
+                failure_details.append((old_path, detail))
+                processed_paths.add(old_path)
+                signal_qt.show_traceback_log(detail)
+                continue
+
+            if not result.moved:
+                skipped_count += 1
+                processed_paths.add(old_path)
+                signal_qt.show_log_text(f"\n 🟡 已在目标目录，无需移动：{old_path}")
+                continue
+
+            mapping = result.path_mapping or ((result.old_file_path, result.new_file_path),)
+            mapping_sources = {source for source, _target in mapping}
+            covered_selected_paths = (mapping_sources & selected_original_paths) - processed_paths
+            processed_paths.update(mapping_sources)
+            if not covered_selected_paths:
+                covered_selected_paths = {old_path}
+                processed_paths.add(old_path)
+
+            self._sync_related_moved_paths(
+                mapping,
+                show_data,
+                all_path_mapping=getattr(result, "all_path_mapping", ()),
+            )
+            if self.show_data is show_data:
+                self.file_main_open_path = result.new_file_path
+            success_count += len(covered_selected_paths)
+            group_note = f"（多CD组共 {len(covered_selected_paths)} 项）" if len(covered_selected_paths) > 1 else ""
+            signal_qt.show_log_text(
+                f"\n 📂 已按目录结构移动{group_note}：\n    {result.old_file_path}\n -> {result.new_file_path}"
+            )
+
+        if success_count:
+            executor.run(save_success_list())
+
+        if self.show_data is not None and self.show_data.file_info.file_path.is_file():
+            self.file_main_open_path = self.show_data.file_info.file_path
+            self.set_main_info(self.show_data)
+
+        fail_count = len(failure_details)
+        signal_qt.show_scrape_info(
+            f"💡 移动完成，成功 {success_count}，跳过 {skipped_count}，失败 {fail_count}！{get_current_time()}"
+        )
+        if failure_details:
+            self._show_action_failure_feedback(
+                "按目录结构移动",
+                success_count,
+                failure_details,
+                skipped_count=skipped_count,
+            )
 
     def main_make_symlink_click(self):
         """
