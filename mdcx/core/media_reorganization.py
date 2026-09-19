@@ -606,7 +606,8 @@ def _move_shared_folder_movie_sync(
     bundle_files = [
         path
         for path in old_folder.iterdir()
-        if path.is_file() and _belongs_to_movie_bundle(path, movie_group, data.number or file_info.number, file_info.cd_part)
+        if path.is_file()
+        and _belongs_to_movie_bundle(path, movie_group, data.number or file_info.number, file_info.cd_part)
     ]
     if not bundle_files:
         raise MediaReorganizationError(f"未找到可移动的影片文件：{old_file_path}")
