@@ -25,6 +25,34 @@ from mdcx.models.log_buffer import LogBuffer
 from mdcx.models.types import CrawlersResult, OtherInfo
 
 
+def test_fc2_poster_policy_is_not_overridden_by_uncensored_no_crop():
+    result = CrawlersResult.empty()
+    result.number = "FC2-1254113"
+    result.scraping_type = FixedScrapingType.WUMA
+
+    assert _get_poster_copy_policy(result, [DownloadableFile.IGNORE_WUMA]) is False
+    assert _get_poster_copy_policy(result, [DownloadableFile.IGNORE_FC2]) is True
+
+
+def test_fc2_poster_source_keeps_fc2_policy_when_number_is_numeric_only():
+    result = CrawlersResult.empty()
+    result.number = "1254113"
+    result.scraping_type = FixedScrapingType.WUMA
+    result.poster_from = "fc2ppvdb"
+
+    assert _get_poster_copy_policy(result, [DownloadableFile.IGNORE_WUMA]) is False
+    assert _get_poster_copy_policy(result, [DownloadableFile.IGNORE_FC2]) is True
+
+
+def test_uncensored_poster_policy_still_uses_uncensored_switch():
+    result = CrawlersResult.empty()
+    result.number = "HEYZO-1234"
+    result.scraping_type = FixedScrapingType.WUMA
+
+    assert _get_poster_copy_policy(result, [DownloadableFile.IGNORE_WUMA]) is True
+    assert _get_poster_copy_policy(result, [DownloadableFile.IGNORE_FC2]) is False
+
+
 def _extract_search_query(req_url: str) -> str:
     match = re.search(r"returnUrl=/s\?k=([^&]+)", req_url)
     assert match is not None
