@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
+    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QTextEdit,
@@ -63,6 +64,12 @@ def format_duration(value: timedelta) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{min(hours, 99):02d}:{minutes:02d}:{seconds:02d}"
+
+
+def parse_actor_photo_library_ids(value: str) -> list[str]:
+    """Parse multiple media-library IDs while preserving the user's order."""
+
+    return list(dict.fromkeys(part for part in re.split(r"[,，;；\s]+", value.strip()) if part))
 
 
 def is_valid_http_url(value: str) -> bool:
@@ -109,6 +116,7 @@ class SettingsPageController:
         self._setup_secret_fields()
         self._setup_website_help_layout()
         self._setup_nfo_help_layout()
+        self._setup_actor_photo_library_scope()
         self._repair_legacy_frame_layouts()
         self._setup_numeric_validation()
         self.binder = ConfigBinder(
@@ -245,6 +253,12 @@ class SettingsPageController:
                 SettingBinding("checkBox_sub_rescrape", "subtitle_add_rescrape"),
                 SettingBinding("lineEdit_api_key", "api_key"),
                 SettingBinding("lineEdit_user_id", "user_id"),
+                SettingBinding(
+                    "lineEdit_actor_photo_library_ids",
+                    "actor_photo_library_ids",
+                    parser=parse_actor_photo_library_ids,
+                    formatter=",".join,
+                ),
                 SettingBinding("lineEdit_actor_photo_folder", "actor_photo_folder"),
                 SettingBinding("lineEdit_actor_db_path", "info_database_path"),
                 SettingBinding("checkBox_actor_db", "use_database"),
@@ -322,6 +336,14 @@ class SettingsPageController:
                     "server_type",
                     (("radioButton_server_emby", "emby"), ("radioButton_server_jellyfin", "jellyfin")),
                     "emby",
+                ),
+                ChoiceBinding(
+                    "actor_photo_library_scope",
+                    (
+                        ("radioButton_actor_photo_library_all", "all"),
+                        ("radioButton_actor_photo_library_selected", "selected"),
+                    ),
+                    "all",
                 ),
                 ChoiceBinding(
                     "save_log",
@@ -505,6 +527,62 @@ class SettingsPageController:
         )
         self._setup_dirty_tracking()
 
+    def _setup_actor_photo_library_scope(self) -> None:
+        """Fix the local-avatar download link position and add media-library filtering."""
+
+        # The generated UI placed this local-avatar download link beside the
+        # network/local source radios. Keep it with the local-library help text.
+        self.ui.horizontalLayout_97.removeWidget(self.ui.label_download_actor_zip)
+        self.ui.gridLayout.removeWidget(self.ui.label_77)
+        local_help = QWidget(self.ui.layoutWidget_8)
+        local_help.setObjectName("widget_actor_photo_local_help")
+        local_help_layout = QHBoxLayout(local_help)
+        local_help_layout.setContentsMargins(0, 0, 0, 0)
+        local_help_layout.setSpacing(10)
+        self.ui.label_77.setParent(local_help)
+        self.ui.label_download_actor_zip.setParent(local_help)
+        local_help_layout.addWidget(self.ui.label_77)
+        local_help_layout.addWidget(self.ui.label_download_actor_zip)
+        local_help_layout.addStretch(1)
+        self.ui.widget_actor_photo_local_help = local_help
+        self.ui.gridLayout.addWidget(local_help, 6, 1, 1, 1)
+
+        scope_row = QWidget(self.ui.groupBox_41)
+        scope_row.setObjectName("widget_actor_photo_library_scope")
+        scope_layout = QHBoxLayout(scope_row)
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.setSpacing(10)
+
+        scope_label = QLabel("媒体库范围：", scope_row)
+        scope_label.setObjectName("label_actor_photo_library_scope")
+        scope_label.setFixedWidth(130)
+        scope_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        all_libraries = QRadioButton("全部媒体库", scope_row)
+        all_libraries.setObjectName("radioButton_actor_photo_library_all")
+        selected_libraries = QRadioButton("只补全指定媒体库", scope_row)
+        selected_libraries.setObjectName("radioButton_actor_photo_library_selected")
+
+        library_ids = QLineEdit(scope_row)
+        library_ids.setObjectName("lineEdit_actor_photo_library_ids")
+        library_ids.setPlaceholderText("多个媒体库 ID 用逗号、空格或换行分隔")
+        library_ids.setToolTip("Emby/Jellyfin 媒体库 ID，例如：139975, 123456")
+        library_ids.setMinimumWidth(220)
+        library_ids.setEnabled(False)
+        selected_libraries.toggled.connect(library_ids.setEnabled)
+        all_libraries.setChecked(True)
+
+        scope_layout.addWidget(scope_label)
+        scope_layout.addWidget(all_libraries)
+        scope_layout.addWidget(selected_libraries)
+        scope_layout.addWidget(library_ids, 1)
+
+        self.ui.widget_actor_photo_library_scope = scope_row
+        self.ui.label_actor_photo_library_scope = scope_label
+        self.ui.radioButton_actor_photo_library_all = all_libraries
+        self.ui.radioButton_actor_photo_library_selected = selected_libraries
+        self.ui.lineEdit_actor_photo_library_ids = library_ids
+
     def _repair_legacy_frame_layouts(self) -> None:
         """Keep a few Designer frames from clipping their layout-holder children."""
 
@@ -565,7 +643,12 @@ class SettingsPageController:
         # in visual order so compact rows cannot paint on top of one another.
         stack_group(
             self.ui.groupBox_41,
-            (self.ui.label_297, self.ui.layoutWidget_8, self.ui.frame_2),
+            (
+                self.ui.label_297,
+                self.ui.layoutWidget_8,
+                self.ui.widget_actor_photo_library_scope,
+                self.ui.frame_2,
+            ),
             (self.ui.pushButton_add_actor_pic, self.ui.checkBox_actor_photo_auto),
         )
         stack_group(

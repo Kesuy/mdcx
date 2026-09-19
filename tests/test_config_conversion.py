@@ -32,6 +32,23 @@ def test_advanced_settings_visibility_is_backward_compatible_and_round_trips():
     assert restored.model_dump(mode="json")["show_advanced_settings"] is True
 
 
+def test_actor_photo_library_scope_is_backward_compatible_and_round_trips():
+    old_config = Config().model_dump(mode="json")
+    old_config.pop("actor_photo_library_scope")
+    old_config.pop("actor_photo_library_ids")
+
+    restored = Config.model_validate(old_config)
+    assert restored.actor_photo_library_scope == "all"
+    assert restored.actor_photo_library_ids == []
+
+    selected = restored.model_copy(
+        update={"actor_photo_library_scope": "selected", "actor_photo_library_ids": ["139975", "246810"]}
+    )
+    round_tripped = Config.model_validate_json(selected.model_dump_json())
+    assert round_tripped.actor_photo_library_scope == "selected"
+    assert round_tripped.actor_photo_library_ids == ["139975", "246810"]
+
+
 def test_resource_policy_exposes_download_and_keep_semantics():
     policy = resource_policy(
         DownloadableFile.POSTER,
