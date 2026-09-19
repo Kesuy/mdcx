@@ -564,6 +564,8 @@ def _move_shared_folder_movie_sync(
     data: CrawlersResult,
     other: OtherInfo,
     success_folder: Path,
+    *,
+    preserve_source_folder: bool = False,
 ) -> MediaReorganizationResult:
     old_file_path = file_info.file_path
     old_folder = old_file_path.parent
@@ -571,7 +573,7 @@ def _move_shared_folder_movie_sync(
         raise MediaReorganizationError(f"影片文件不存在：{old_file_path}")
 
     movie_group, unrelated = _movie_group_with_unrelated(old_file_path, old_folder, file_info.cd_part)
-    if not unrelated:
+    if not unrelated and not preserve_source_folder:
         return _reorganize_scraped_media_sync(
             file_info,
             data,
@@ -669,6 +671,8 @@ async def move_finished_media_to_configured_folder(
     data: CrawlersResult,
     other: OtherInfo,
     success_folder: Path,
+    *,
+    preserve_source_folder: bool = False,
 ) -> MediaReorganizationResult:
     """按当前目录/命名设置移动一个完成项；共享演员目录时只移动当前影片文件组。"""
 
@@ -679,6 +683,7 @@ async def move_finished_media_to_configured_folder(
             data,
             other,
             success_folder,
+            preserve_source_folder=preserve_source_folder,
         )
     except MediaReorganizationError:
         raise
