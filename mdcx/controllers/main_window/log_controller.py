@@ -25,11 +25,12 @@ from .responsive_layout import show_responsive_overlay
 
 class LogControllerMixin:
     def update_failure_count(self, text: str) -> None:
-        self.Ui.pushButton_view_failed_list.setText(text)
-        count_text = "".join(character for character in text if character.isdigit())
-        navigation_text = f"日志  • {count_text}" if count_text and count_text != "0" else "日志"
+        count_text = "".join(character for character in text if character.isdigit()) or "0"
+        self.Ui.pushButton_view_failed_list.setText(f"失败中心 {count_text}")
+        self.Ui.pushButton_view_failed_list.setToolTip(f"打开失败中心，当前 {count_text} 个失败任务")
+        navigation_text = f"日志  • {count_text}" if count_text != "0" else "日志"
         self.Ui.pushButton_log.setProperty("mdcxFullButtonText", navigation_text)
-        self.Ui.pushButton_log.setToolTip(f"{navigation_text} 条失败" if count_text else "")
+        self.Ui.pushButton_log.setToolTip(f"{count_text} 条失败任务" if count_text != "0" else "")
         if getattr(self, "_responsive_mode", "standard") != "narrow":
             self.Ui.pushButton_log.setText(navigation_text)
 
@@ -169,6 +170,7 @@ class LogControllerMixin:
         Flags.failed_records[:] = preserved
         remaining_paths = {record.path for record in preserved}
         Flags.failed_list[:] = [item for item in Flags.failed_list if item[0] in remaining_paths]
+        signal_qt.view_failed_list_settext.emit(f"失败 {len(preserved)}")
         start_new_scrape(
             FileMode.Default,
             movie_list=paths,
