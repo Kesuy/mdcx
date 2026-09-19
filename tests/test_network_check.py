@@ -252,6 +252,26 @@ async def test_fc2cmadb_network_check_validates_configured_cookie(monkeypatch: p
 
 
 @pytest.mark.anyio
+async def test_fc2cmadb_http_404_is_reported_as_cookie_failure_not_network_outage():
+    class HttpErrorClient:
+        async def request(self, method, url, **kwargs):
+            return None, f"GET {url} 失败: HTTP 404"
+
+    spec = NetworkCheckSpec(
+        name="fc2cmadb",
+        group="刮削站点",
+        url="https://fc2cmadb.com/articles/1817847",
+        site=Website.FC2PPVDB,
+        validator="fc2cmadb",
+    )
+    result = await run_network_check_item(spec, client=HttpErrorClient())
+    assert result.status == NetworkCheckStatus.WARNING
+    assert result.status_code == 404
+    assert result.message == "站点可访问，但 FC2CMADB Cookie 无效或已过期"
+    assert result.error == ""
+
+
+@pytest.mark.anyio
 async def test_fc2cmadb_network_check_validates_page_after_cf_bypass(monkeypatch: pytest.MonkeyPatch):
     class BypassConfig(FakeConfig):
         fc2ppvdb = "fc2cmadb-session=session-token"
