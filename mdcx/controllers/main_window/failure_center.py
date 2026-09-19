@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from mdcx.models.failure import FailureCategory, FailureRecord, failure_stage_label
+from mdcx.models.failure import FailureRecord, failure_stage_label
 
 FAILURE_RECORD_ROLE = Qt.ItemDataRole.UserRole.value + 31
 
@@ -286,9 +286,7 @@ class FailureCenterDialog(QDialog):
         attention = total - retryable
         if total:
             suffix = f" · 当前显示 {visible}" if visible != total else ""
-            self.summary.setText(
-                f"本轮失败 {total} · 可直接重试 {retryable} · 需处理 {attention}{suffix}"
-            )
+            self.summary.setText(f"本轮失败 {total} · 可直接重试 {retryable} · 需处理 {attention}{suffix}")
             counts = Counter(record.category.label for record in self._visible_records)
             self.category_summary.setText(" · ".join(f"{label} {count}" for label, count in counts.most_common(4)))
         else:
@@ -457,7 +455,9 @@ class FailureCenterDialog(QDialog):
                     target = target.with_suffix(".csv")
                 with target.open("w", encoding="utf-8-sig", newline="") as handle:
                     writer = csv.writer(handle)
-                    writer.writerow(["文件", "完整路径", "番号", "问题类型", "阶段", "来源", "状态", "时间", "原因", "处理建议"])
+                    writer.writerow(
+                        ["文件", "完整路径", "番号", "问题类型", "阶段", "来源", "状态", "时间", "原因", "处理建议"]
+                    )
                     for record in self._visible_records:
                         writer.writerow(
                             [
