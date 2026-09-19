@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import asyncio
 import html
 import json
 import re
 import threading
+import time
 from http.cookies import SimpleCookie
 from typing import Any, override
 
@@ -16,6 +18,7 @@ from .base import BaseCrawler, Context, CralwerException, CrawlerData
 # This known article returns 404 anonymously and Articles/Show for an authenticated session.
 FC2CMADB_AUTH_PROBE_NUMBER = "1817847"
 FC2CMADB_FINGERPRINT_ID = "chrome136_win"
+FC2CMADB_BATCH_INTERVAL_SECONDS = 2.0
 _FC2CMADB_COOKIE_SAVE_LOCK = threading.Lock()
 
 
@@ -270,6 +273,7 @@ async def fetch_article_info(
         return None, f"详情页请求失败: HTTP {response.status_code}"
     final_url = get_response_final_url(response)
     if "/login" in final_url:
+        signal.add_log(f"⚠️ FC2CMADB 登录状态失效：详情页跳转到登录页 {final_url}")
         return None, f"详情页跳转到登录页，fc2cmadb Cookie 未生效: {final_url}"
 
     page_html = str(getattr(response, "text", "") or "")
@@ -277,6 +281,7 @@ async def fetch_article_info(
         article_info = parse_article_page(page_html)
     except Exception as e:
         if "ログイン" in page_html or "login" in page_html.lower():
+            signal.add_log("⚠️ FC2CMADB 登录状态失效：详情页返回登录页面")
             return None, f"详情页返回登录页面，fc2cmadb Cookie 可能无效或已过期: {e}"
         return None, f"详情页数据解析失败: {e}"
 
@@ -333,6 +338,30 @@ async def fetch_article_info(
 class Fc2ppvdbCrawler(BaseCrawler):
     def __init__(self, client, base_url: str = "", browser=None):
         super().__init__(client=client, base_url=base_url, browser=browser)
+        self._batch_lock = asyncio.Lock()
+        self._last_batch_finished_at = 0.0
+
+    async def _fetch_article_serialized(
+        self,
+        *,
+        number: str,
+        cookies: dict[str, str],
+        use_proxy: bool,
+    ) -> tuple[dict[str, Any] | None, str]:
+        async with self._batch_lock:
+            elapsed = time.monotonic() - self._last_batch_finished_at
+            if self._last_batch_finished_at and elapsed < FC2CMADB_BATCH_INTERVAL_SECONDS:
+                await asyncio.sleep(FC2CMADB_BATCH_INTERVAL_SECONDS - elapsed)
+            try:
+                return await fetch_article_info(
+                    self.async_client,
+                    base_url=self.base_url,
+                    number=number,
+                    cookies=cookies,
+                    use_proxy=use_proxy,
+                )
+            finally:
+                self._last_batch_finished_at = time.monotonic()
 
     @classmethod
     @override
@@ -354,9 +383,7 @@ class Fc2ppvdbCrawler(BaseCrawler):
         cookie_string = manager.config.fc2ppvdb
         cookies = cookie_str_to_dict(cookie_string)
         use_proxy = manager.config.use_proxy
-        html_info, error = await fetch_article_info(
-            self.async_client,
-            base_url=self.base_url,
+        html_info, error = await self._fetch_article_serialized(
             number=number,
             cookies=cookies,
             use_proxy=use_proxy,
