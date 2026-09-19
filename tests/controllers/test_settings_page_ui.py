@@ -378,7 +378,6 @@ def test_actor_photo_library_scope_controls_and_download_link_layout():
     window.close()
 
 
-
 def test_uncensored_poster_no_crop_label_explicitly_excludes_fc2():
     window, _controller_instance = _controller()
 
