@@ -58,6 +58,14 @@ def test_theporndb_api_test_controls_are_in_token_layout():
     assert ui.label_theporndb_api_result.wordWrap()
 
 
+def test_naming_template_preview_is_compact():
+    window, _ = _controller()
+    preview = window.Ui.plainTextEdit_name_template_preview
+
+    assert preview.minimumHeight() == 48
+    assert preview.maximumHeight() == 52
+
+
 def test_ca_certificate_is_selected_with_file_picker(monkeypatch, tmp_path):
     window, controller = _controller()
     certificate = tmp_path / "proxy-ca.pem"
