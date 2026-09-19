@@ -409,13 +409,48 @@ async def test_fc2cmadb_batches_are_serialized(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(fc2ppvdb_module, "fetch_article_info", fake_fetch_article_info)
 
+    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=session-token")
+    monkeypatch.setattr(fc2ppvdb_module, "persist_fc2cmadb_cookies", lambda _cookies: False)
+
     crawler = Fc2ppvdbCrawler(client=object())
     await asyncio.gather(
-        crawler._fetch_article_serialized(number="1", cookies={}, use_proxy=True),
-        crawler._fetch_article_serialized(number="2", cookies={}, use_proxy=True),
+        crawler._fetch_article_serialized(number="1", use_proxy=True),
+        crawler._fetch_article_serialized(number="2", use_proxy=True),
     )
 
     assert max_active == 1
+
+
+@pytest.mark.asyncio
+async def test_fc2cmadb_serialized_batch_reads_refreshed_cookie_after_previous_request(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(fc2ppvdb_module, "FC2CMADB_BATCH_INTERVAL_SECONDS", 0.0)
+    monkeypatch.setattr(manager.config, "fc2ppvdb", "fc2cmadb-session=old-session")
+    seen_sessions: list[str] = []
+
+    async def fake_fetch_article_info(*_args, **kwargs):
+        cookies = kwargs["cookies"]
+        seen_sessions.append(cookies["fc2cmadb-session"])
+        if len(seen_sessions) == 1:
+            cookies["fc2cmadb-session"] = "refreshed-session"
+        await asyncio.sleep(0)
+        return {"article": {"title": "ok"}, "deferred_props": set(), "inertia_version": ""}, ""
+
+    def fake_persist(cookies):
+        manager.config.fc2ppvdb = fc2ppvdb_module.cookie_dict_to_str(cookies)
+        return True
+
+    monkeypatch.setattr(fc2ppvdb_module, "fetch_article_info", fake_fetch_article_info)
+    monkeypatch.setattr(fc2ppvdb_module, "persist_fc2cmadb_cookies", fake_persist)
+
+    crawler = Fc2ppvdbCrawler(client=object())
+    await asyncio.gather(
+        crawler._fetch_article_serialized(number="1", use_proxy=True),
+        crawler._fetch_article_serialized(number="2", use_proxy=True),
+    )
+
+    assert seen_sessions == ["old-session", "refreshed-session"]
 
 
 @pytest.mark.asyncio
