@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from mdcx.controllers.main_window import main_page_mixin as module
 from mdcx.controllers.main_window.main_page_mixin import MainPageMixin
+from mdcx.models.flags import Flags
+from mdcx.models.types import ShowData
 
 
 class _MoveWindow(MainPageMixin):
@@ -185,3 +187,98 @@ def test_rule_based_move_treats_selected_multi_cd_rows_as_one_movie_group(monkey
     window.main_move_by_rule_click()
 
     assert calls == [False]
+
+
+
+def test_multi_cd_path_sync_preserves_metadata_and_updates_shared_runtime_caches(
+    monkeypatch,
+    tmp_path: Path,
+):
+    old_folder = tmp_path / "old"
+    new_folder = tmp_path / "new"
+    old_folder.mkdir()
+    new_folder.mkdir()
+    old_cd1 = old_folder / "ABC-123-cd1.mp4"
+    old_cd2 = old_folder / "ABC-123-cd2.mp4"
+    old_poster = old_folder / "ABC-123-poster.jpg"
+    old_subtitle = old_folder / "ABC-123-cd2.zh.srt"
+    new_cd1 = new_folder / "ABC-123-cd1.mp4"
+    new_cd2 = new_folder / "ABC-123-cd2.mp4"
+    new_poster = new_folder / "ABC-123-poster.jpg"
+    new_subtitle = new_folder / "ABC-123-cd2.zh.srt"
+
+    first = ShowData.empty()
+    first.show_name = "1-1.ABC-123-cd1"
+    first.file_info.file_path = new_cd1
+    first.data.number = "ABC-123"
+
+    second = ShowData.empty()
+    second.show_name = "1-2.ABC-123-cd2"
+    second.file_info.file_path = old_cd2
+    second.file_info.folder_path = old_folder
+    second.file_info.file_name = old_cd2.stem
+    second.file_info.file_ex = old_cd2.suffix
+    second.file_info.file_show_name = "ABC-123-cd2"
+    second.file_info.file_show_path = old_cd2
+    second.file_info.cd_part = "-cd2"
+    second.file_info.definition = "4K"
+    second.file_info.codec = "H265"
+    second.file_info.has_sub = True
+    second.file_info.sub_list = [str(old_subtitle)]
+    second.other.poster_path = old_poster
+    second.data.number = "ABC-123"
+
+    window = object.__new__(MainPageMixin)
+    window.json_array = {first.show_name: first, second.show_name: second}
+    window.file_main_open_path = old_cd2
+
+    monkeypatch.setattr(
+        Flags,
+        "file_done_dic",
+        {
+            "ABC-123": {
+                "poster": old_poster,
+                "thumb": None,
+                "fanart": None,
+                "trailer": None,
+                "local_poster": old_poster,
+                "local_thumb": None,
+                "local_fanart": None,
+                "local_trailer": None,
+            }
+        },
+    )
+    monkeypatch.setattr(Flags, "success_list", {old_cd1, old_cd2})
+    monkeypatch.setattr(Flags, "pic_catch_set", {old_poster})
+    monkeypatch.setattr(Flags, "extrafanart_deal_set", set())
+    monkeypatch.setattr(Flags, "trailer_deal_set", set())
+    monkeypatch.setattr(Flags, "theme_videos_deal_set", set())
+    monkeypatch.setattr(Flags, "nfo_deal_set", {old_subtitle})
+    monkeypatch.setattr(Flags, "file_new_path_dic", {old_cd2: [old_poster]})
+
+    movie_mapping = ((old_cd1, new_cd1), (old_cd2, new_cd2))
+    all_mapping = (
+        (old_cd1, new_cd1),
+        (old_cd2, new_cd2),
+        (old_poster, new_poster),
+        (old_subtitle, new_subtitle),
+    )
+
+    window._sync_related_moved_paths(movie_mapping, first, all_path_mapping=all_mapping)
+
+    assert second.file_info.file_path == new_cd2
+    assert second.file_info.folder_path == new_folder
+    assert second.file_info.cd_part == "-cd2"
+    assert second.file_info.file_show_name == "ABC-123-cd2"
+    assert second.file_info.definition == "4K"
+    assert second.file_info.codec == "H265"
+    assert second.file_info.has_sub is True
+    assert second.file_info.sub_list == [str(new_subtitle)]
+    assert second.other.poster_path == new_poster
+    assert Flags.file_done_dic["ABC-123"]["poster"] == new_poster
+    assert Flags.file_done_dic["ABC-123"]["local_poster"] == new_poster
+    assert Flags.pic_catch_set == {new_poster}
+    assert Flags.nfo_deal_set == {new_subtitle}
+    assert Flags.file_new_path_dic == {new_cd2: [new_poster]}
+    assert Flags.success_list == {new_cd1, new_cd2}
+    assert window.file_main_open_path == new_cd2
