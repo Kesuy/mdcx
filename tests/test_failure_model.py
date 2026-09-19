@@ -12,6 +12,7 @@ from mdcx.models.failure import FailureCategory, classify_failure, failure_stage
         ("Cookie 已过期", "crawl", FailureCategory.AUTHENTICATION, False),
         ("HTTP 403", "crawl", FailureCategory.AUTHENTICATION, False),
         ("search no result", "search", FailureCategory.SEARCH_NO_RESULT, True),
+        ("详情页请求失败: HTTP 404", "crawl", FailureCategory.SEARCH_NO_RESULT, True),
         ("parser selector missing", "crawl", FailureCategory.PARSER, False),
         ("poster image download failed", "image", FailureCategory.IMAGE_DOWNLOAD, True),
         ("WinError 5 permission denied", "file", FailureCategory.FILE_IO, True),
