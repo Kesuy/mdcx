@@ -433,7 +433,9 @@ class MainPageMixin:
         item_from_index = getattr(self.Ui.treeWidget_number, "itemFromIndex", None)
         item = item_from_index(index) if callable(item_from_index) else None
         if item is not None and item.parent() is self.item_fail and hasattr(self, "show_failure_center"):
-            self.show_failure_center()
+            show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(_result_item_name(item))
+            focus_path = show_data.file_info.file_path if show_data is not None else None
+            self.show_failure_center(focus_path=focus_path)
 
     def treeWidget_number_clicked(self, *_args):
         selected_items = self._get_selected_result_items()
