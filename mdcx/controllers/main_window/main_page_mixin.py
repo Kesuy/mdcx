@@ -807,9 +807,7 @@ class MainPageMixin:
             if self.show_data is show_data:
                 self.file_main_open_path = result.new_file_path
             success_count += 1
-            signal_qt.show_log_text(
-                f"\n 📂 已按目录结构移动：\n    {result.old_file_path}\n -> {result.new_file_path}"
-            )
+            signal_qt.show_log_text(f"\n 📂 已按目录结构移动：\n    {result.old_file_path}\n -> {result.new_file_path}")
 
         if self.show_data is not None and self.show_data.file_info.file_path.is_file():
             self.file_main_open_path = self.show_data.file_info.file_path
