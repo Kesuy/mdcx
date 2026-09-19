@@ -290,6 +290,7 @@ class Config(BaseModel):
     )
     soft_link: int = Field(default=0, title="软链接")
     success_file_move: bool = Field(default=True, title="成功后移动文件")
+    local_nfo_inplace_reorganize: bool = Field(default=False, title="本地 NFO 原地整理")
     failed_file_move: bool = Field(default=True, title="失败后移动文件")
     success_file_rename: bool = Field(default=True, title="成功后重命名文件")
     del_empty_folder: bool = Field(default=True, title="删除空目录")
