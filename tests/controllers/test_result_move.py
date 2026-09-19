@@ -23,7 +23,7 @@ class _MoveWindow(MainPageMixin):
     def _get_selected_entries(self):
         return self._selected_entries
 
-    def _sync_related_moved_paths(self, _mapping, _selected):
+    def _sync_related_moved_paths(self, _mapping, _selected, *, all_path_mapping=()):
         pass
 
     def set_main_info(self, _show_data):
