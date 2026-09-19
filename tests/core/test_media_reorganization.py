@@ -201,6 +201,36 @@ async def test_move_finished_media_moves_only_selected_movie_from_shared_actor_f
 
 
 @pytest.mark.asyncio
+async def test_move_finished_media_can_create_movie_subfolder_inside_existing_actor_folder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    actor_folder = output / "天宮まりる"
+    actor_folder.mkdir(parents=True)
+    movie = actor_folder / "H4610-ORI696 天宮まりる.wmv"
+    nfo = actor_folder / "H4610-ORI696 天宮まりる.nfo"
+    movie.write_bytes(b"movie")
+    nfo.write_text("nfo", encoding="utf-8")
+
+    file_info = _build_file_info(movie)
+    result = await move_finished_media_to_configured_folder(
+        file_info,
+        _build_data(),
+        OtherInfo.empty(),
+        output,
+    )
+
+    expected_folder = actor_folder / "H4610-ORI696 望月 奈々 天宮まりる"
+    expected_movie = expected_folder / "H4610-ORI696 天宮まりる.wmv"
+    assert result.new_file_path == expected_movie
+    assert expected_movie.read_bytes() == b"movie"
+    assert (expected_folder / "H4610-ORI696 天宮まりる.nfo").read_text(encoding="utf-8") == "nfo"
+    assert actor_folder.is_dir()
+
+
+@pytest.mark.asyncio
 async def test_batch_move_keeps_two_movies_from_same_shared_actor_folder_isolated(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
