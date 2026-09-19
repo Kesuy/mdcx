@@ -10,6 +10,7 @@ from PyQt6.QtCore import QEvent, QItemSelectionModel, QPointF, Qt, QTimer
 from PyQt6.QtGui import QHoverEvent
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox, QPushButton
 
+from mdcx.base.file import save_success_list
 from mdcx.config.extend import deal_url, get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.core.local_nfo_loader import LocalNfoLoadError, load_local_nfo
@@ -741,8 +742,9 @@ class MainPageMixin:
                 )
 
         for old_path, new_path in mapping.items():
-            Flags.success_list.discard(old_path)
-            Flags.success_list.add(new_path)
+            if old_path in Flags.success_list:
+                Flags.success_list.discard(old_path)
+                Flags.success_list.add(new_path)
             if self.file_main_open_path == old_path:
                 self.file_main_open_path = new_path
 
@@ -807,12 +809,13 @@ class MainPageMixin:
 
             mapping = result.path_mapping or ((result.old_file_path, result.new_file_path),)
             self._sync_related_moved_paths(mapping, show_data)
-            Flags.success_list.discard(result.old_file_path)
-            Flags.success_list.add(result.new_file_path)
             if self.show_data is show_data:
                 self.file_main_open_path = result.new_file_path
             success_count += 1
             signal_qt.show_log_text(f"\n 📂 已按目录结构移动：\n    {result.old_file_path}\n -> {result.new_file_path}")
+
+        if success_count:
+            executor.run(save_success_list())
 
         if self.show_data is not None and self.show_data.file_info.file_path.is_file():
             self.file_main_open_path = self.show_data.file_info.file_path
