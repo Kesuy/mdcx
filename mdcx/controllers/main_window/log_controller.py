@@ -145,7 +145,7 @@ class LogControllerMixin:
             ]
         return list(Flags.failed_records)
 
-    def show_failure_center(self) -> None:
+    def show_failure_center(self, focus_path: Path | None = None) -> None:
         dialog = getattr(self, "_failure_center", None)
         if dialog is None:
             dialog = FailureCenterDialog(
@@ -155,6 +155,8 @@ class LogControllerMixin:
             )
             self._failure_center = dialog
         dialog.set_records(self._failure_center_records())
+        if focus_path is not None:
+            dialog.focus_path(focus_path)
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
