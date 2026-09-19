@@ -905,6 +905,7 @@ class MainPageMixin:
             f"目标根目录：{target_root}\n"
             f"目录规则：{folder_rule}\n"
             "最终路径会在所选目标根目录下按以上规则生成。\n"
+            "同一番号的多 CD 会作为一个影片组整体移动并保留关联文件。\n"
             "同一演员的其它影片不会随当前影片一起移动。\n"
             "文件是否重命名仍遵循“刮削成功后重命名文件”设置。\n\n是否继续？",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -916,11 +917,22 @@ class MainPageMixin:
         success_count = 0
         skipped_count = 0
         failure_details: list[tuple[Path, str]] = []
-        selected_parent_counts: dict[Path, int] = {}
-        for *_prefix, selected_path in selected_entries:
-            selected_parent_counts[selected_path.parent] = selected_parent_counts.get(selected_path.parent, 0) + 1
 
+        # 多 CD 在结果列表里会占多行，但移动时必须按“同一影片组”处理。
+        # 只有同一源目录中确实选中了多个不同番号时，才需要保留源目录，
+        # 避免把共享演员目录整体搬走；同番号的 CD1/CD2 不应触发该保护。
+        selected_parent_groups: dict[Path, set[str]] = {}
+        selected_original_paths = {entry[3] for entry in selected_entries}
+        for _item, show_name, show_data, selected_path in selected_entries:
+            number = str(show_data.data.number or show_data.file_info.number or show_name).strip().casefold()
+            selected_parent_groups.setdefault(selected_path.parent, set()).add(number)
+
+        processed_paths: set[Path] = set()
         for _item, _show_name, show_data, old_path in selected_entries:
+            if old_path in processed_paths:
+                continue
+
+            preserve_source_folder = len(selected_parent_groups.get(old_path.parent, set())) > 1
             try:
                 result = executor.run(
                     move_finished_media_to_configured_folder(
@@ -928,30 +940,43 @@ class MainPageMixin:
                         show_data.data,
                         show_data.other,
                         target_root,
-                        preserve_source_folder=selected_parent_counts.get(old_path.parent, 0) > 1,
+                        preserve_source_folder=preserve_source_folder,
                     )
                 )
             except MediaReorganizationError as error:
                 failure_details.append((old_path, str(error)))
+                processed_paths.add(old_path)
                 signal_qt.show_log_text(f"\n 🔴 按目录结构移动失败：{old_path}\n    {error}")
                 continue
             except Exception:
                 detail = traceback.format_exc()
                 failure_details.append((old_path, detail))
+                processed_paths.add(old_path)
                 signal_qt.show_traceback_log(detail)
                 continue
 
             if not result.moved:
                 skipped_count += 1
+                processed_paths.add(old_path)
                 signal_qt.show_log_text(f"\n 🟡 已在目标目录，无需移动：{old_path}")
                 continue
 
             mapping = result.path_mapping or ((result.old_file_path, result.new_file_path),)
+            mapping_sources = {source for source, _target in mapping}
+            covered_selected_paths = (mapping_sources & selected_original_paths) - processed_paths
+            processed_paths.update(mapping_sources)
+            if not covered_selected_paths:
+                covered_selected_paths = {old_path}
+                processed_paths.add(old_path)
+
             self._sync_related_moved_paths(mapping, show_data)
             if self.show_data is show_data:
                 self.file_main_open_path = result.new_file_path
-            success_count += 1
-            signal_qt.show_log_text(f"\n 📂 已按目录结构移动：\n    {result.old_file_path}\n -> {result.new_file_path}")
+            success_count += len(covered_selected_paths)
+            group_note = f"（多CD组共 {len(covered_selected_paths)} 项）" if len(covered_selected_paths) > 1 else ""
+            signal_qt.show_log_text(
+                f"\n 📂 已按目录结构移动{group_note}：\n    {result.old_file_path}\n -> {result.new_file_path}"
+            )
 
         if success_count:
             executor.run(save_success_list())
