@@ -353,7 +353,13 @@ def _reorganize_scraped_media_sync(
         _poster_final_path,
         _thumb_final_path,
         _fanart_final_path,
-    ) = get_output_name(file_info, data, success_folder, old_file_path.suffix)
+    ) = get_output_name(
+        file_info,
+        data,
+        success_folder,
+        old_file_path.suffix,
+        force_success_folder=force_target_folder,
+    )
 
     source_within_output = _source_within_output(old_folder, success_folder)
     if force_target_folder:
@@ -586,7 +592,13 @@ def _move_shared_folder_movie_sync(
         _poster_final_path,
         _thumb_final_path,
         _fanart_final_path,
-    ) = get_output_name(file_info, data, success_folder, old_file_path.suffix)
+    ) = get_output_name(
+        file_info,
+        data,
+        success_folder,
+        old_file_path.suffix,
+        force_success_folder=True,
+    )
     new_folder = generated_folder
     _assert_target_within_output(new_folder, success_folder)
     if _same_path(old_folder, new_folder):
