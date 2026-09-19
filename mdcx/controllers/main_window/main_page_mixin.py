@@ -774,6 +774,10 @@ class MainPageMixin:
         success_count = 0
         skipped_count = 0
         failure_details: list[tuple[Path, str]] = []
+        selected_parent_counts: dict[Path, int] = {}
+        for *_prefix, selected_path in selected_entries:
+            selected_parent_counts[selected_path.parent] = selected_parent_counts.get(selected_path.parent, 0) + 1
+
         for _item, _show_name, show_data, old_path in selected_entries:
             try:
                 success_folder = get_movie_path_setting(old_path).success_folder
@@ -783,6 +787,7 @@ class MainPageMixin:
                         show_data.data,
                         show_data.other,
                         success_folder,
+                        preserve_source_folder=selected_parent_counts.get(old_path.parent, 0) > 1,
                     )
                 )
             except MediaReorganizationError as error:
