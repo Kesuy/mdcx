@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from mdcx.config.manager import manager
-from mdcx.core.media_reorganization import MediaReorganizationError, reorganize_scraped_media
+from mdcx.core.media_reorganization import (
+    MediaReorganizationError,
+    move_finished_media_to_configured_folder,
+    reorganize_scraped_media,
+)
 from mdcx.models.types import CrawlersResult, FileInfo, OtherInfo
 
 
@@ -153,6 +157,81 @@ async def test_reorganize_scraped_media_refuses_folder_with_another_movie(
 
     assert old_movie.exists()
     assert another_movie.exists()
+
+
+@pytest.mark.asyncio
+async def test_move_finished_media_moves_only_selected_movie_from_shared_actor_folder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    output = tmp_path / "JAV_output"
+    shared_folder = output / "望月奈々"
+    shared_folder.mkdir(parents=True)
+
+    selected_movie = shared_folder / "H4610-ORI696 望月奈々.wmv"
+    selected_nfo = shared_folder / "H4610-ORI696 望月奈々.nfo"
+    unrelated_movie = shared_folder / "OTHER-001.mp4"
+    unrelated_nfo = shared_folder / "OTHER-001.nfo"
+    selected_movie.write_bytes(b"selected")
+    selected_nfo.write_text("selected nfo", encoding="utf-8")
+    unrelated_movie.write_bytes(b"other")
+    unrelated_nfo.write_text("other nfo", encoding="utf-8")
+
+    file_info = _build_file_info(selected_movie)
+    result = await move_finished_media_to_configured_folder(
+        file_info,
+        _build_data(),
+        OtherInfo.empty(),
+        output,
+    )
+
+    target_folder = output / "天宮まりる" / "H4610-ORI696 望月 奈々 天宮まりる"
+    target_movie = target_folder / "H4610-ORI696 天宮まりる.wmv"
+    target_nfo = target_folder / "H4610-ORI696 天宮まりる.nfo"
+
+    assert result.new_file_path == target_movie
+    assert target_movie.read_bytes() == b"selected"
+    assert target_nfo.read_text(encoding="utf-8") == "selected nfo"
+    assert unrelated_movie.read_bytes() == b"other"
+    assert unrelated_nfo.read_text(encoding="utf-8") == "other nfo"
+    assert shared_folder.is_dir()
+    assert file_info.file_path == target_movie
+    assert file_info.folder_path == target_folder
+
+
+@pytest.mark.asyncio
+async def test_move_finished_media_forces_configured_success_tree_when_auto_move_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    _configure_naming(monkeypatch)
+    monkeypatch.setattr(manager.config, "success_file_move", False)
+
+    output = tmp_path / "JAV_output"
+    output.mkdir()
+    source_folder = tmp_path / "incoming" / "single"
+    source_folder.mkdir(parents=True)
+    source_movie = source_folder / "H4610-ORI696 望月奈々.wmv"
+    source_nfo = source_folder / "H4610-ORI696 望月奈々.nfo"
+    source_movie.write_bytes(b"movie")
+    source_nfo.write_text("nfo", encoding="utf-8")
+
+    file_info = _build_file_info(source_movie)
+    result = await move_finished_media_to_configured_folder(
+        file_info,
+        _build_data(),
+        OtherInfo.empty(),
+        output,
+    )
+
+    target_folder = output / "天宮まりる" / "H4610-ORI696 望月 奈々 天宮まりる"
+    target_movie = target_folder / "H4610-ORI696 天宮まりる.wmv"
+    assert result.new_file_path == target_movie
+    assert target_movie.read_bytes() == b"movie"
+    assert (target_folder / "H4610-ORI696 天宮まりる.nfo").read_text(encoding="utf-8") == "nfo"
+    assert not source_folder.exists()
+    assert file_info.file_path == target_movie
 
 
 @pytest.mark.asyncio
