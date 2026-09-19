@@ -189,7 +189,6 @@ def test_rule_based_move_treats_selected_multi_cd_rows_as_one_movie_group(monkey
     assert calls == [False]
 
 
-
 def test_multi_cd_path_sync_preserves_metadata_and_updates_shared_runtime_caches(
     monkeypatch,
     tmp_path: Path,
