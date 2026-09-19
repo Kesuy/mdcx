@@ -305,6 +305,26 @@ class FailureCenterDialog(QDialog):
         self.set_records(self._records_provider())
         self.feedback.setText("已刷新失败记录。")
 
+    def focus_path(self, path: Path) -> bool:
+        target = Path(path)
+        record = next((item for item in self._records if item.path == target), None)
+        if record is None:
+            return False
+
+        if record not in self._visible_records:
+            self.search.clear()
+            self.category_filter.setCurrentIndex(0)
+            self.retry_filter.setCurrentIndex(0)
+            self._apply_filters()
+
+        for index in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(index)
+            if self._record_for_item(item) is record:
+                self.tree.setCurrentItem(item)
+                self.tree.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+                return True
+        return False
+
     @staticmethod
     def _record_for_item(item: QTreeWidgetItem | None) -> FailureRecord | None:
         if item is None:
