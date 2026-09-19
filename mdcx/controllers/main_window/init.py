@@ -170,7 +170,7 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
     self.result_sort_combo = QComboBox(self.Ui.page_main)
     self.result_sort_combo.setObjectName("result_sort_combo")
     self.result_sort_combo.setGeometry(600, 110, 130, 26)
-    self.result_sort_combo.addItems(["完成顺序", "番号", "演员"])
+    self.result_sort_combo.addItems(["完成顺序", "番号", "演员", "来源"])
     self.result_sort_combo.setToolTip("成功结果排序方式（只改变显示顺序）")
     self.result_sort_combo.currentTextChanged.connect(self._sort_success_results)
 
