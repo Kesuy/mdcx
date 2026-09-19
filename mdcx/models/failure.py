@@ -107,13 +107,25 @@ def classify_failure(
             "status 401",
             "status 403",
             "登录",
+            "登录页",
             "认证",
             "验证码",
         )
     ):
         category = FailureCategory.AUTHENTICATION
         retryable = False
-    elif any(token in normalized for token in ("no result", "not found", "未找到", "无结果", "没有结果")):
+    elif any(
+        token in normalized
+        for token in (
+            "no result",
+            "not found",
+            "http 404",
+            "status 404",
+            "未找到",
+            "无结果",
+            "没有结果",
+        )
+    ):
         category = FailureCategory.SEARCH_NO_RESULT
         retryable = True
     elif any(
