@@ -596,12 +596,19 @@ class Scraper:
                 failed_folder = get_movie_path_setting(file_path).failed_folder
                 fail_file_path = await move_file_to_failed_folder(failed_folder, file_path, folder_old_path)
                 failure_message = LogBuffer.error().get()
+                failure_site = manager.config.selected_site if manager.config.scrape_like == "single" else ""
                 failure = classify_failure(
                     fail_file_path,
                     failure_message,
                     stage="scrape",
+                    site=failure_site,
                     debug_detail=failure_debug_detail,
-                    context={"number": number, "show_name": show_data.show_name},
+                    context={
+                        "number": number,
+                        "show_name": show_data.show_name,
+                        "scrape_like": manager.config.scrape_like,
+                        "selected_site": failure_site,
+                    },
                     exception=failure_exception,
                 )
                 self.session.record_failure(failure)
