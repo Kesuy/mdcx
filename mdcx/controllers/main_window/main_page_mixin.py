@@ -33,6 +33,15 @@ def _result_item_name(item: ResultItem) -> str:
     return str(item.data(0, RESULT_NAME_ROLE) or item.text(0))
 
 
+def _result_source(show_data: ShowData | None) -> str:
+    if show_data is None:
+        return ""
+    provenance = show_data.data.get_provenance(CrawlerResultFields.TITLE)
+    if provenance is not None:
+        return provenance.source
+    return show_data.data.field_sources.get(CrawlerResultFields.TITLE, "")
+
+
 class MainPageMixin:
     @staticmethod
     def _result_item_name(item: ResultItem) -> str:
@@ -55,18 +64,14 @@ class MainPageMixin:
         if show_data is not None:
             node.setData(0, RESULT_DATA_ROLE, show_data)
             number = show_data.data.number or show_data.file_info.number
-            provenance = show_data.data.get_provenance(CrawlerResultFields.TITLE)
-            source = (
-                provenance.source
-                if provenance is not None
-                else show_data.data.field_sources.get(CrawlerResultFields.TITLE, "")
-            )
+            source = _result_source(show_data)
+            source_label = source or ("本地" if result == "succ" else "未获取")
             state = "完成" if result == "succ" else "失败"
             icon = "✓" if result == "succ" else "⚠"
             primary = number or filename
             # The task name usually repeats the number with an order prefix.
             # Keep it in the tooltip and identity role, not in the narrow row.
-            display_text = f"{icon} {primary} · {source or '本地'}"
+            display_text = f"{icon} {primary} · {source_label}"
             warnings = []
             if result == "succ":
                 if show_data.other.fanart_failed:
@@ -78,7 +83,7 @@ class MainPageMixin:
             node.setData(
                 0,
                 Qt.ItemDataRole.ToolTipRole,
-                f"状态：{state}\n番号/名称：{number or filename}\n来源：{source or '本地'}\n{filename}"
+                f"状态：{state}\n番号/名称：{number or filename}\n来源：{source_label}\n{filename}"
                 + ("\n双击打开失败中心并重试" if result == "fail" else "")
                 + ("\n" + "\n".join(warnings) if warnings else ""),
             )
@@ -142,6 +147,7 @@ class MainPageMixin:
                     number=show_data.data.number if show_data else "",
                     actor=show_data.data.actor if show_data else "",
                     insertion_index=insertion_index,
+                    source=_result_source(show_data) or "本地",
                 )
             )
             item_by_insertion[insertion_index] = item
