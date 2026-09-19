@@ -140,8 +140,7 @@ class LogControllerMixin:
     def _failure_center_records(self):
         if not Flags.failed_records and Flags.failed_list:
             Flags.failed_records[:] = [
-                classify_failure(path, message, stage="scrape")
-                for path, message in Flags.failed_list
+                classify_failure(path, message, stage="scrape") for path, message in Flags.failed_list
             ]
         return list(Flags.failed_records)
 
