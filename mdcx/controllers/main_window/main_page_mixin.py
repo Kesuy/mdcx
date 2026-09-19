@@ -10,9 +10,14 @@ from PyQt6.QtCore import QEvent, QItemSelectionModel, QPointF, Qt, QTimer
 from PyQt6.QtGui import QHoverEvent
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox, QPushButton
 
-from mdcx.config.extend import deal_url
+from mdcx.config.extend import deal_url, get_movie_path_setting
 from mdcx.config.manager import manager
 from mdcx.core.local_nfo_loader import LocalNfoLoadError, load_local_nfo
+from mdcx.core.media_reorganization import (
+    MediaReorganizationError,
+    move_finished_media_to_configured_folder,
+    update_runtime_paths_after_reorganization,
+)
 from mdcx.core.scraper import again_search
 from mdcx.gen.field_enums import CrawlerResultFields
 from mdcx.models.flags import Flags
@@ -221,6 +226,9 @@ class MainPageMixin:
                 continue
             result.append((item, show_name, show_data, show_data.file_info.file_path))
         return result
+
+    def _get_selected_success_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:
+        return [entry for entry in self._get_selected_entries() if entry[0].parent() is self.item_succ]
 
     def _build_delete_preview(self, paths: list[Path], limit: int = 8) -> str:
         plan = self._get_file_controller().build_plan(FileOperationKind.DELETE_FILES, paths)
@@ -714,6 +722,110 @@ class MainPageMixin:
             self.show_scrape_info(f"💡 已删除文件夹！{get_current_time()}")
         else:
             self.show_scrape_info(f"💡 已删除 {success_folder_count} 个文件夹！{get_current_time()}")
+
+    def _sync_related_moved_paths(self, path_mapping: tuple[tuple[Path, Path], ...], selected: ShowData) -> None:
+        mapping = dict(path_mapping)
+        if not mapping:
+            return
+        for show_data in self.json_array.values():
+            if show_data is selected:
+                continue
+            old_path = show_data.file_info.file_path
+            new_path = mapping.get(old_path)
+            if new_path is not None:
+                update_runtime_paths_after_reorganization(
+                    show_data.file_info,
+                    show_data.other,
+                    old_path,
+                    new_path,
+                )
+
+        for old_path, new_path in mapping.items():
+            Flags.success_list.discard(old_path)
+            Flags.success_list.add(new_path)
+            if self.file_main_open_path == old_path:
+                self.file_main_open_path = new_path
+
+    def main_move_by_rule_click(self) -> None:
+        """Move selected successful results using the current configured folder structure."""
+
+        selected_entries = self._get_selected_success_entries()
+        if not selected_entries:
+            QMessageBox.information(self, "没有可移动项目", "请在“完成”列表中选择一个或多个影片。")
+            return
+
+        if len(selected_entries) != len(self._get_selected_entries()):
+            QMessageBox.warning(self, "无法移动", "移动功能仅适用于“完成”列表，请不要同时选择失败项目。")
+            return
+
+        folder_rule = str(manager.config.folder_name or "").strip() or "（未设置子目录规则）"
+        answer = QMessageBox.question(
+            self,
+            "按目录结构移动",
+            f"将按当前设置移动 {len(selected_entries)} 个完成项目。\n\n目录规则：{folder_rule}\n"
+            "同一演员的其它影片不会随当前影片一起移动。\n"
+            "文件是否重命名仍遵循“刮削成功后重命名文件”设置。\n\n是否继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        success_count = 0
+        skipped_count = 0
+        failure_details: list[tuple[Path, str]] = []
+        for _item, _show_name, show_data, old_path in selected_entries:
+            try:
+                success_folder = get_movie_path_setting(old_path).success_folder
+                result = executor.run(
+                    move_finished_media_to_configured_folder(
+                        show_data.file_info,
+                        show_data.data,
+                        show_data.other,
+                        success_folder,
+                    )
+                )
+            except MediaReorganizationError as error:
+                failure_details.append((old_path, str(error)))
+                signal_qt.show_log_text(f"\n 🔴 按目录结构移动失败：{old_path}\n    {error}")
+                continue
+            except Exception:
+                detail = traceback.format_exc()
+                failure_details.append((old_path, detail))
+                signal_qt.show_traceback_log(detail)
+                continue
+
+            if not result.moved:
+                skipped_count += 1
+                signal_qt.show_log_text(f"\n 🟡 已在目标目录，无需移动：{old_path}")
+                continue
+
+            mapping = result.path_mapping or ((result.old_file_path, result.new_file_path),)
+            self._sync_related_moved_paths(mapping, show_data)
+            Flags.success_list.discard(result.old_file_path)
+            Flags.success_list.add(result.new_file_path)
+            if self.show_data is show_data:
+                self.file_main_open_path = result.new_file_path
+            success_count += 1
+            signal_qt.show_log_text(
+                f"\n 📂 已按目录结构移动：\n    {result.old_file_path}\n -> {result.new_file_path}"
+            )
+
+        if self.show_data is not None and self.show_data.file_info.file_path.is_file():
+            self.file_main_open_path = self.show_data.file_info.file_path
+            self.set_main_info(self.show_data)
+
+        fail_count = len(failure_details)
+        signal_qt.show_scrape_info(
+            f"💡 移动完成，成功 {success_count}，跳过 {skipped_count}，失败 {fail_count}！{get_current_time()}"
+        )
+        if failure_details:
+            self._show_action_failure_feedback(
+                "按目录结构移动",
+                success_count,
+                failure_details,
+                skipped_count=skipped_count,
+            )
 
     def main_make_symlink_click(self):
         """
