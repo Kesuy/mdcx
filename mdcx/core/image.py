@@ -41,6 +41,35 @@ def get_face_crop_left(image: Image.Image, crop_width: int, log_fn=None) -> int 
     return detect_face_crop_left(image, crop_width, log_fn=log_fn)
 
 
+def find_local_number_images(
+    number: str,
+    folder_path: Path,
+    *,
+    exclude_paths: set[Path] | None = None,
+) -> list[Path]:
+    """Return same-number local artwork in deterministic filename order."""
+
+    try:
+        names = os.listdir(folder_path)
+    except OSError:
+        return []
+
+    excluded = exclude_paths or set()
+    return sorted(
+        (
+            folder_path / name
+            for name in names
+            if number.casefold() in name.casefold()
+            and Path(name).suffix.lower() in LOCAL_NUMBER_IMAGE_EXTENSIONS
+            and folder_path / name not in excluded
+        ),
+        key=lambda path: tuple(
+            (1, int(part)) if part.isdigit() else (0, part)
+            for part in re.split(r"(\d+)", path.name.casefold())
+        ),
+    )
+
+
 def _save_local_image_as_jpeg(source_path: Path, target_path: Path) -> tuple[bool, str]:
     temp_path = target_path.with_name(f"{target_path.name}.[LOCAL].jpg")
     try:
@@ -68,23 +97,12 @@ async def prepare_local_number_images(
     if not manager.config.use_local_number_images or manager.config.soft_link != 0:
         return False, True
 
-    try:
-        names = await asyncio.to_thread(os.listdir, folder_old_path)
-    except OSError:
-        return False, True
-
     final_paths = {poster_final_path, thumb_final_path, fanart_final_path}
-    matched = sorted(
-        (
-            folder_old_path / name
-            for name in names
-            if result.number.casefold() in name.casefold()
-            and Path(name).suffix.lower() in LOCAL_NUMBER_IMAGE_EXTENSIONS
-            and folder_old_path / name not in final_paths
-        ),
-        key=lambda path: tuple(
-            (1, int(part)) if part.isdigit() else (0, part) for part in re.split(r"(\d+)", path.name.casefold())
-        ),
+    matched = await asyncio.to_thread(
+        find_local_number_images,
+        result.number,
+        folder_old_path,
+        exclude_paths=final_paths,
     )
     if not matched:
         return False, True
