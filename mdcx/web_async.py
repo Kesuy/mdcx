@@ -1687,6 +1687,7 @@ class AsyncWebClient:
                     retry = True
                     await self._record_transport_failure(error_msg, pool_key=pool_key)
                 if not retry:
+                    self._log(f"🔴 {method} {url} 失败: {error_msg}")
                     if stream:
                         await self._close_response(resp)
                     break
