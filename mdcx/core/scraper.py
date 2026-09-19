@@ -32,7 +32,7 @@ from ..config.resources import resources
 from ..crawler import CrawlerProvider
 from ..gen.field_enums import CrawlerResultFields
 from ..models.enums import FileMode
-from ..models.failure import classify_failure
+from ..models.failure import FailureRecord, classify_failure
 from ..models.flags import FileDoneDict, Flags
 from ..models.log_buffer import LogBuffer
 from ..models.session import ScrapeSession
@@ -175,10 +175,12 @@ class Scraper:
         crawler_provider: "CrawlerProviderProtocol",
         session: ScrapeSession | None = None,
         services: ApplicationServices | None = None,
+        preserved_failures: list[FailureRecord] | None = None,
     ):
         self.crawler_provider = crawler_provider
         self.session = session or ScrapeSession()
         self.services = services or ApplicationServices.from_globals()
+        self.preserved_failures = list(preserved_failures or [])
         self.finished: Future[None] = Future()
         self.auto_exit = False
 
@@ -256,7 +258,24 @@ class Scraper:
         try:
             await self._run(file_mode, movie_list)
         finally:
+            self._restore_preserved_failures()
             await self.crawler_provider.close()
+
+    def _restore_preserved_failures(self) -> None:
+        if not self.preserved_failures:
+            return
+
+        existing_paths = {record.path for record in self.session.state.failures}
+        restored = [record for record in self.preserved_failures if record.path not in existing_paths]
+        if restored:
+            self.session.state.failures[:0] = restored
+            legacy_paths = {path for path, _message in Flags.failed_list}
+            Flags.failed_list[:0] = [
+                record.legacy_tuple() for record in restored if record.path not in legacy_paths
+            ]
+        self.preserved_failures.clear()
+        Flags.failed_records = self.session.state.failures
+        signal.view_failed_list_settext.emit(f"失败 {len(Flags.failed_records)}")
 
     async def _run(self, file_mode: FileMode, movie_list: list[Path] | None) -> None:
         Flags.reset()
@@ -1077,7 +1096,12 @@ async def stop_active_scrape() -> None:
         await asyncio.shield(asyncio.wrap_future(scraper.finished))
 
 
-def start_new_scrape(file_mode: FileMode, movie_list: list[Path] | None = None) -> None:
+def start_new_scrape(
+    file_mode: FileMode,
+    movie_list: list[Path] | None = None,
+    *,
+    preserved_failures: list[FailureRecord] | None = None,
+) -> None:
     global _active_scraper
     with _active_scraper_lock:
         if _active_scraper is not None:
@@ -1090,7 +1114,11 @@ def start_new_scrape(file_mode: FileMode, movie_list: list[Path] | None = None) 
                 )
             services = ApplicationServices.from_globals()
             services.network_services["crawler_provider"] = crawler_provider
-            scraper = Scraper(crawler_provider, services=services)
+            scraper = Scraper(
+                crawler_provider,
+                services=services,
+                preserved_failures=preserved_failures,
+            )
             _active_scraper = scraper
             Flags.stop_requested = False
             signal.stop = False
