@@ -761,10 +761,26 @@ class MainPageMixin:
             return
 
         folder_rule = str(manager.config.folder_name or "").strip() or "（未设置子目录规则）"
+        first_path = selected_entries[0][3]
+        configured_folder = get_movie_path_setting(first_path).success_folder
+        start_folder = configured_folder if configured_folder.is_dir() else first_path.parent
+        selected_folder = QFileDialog.getExistingDirectory(
+            self,
+            "选择移动目标根目录",
+            start_folder.as_posix(),
+            options=self.options,
+        )
+        if not selected_folder:
+            return
+        target_root = Path(selected_folder)
+
         answer = QMessageBox.question(
             self,
             "按目录结构移动",
-            f"将按当前设置移动 {len(selected_entries)} 个完成项目。\n\n目录规则：{folder_rule}\n"
+            f"将按当前设置移动 {len(selected_entries)} 个完成项目。\n\n"
+            f"目标根目录：{target_root}\n"
+            f"目录规则：{folder_rule}\n"
+            "最终路径会在所选目标根目录下按以上规则生成。\n"
             "同一演员的其它影片不会随当前影片一起移动。\n"
             "文件是否重命名仍遵循“刮削成功后重命名文件”设置。\n\n是否继续？",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -782,13 +798,12 @@ class MainPageMixin:
 
         for _item, _show_name, show_data, old_path in selected_entries:
             try:
-                success_folder = get_movie_path_setting(old_path).success_folder
                 result = executor.run(
                     move_finished_media_to_configured_folder(
                         show_data.file_info,
                         show_data.data,
                         show_data.other,
-                        success_folder,
+                        target_root,
                         preserve_source_folder=selected_parent_counts.get(old_path.parent, 0) > 1,
                     )
                 )
