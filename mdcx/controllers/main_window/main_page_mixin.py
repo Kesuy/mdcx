@@ -848,10 +848,55 @@ class MainPageMixin:
         else:
             self.show_scrape_info(f"💡 已删除 {success_folder_count} 个文件夹！{get_current_time()}")
 
-    def _sync_related_moved_paths(self, path_mapping: tuple[tuple[Path, Path], ...], selected: ShowData) -> None:
+    @staticmethod
+    def _remap_runtime_path_set(paths: set[Path], mapping: dict[Path, Path]) -> None:
+        remapped = {mapping.get(Path(path), Path(path)) for path in paths}
+        paths.clear()
+        paths.update(remapped)
+
+    def _sync_moved_runtime_caches(self, all_path_mapping: tuple[tuple[Path, Path], ...]) -> None:
+        mapping = dict(all_path_mapping)
+        if not mapping:
+            return
+
+        # Same-number CD tasks can still be running while the user moves an
+        # already-completed CD. Keep their shared artwork/resource cache valid.
+        for resources in Flags.file_done_dic.values():
+            for key, value in list(resources.items()):
+                if value is None:
+                    continue
+                resources[key] = mapping.get(Path(value), Path(value))
+
+        for attr in (
+            "pic_catch_set",
+            "extrafanart_deal_set",
+            "trailer_deal_set",
+            "theme_videos_deal_set",
+            "nfo_deal_set",
+        ):
+            paths = getattr(Flags, attr, None)
+            if isinstance(paths, set):
+                self._remap_runtime_path_set(paths, mapping)
+
+        if Flags.file_new_path_dic:
+            remapped_file_paths = {
+                mapping.get(Path(key), Path(key)): [mapping.get(Path(value), Path(value)) for value in values]
+                for key, values in Flags.file_new_path_dic.items()
+            }
+            Flags.file_new_path_dic.clear()
+            Flags.file_new_path_dic.update(remapped_file_paths)
+
+    def _sync_related_moved_paths(
+        self,
+        path_mapping: tuple[tuple[Path, Path], ...],
+        selected: ShowData,
+        *,
+        all_path_mapping: tuple[tuple[Path, Path], ...] = (),
+    ) -> None:
         mapping = dict(path_mapping)
         if not mapping:
             return
+        resource_mapping = all_path_mapping or path_mapping
         for show_data in self.json_array.values():
             if show_data is selected:
                 continue
@@ -863,7 +908,10 @@ class MainPageMixin:
                     show_data.other,
                     old_path,
                     new_path,
+                    all_path_mapping=resource_mapping,
                 )
+
+        self._sync_moved_runtime_caches(resource_mapping)
 
         for old_path, new_path in mapping.items():
             if old_path in Flags.success_list:
@@ -969,7 +1017,11 @@ class MainPageMixin:
                 covered_selected_paths = {old_path}
                 processed_paths.add(old_path)
 
-            self._sync_related_moved_paths(mapping, show_data)
+            self._sync_related_moved_paths(
+                mapping,
+                show_data,
+                all_path_mapping=getattr(result, "all_path_mapping", ()),
+            )
             if self.show_data is show_data:
                 self.file_main_open_path = result.new_file_path
             success_count += len(covered_selected_paths)
