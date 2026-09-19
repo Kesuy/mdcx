@@ -113,6 +113,20 @@ def test_sort_result_entries_sorts_actor_and_supports_descending():
     ]
 
 
+def test_sort_result_entries_sorts_source_then_number():
+    entries = [
+        ResultSortEntry("javdb", "H10", "", 0, "javdb"),
+        ResultSortEntry("fc2-later", "H10", "", 2, "fc2ppvdb"),
+        ResultSortEntry("fc2-first", "H2", "", 1, "fc2ppvdb"),
+    ]
+
+    assert [entry.show_name for entry in sort_result_entries(entries, "来源")] == [
+        "fc2-first",
+        "fc2-later",
+        "javdb",
+    ]
+
+
 def test_main_result_tree_reorders_success_children_by_number():
     class Harness:
         _addTreeChild = MyMAinWindow._addTreeChild
@@ -123,7 +137,7 @@ def test_main_result_tree_reorders_success_children_by_number():
     harness.item_succ = QTreeWidgetItem(harness.Ui.treeWidget_number, ["成功"])
     harness.item_fail = QTreeWidgetItem(harness.Ui.treeWidget_number, ["失败"])
     harness.result_sort_combo = QComboBox()
-    harness.result_sort_combo.addItems(["完成顺序", "番号", "演员"])
+    harness.result_sort_combo.addItems(["完成顺序", "番号", "演员", "来源"])
     harness.result_sort_order_button = QPushButton("↑")
     harness._result_sort_descending = False
     harness._result_insertion_index = 0
@@ -140,6 +154,28 @@ def test_main_result_tree_reorders_success_children_by_number():
 
     assert [harness.item_succ.child(index).text(0) for index in range(2)] == ["row-2", "row-10"]
     assert APP is not None
+
+
+def test_failed_result_without_scraper_source_is_not_labeled_local():
+    class Harness:
+        _addTreeChild = MyMAinWindow._addTreeChild
+
+    harness = Harness()
+    harness.Ui = SimpleNamespace(treeWidget_number=QTreeWidget())
+    harness.item_succ = QTreeWidgetItem(harness.Ui.treeWidget_number, ["成功"])
+    harness.item_fail = QTreeWidgetItem(harness.Ui.treeWidget_number, ["失败"])
+    harness._result_insertion_index = 0
+
+    data = CrawlersResult.empty()
+    data.number = "FC2-794563"
+    show_data = ShowData(FileInfo.empty(), data, OtherInfo.empty(), "1.FC2-794563")
+    harness._addTreeChild("fail", show_data.show_name, show_data)
+
+    text_value = harness.item_fail.child(0).text(0)
+    tooltip = harness.item_fail.child(0).toolTip(0)
+    assert "未获取" in text_value
+    assert "来源：未获取" in tooltip
+    assert "本地" not in text_value
 
 
 def test_result_items_keep_their_own_data_when_display_names_repeat():
