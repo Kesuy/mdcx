@@ -345,21 +345,24 @@ class Fc2ppvdbCrawler(BaseCrawler):
         self,
         *,
         number: str,
-        cookies: dict[str, str],
         use_proxy: bool,
     ) -> tuple[dict[str, Any] | None, str]:
         async with self._batch_lock:
             elapsed = time.monotonic() - self._last_batch_finished_at
             if self._last_batch_finished_at and elapsed < FC2CMADB_BATCH_INTERVAL_SECONDS:
                 await asyncio.sleep(FC2CMADB_BATCH_INTERVAL_SECONDS - elapsed)
+            cookies = cookie_str_to_dict(manager.config.fc2ppvdb)
             try:
-                return await fetch_article_info(
+                article_info, error = await fetch_article_info(
                     self.async_client,
                     base_url=self.base_url,
                     number=number,
                     cookies=cookies,
                     use_proxy=use_proxy,
                 )
+                if article_info is not None:
+                    persist_fc2cmadb_cookies(cookies)
+                return article_info, error
             finally:
                 self._last_batch_finished_at = time.monotonic()
 
@@ -380,17 +383,13 @@ class Fc2ppvdbCrawler(BaseCrawler):
         ctx.debug(f"番号地址: {article_url}")
         ctx.debug_info.detail_urls = [article_url]
 
-        cookie_string = manager.config.fc2ppvdb
-        cookies = cookie_str_to_dict(cookie_string)
         use_proxy = manager.config.use_proxy
         html_info, error = await self._fetch_article_serialized(
             number=number,
-            cookies=cookies,
             use_proxy=use_proxy,
         )
         if html_info is None:
             raise CralwerException(error)
-        persist_fc2cmadb_cookies(cookies)
         for warning in html_info.get("_mdcx_warnings", []):
             ctx.debug(warning)
             signal.add_log(f"⚠️ {warning}")
