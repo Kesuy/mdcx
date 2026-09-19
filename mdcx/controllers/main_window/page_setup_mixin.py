@@ -185,6 +185,16 @@ class PageSetupMixin:
         self.Ui.horizontalLayout_fc2ppvdb_cookie.addWidget(self.Ui.label_fc2ppvdb_cookie_result)
         self.Ui.gridLayout_10.addLayout(self.Ui.horizontalLayout_fc2ppvdb_cookie, 10, 1, 1, 1)
 
+        self.Ui.label_fc2cmadb_cookie_guidance = QLabel(self.Ui.gridLayoutWidget_10)
+        self.Ui.label_fc2cmadb_cookie_guidance.setObjectName("label_fc2cmadb_cookie_guidance")
+        self.Ui.label_fc2cmadb_cookie_guidance.setProperty("semanticRole", "help")
+        self.Ui.label_fc2cmadb_cookie_guidance.setWordWrap(True)
+        self.Ui.label_fc2cmadb_cookie_guidance.setText(
+            "保守建议：批量使用 FC2CMADB 时并发尽量设为 1，番号间隔 ≥2 秒，单批 ≤20 个；"
+            "若出现演员缺失、HTTP 404/429 或登录状态异常，暂停 1–2 分钟并重新检查 Cookie。"
+        )
+        self.Ui.gridLayout_10.addWidget(self.Ui.label_fc2cmadb_cookie_guidance, 11, 1, 1, 1)
+
         for editor in (
             self.Ui.plainTextEdit_cookie_javdb,
             self.Ui.plainTextEdit_cookie_javbus,
