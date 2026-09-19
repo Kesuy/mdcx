@@ -9218,7 +9218,7 @@ class Ui_SettingsPage(object):
         self.checkBox_poster_auto_best.setText(_translate("SettingsPage", "有码 Poster 竖图按大小自动选优"))
         self.label_poster_auto_best.setText(_translate("SettingsPage", " 仅有码：直下/搜图/右裁剪选优"))
         self.label_poster_auto_best.setProperty("semanticRole", _translate("SettingsPage", "help"))
-        self.checkBox_ignore_wuma.setText(_translate("SettingsPage", "无码封面不裁剪，直接复制缩略图"))
+        self.checkBox_ignore_wuma.setText(_translate("SettingsPage", "无码封面不裁剪（不含 FC2），直接复制缩略图"))
         self.label_273.setText(_translate("SettingsPage", " 无码封面人脸位置不固定，建议手动裁剪或直接复制"))
         self.label_273.setProperty("semanticRole", _translate("SettingsPage", "help"))
         self.checkBox_ignore_oumei.setText(_translate("SettingsPage", "欧美封面不裁剪，直接复制缩略图"))
