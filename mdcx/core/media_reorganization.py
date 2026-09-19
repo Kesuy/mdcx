@@ -573,16 +573,6 @@ def _move_shared_folder_movie_sync(
         raise MediaReorganizationError(f"影片文件不存在：{old_file_path}")
 
     movie_group, unrelated = _movie_group_with_unrelated(old_file_path, old_folder, file_info.cd_part)
-    if not unrelated and not preserve_source_folder:
-        return _reorganize_scraped_media_sync(
-            file_info,
-            data,
-            other,
-            success_folder,
-            force_move=True,
-            force_target_folder=True,
-        )
-
     (
         generated_folder,
         generated_file_path,
@@ -602,6 +592,24 @@ def _move_shared_folder_movie_sync(
         force_success_folder=True,
     )
     new_folder = generated_folder
+
+    target_inside_source = False
+    if not _same_path(new_folder, old_folder):
+        try:
+            new_folder.resolve(strict=False).relative_to(old_folder.resolve(strict=False))
+            target_inside_source = True
+        except ValueError:
+            pass
+
+    if not unrelated and not preserve_source_folder and not target_inside_source:
+        return _reorganize_scraped_media_sync(
+            file_info,
+            data,
+            other,
+            success_folder,
+            force_move=True,
+            force_target_folder=True,
+        )
     _assert_target_within_output(new_folder, success_folder)
     if _same_path(old_folder, new_folder):
         return MediaReorganizationResult(old_file_path, old_file_path, old_folder, old_folder, False)
