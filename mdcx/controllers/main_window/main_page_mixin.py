@@ -32,6 +32,7 @@ from .file_controller import FileOperationKind, classify_file_failure
 from .nfo_controller import NfoController
 from .responsive_layout import show_responsive_overlay
 from .result_model import RESULT_DATA_ROLE, RESULT_NAME_ROLE, ResultItem, ResultTreeItem, create_result_item
+from .result_snapshot import ResultSnapshotError, load_result_snapshot, save_result_snapshot
 from .result_sorting import ResultSortEntry, ResultSortMode, sort_result_entries
 
 
@@ -176,6 +177,103 @@ class MainPageMixin:
         self.result_sort_order_button.setText("↓" if self._result_sort_descending else "↑")
         self._sort_success_results()
 
+    def _result_snapshot_records(self) -> list[tuple[Literal["succ", "fail"], ShowData]]:
+        records: list[tuple[Literal["succ", "fail"], ShowData]] = []
+        for status, root in (("succ", self.item_succ), ("fail", self.item_fail)):
+            for index in range(root.childCount()):
+                item = root.child(index)
+                show_name = _result_item_name(item)
+                show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
+                if show_data is not None:
+                    records.append((status, show_data))
+        return records
+
+    def save_result_snapshot_clicked(self) -> None:
+        records = self._result_snapshot_records()
+        if not records:
+            QMessageBox.information(self, "保存结果", "当前结果列表为空。")
+            return
+
+        default_path = manager.data_folder / "mdcx-results.json"
+        filename, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "保存结果列表",
+            default_path.as_posix(),
+            "MDCx 结果文件 (*.json)",
+            options=self.options,
+        )
+        if not filename:
+            return
+
+        target = Path(filename)
+        if target.suffix.casefold() != ".json":
+            target = target.with_suffix(".json")
+        try:
+            save_result_snapshot(target, records)
+        except OSError as error:
+            QMessageBox.warning(self, "保存结果失败", str(error))
+            return
+
+        signal_qt.show_scrape_info(f"💡 已保存 {len(records)} 条结果！{get_current_time()}")
+        signal_qt.show_log_text(f" 💾 已保存结果列表：{target}")
+
+    def open_result_snapshot_clicked(self) -> None:
+        if self.Ui.pushButton_start_cap.text() != "开始":
+            QMessageBox.warning(self, "无法打开结果", "请先停止当前刮削任务。")
+            return
+
+        filename, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "打开结果列表",
+            manager.data_folder.as_posix(),
+            "MDCx 结果文件 (*.json);;JSON 文件 (*.json)",
+            options=self.options,
+        )
+        if not filename:
+            return
+
+        try:
+            records = load_result_snapshot(Path(filename))
+        except ResultSnapshotError as error:
+            QMessageBox.warning(self, "打开结果失败", str(error))
+            return
+
+        if self.item_succ.childCount() or self.item_fail.childCount():
+            answer = QMessageBox.question(
+                self,
+                "替换当前结果",
+                f"将用文件中的 {len(records)} 条结果替换当前结果列表，是否继续？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        self.json_array.clear()
+        self.init_QTreeWidget()
+        first_item = None
+        success_count = 0
+        failure_count = 0
+        for status, show_data in records:
+            self._addTreeChild(status, show_data.show_name, show_data)
+            self.json_array[show_data.show_name] = show_data
+            if status == "succ":
+                success_count += 1
+                item = self.item_succ.child(self.item_succ.childCount() - 1)
+            else:
+                failure_count += 1
+                item = self.item_fail.child(self.item_fail.childCount() - 1)
+            if first_item is None:
+                first_item = item
+
+        self._sort_success_results()
+        self._filter_results()
+        self.label_result.emit(f" 已打开结果：成功：{success_count} 失败：{failure_count}")
+        if first_item is not None:
+            self._set_result_item_as_current_selection(first_item)
+            self._show_result_item(first_item)
+        signal_qt.show_log_text(f" 📂 已打开结果列表：{filename}（{len(records)} 条）")
+
     def _filter_results(self, *_args) -> None:
         if not hasattr(self, "item_succ") or not hasattr(self, "result_filter_edit"):
             return
@@ -218,14 +316,38 @@ class MainPageMixin:
             selected_items.append(item)
         return selected_items
 
+    def _resolve_result_file_path(self, show_data: ShowData) -> Path:
+        file_info = show_data.file_info
+        file_path = Path(file_info.file_path)
+        if file_path.is_file():
+            return file_path
+
+        for record in reversed(Flags.failed_records):
+            if record.context.get("show_name") != show_data.show_name:
+                continue
+            candidate = Path(record.path)
+            if not candidate.is_file():
+                continue
+            file_info.file_path = candidate
+            file_info.folder_path = candidate.parent
+            file_info.file_name = candidate.stem
+            file_info.file_ex = candidate.suffix
+            file_info.file_show_path = candidate
+            file_info.file_show_name = candidate.stem
+            return candidate
+        return file_path
+
     def _get_selected_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:
         result = []
         for item in self._get_selected_result_items():
             show_name = _result_item_name(item)
             show_data = item.data(0, RESULT_DATA_ROLE) or self.json_array.get(show_name)
-            if show_data is None or not show_data.file_info.file_path:
+            if show_data is None:
                 continue
-            result.append((item, show_name, show_data, show_data.file_info.file_path))
+            file_path = self._resolve_result_file_path(show_data)
+            if file_path == Path():
+                continue
+            result.append((item, show_name, show_data, file_path))
         return result
 
     def _get_selected_success_entries(self) -> list[tuple[ResultItem, str, ShowData, Path]]:

@@ -410,12 +410,15 @@ def _setup_main_page_layout(window: "MyMAinWindow") -> None:
         window.result_sort_combo,
         window.result_sort_order_button,
         ui.pushButton_tree_clear,
+        window.result_open_button,
+        window.result_save_button,
         ui.treeWidget_number,
     )
     splitter.addWidget(window._main_result_pane)
     window._main_result_toolbar = window._main_result_pane.toolbar
     window._main_result_search_row = window._main_result_pane.search_row
     window._main_result_sort_row = window._main_result_pane.sort_row
+    window._main_result_actions_row = window._main_result_pane.actions_row
 
     window._main_detail_pane.setMinimumWidth(520)
     window._main_result_pane.setMinimumWidth(RESULT_PANE_MIN_WIDTH)

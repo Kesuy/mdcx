@@ -191,10 +191,23 @@ def setup_result_sort_ui(self: "MyMAinWindow") -> None:
     self.result_status_combo.setObjectName("result_status_combo")
     self.result_status_combo.addItems(["全部", "成功", "失败"])
     self.result_status_combo.currentTextChanged.connect(getattr(self, "_filter_results", lambda *_: None))
+
+    self.result_open_button = QPushButton("打开结果", self.Ui.page_main)
+    self.result_open_button.setObjectName("result_open_button")
+    self.result_open_button.setToolTip("打开之前保存的结果列表")
+    self.result_open_button.clicked.connect(self.open_result_snapshot_clicked)
+
+    self.result_save_button = QPushButton("保存结果", self.Ui.page_main)
+    self.result_save_button.setObjectName("result_save_button")
+    self.result_save_button.setToolTip("保存当前成功和失败结果列表")
+    self.result_save_button.clicked.connect(self.save_result_snapshot_clicked)
+
     self.result_sort_combo.show()
     self.result_sort_order_button.show()
     self.result_filter_edit.show()
     self.result_status_combo.show()
+    self.result_open_button.show()
+    self.result_save_button.show()
 
 
 def setup_local_nfo_button(self: "MyMAinWindow") -> None:

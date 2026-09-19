@@ -593,6 +593,13 @@ class Scraper:
                         )
                 failed_folder = get_movie_path_setting(file_path).failed_folder
                 fail_file_path = await move_file_to_failed_folder(failed_folder, file_path, folder_old_path)
+                if fail_file_path != file_info.file_path:
+                    file_info.file_path = fail_file_path
+                    file_info.folder_path = fail_file_path.parent
+                    file_info.file_name = fail_file_path.stem
+                    file_info.file_ex = fail_file_path.suffix
+                    file_info.file_show_path = fail_file_path
+                    file_info.file_show_name = fail_file_path.stem
                 failure_message = LogBuffer.error().get()
                 failure_site = manager.config.selected_site if manager.config.scrape_like == "single" else ""
                 failure = classify_failure(

@@ -25,6 +25,8 @@ class ResultPanel(QWidget):
         sort_combo,
         sort_order_button,
         clear_button,
+        open_button,
+        save_button,
         result_tree,
         parent: QWidget | None = None,
     ) -> None:
@@ -61,6 +63,15 @@ class ResultPanel(QWidget):
         sort_layout.addWidget(sort_combo, 1)
         sort_layout.addWidget(sort_order_button)
         toolbar_layout.addWidget(self.sort_row)
+
+        self.actions_row, actions_layout = _row(self.toolbar, "main_result_actions_row")
+        open_button.setFixedHeight(28)
+        save_button.setFixedHeight(28)
+        open_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        save_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        actions_layout.addWidget(open_button, 1)
+        actions_layout.addWidget(save_button, 1)
+        toolbar_layout.addWidget(self.actions_row)
 
         layout.addWidget(self.toolbar)
         result_tree.setMinimumWidth(RESULT_PANE_MIN_WIDTH)
