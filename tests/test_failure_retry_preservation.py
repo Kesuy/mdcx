@@ -7,7 +7,7 @@ from mdcx.models.flags import Flags
 from mdcx.models.session import ScrapeSession
 
 
-def test_targeted_retry_restores_unselected_failures_after_retry_run(monkeypatch):
+def test_targeted_retry_restores_unselected_failures_after_retry_run():
     preserved = FailureRecord(
         Path("A.mp4"),
         "crawl",
@@ -26,15 +26,21 @@ def test_targeted_retry_restores_unselected_failures_after_retry_run(monkeypatch
     session.state.failures.append(new_failure)
     Flags.failed_list = [new_failure.legacy_tuple()]
     emitted: list[str] = []
-    monkeypatch.setattr(scraper_module.signal.view_failed_list_settext, "emit", emitted.append)
 
-    scraper = Scraper(
-        object(),
-        session=session,
-        services=object(),
-        preserved_failures=[preserved],
-    )
-    scraper._restore_preserved_failures()
+    def collect_failure_count(text: str) -> None:
+        emitted.append(text)
+
+    scraper_module.signal.view_failed_list_settext.connect(collect_failure_count)
+    try:
+        scraper = Scraper(
+            object(),
+            session=session,
+            services=object(),
+            preserved_failures=[preserved],
+        )
+        scraper._restore_preserved_failures()
+    finally:
+        scraper_module.signal.view_failed_list_settext.disconnect(collect_failure_count)
 
     assert session.state.failures == [preserved, new_failure]
     assert Flags.failed_records is session.state.failures
@@ -43,7 +49,7 @@ def test_targeted_retry_restores_unselected_failures_after_retry_run(monkeypatch
     assert scraper.preserved_failures == []
 
 
-def test_targeted_retry_does_not_duplicate_preserved_path_that_failed_again(monkeypatch):
+def test_targeted_retry_does_not_duplicate_preserved_path_that_failed_again():
     preserved = FailureRecord(
         Path("A.mp4"),
         "crawl",
@@ -61,8 +67,6 @@ def test_targeted_retry_does_not_duplicate_preserved_path_that_failed_again(monk
     session = ScrapeSession()
     session.state.failures.append(failed_again)
     Flags.failed_list = [failed_again.legacy_tuple()]
-    monkeypatch.setattr(scraper_module.signal.view_failed_list_settext, "emit", lambda _text: None)
-
     scraper = Scraper(
         object(),
         session=session,
