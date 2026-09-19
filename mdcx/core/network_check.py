@@ -161,12 +161,25 @@ def _clean_error(error: str) -> str:
     return error
 
 
+def _http_status_from_error(error: str) -> int | None:
+    match = re.search(r"\bHTTP\s+(\d{3})\b", str(error or ""), flags=re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
 def _classify_http_result(spec: NetworkCheckSpec, status_code: int, text: str) -> tuple[NetworkCheckStatus, str]:
     if _is_cloudflare_challenge(text):
         return NetworkCheckStatus.WARNING, "被 Cloudflare 挑战页拦截"
 
     if spec.site in {Website.JAVDB, Website.JAVBUS} and status_code >= 400:
-        return NetworkCheckStatus.WARNING, f"HTTP {status_code}，暂时无法验证站点或登录状态"
+        site_name = "JavDB" if spec.site == Website.JAVDB else "JavBus"
+        if status_code == 429:
+            return NetworkCheckStatus.WARNING, f"站点可访问，但 {site_name} 请求被限流（HTTP 429）"
+        if status_code in {401, 403, 404} and spec.headers.get("cookie"):
+            return (
+                NetworkCheckStatus.WARNING,
+                f"站点可访问，但 {site_name} Cookie 可能无效或当前访问受限（HTTP {status_code}）",
+            )
+        return NetworkCheckStatus.WARNING, f"站点可访问，但暂时无法验证登录状态（HTTP {status_code}）"
 
     if spec.site == Website.JAVDB:
         if "The owner of this website has banned your access based on your browser's behaving" in text:
@@ -278,7 +291,10 @@ def format_result_line(result: NetworkCheckResult) -> str:
     if result.error and result.status == NetworkCheckStatus.FAILED:
         if result.error not in message:
             message = f"{message}: {result.error}"
-    return f"  {icon} {name:<18} {status_code:>4}  {elapsed:>8}  {message}"
+    line = f"  {icon} {name:<18} {status_code:>4}  {elapsed:>8}  {message}"
+    if result.spec.group == "刮削站点" and result.spec.url:
+        line += f"  URL: {result.spec.url}"
+    return line
 
 
 def format_summary(results: list[NetworkCheckResult], elapsed: float, cancelled: bool) -> list[str]:
@@ -520,6 +536,16 @@ async def run_network_check_item(
             return NetworkCheckResult(spec=spec, status=NetworkCheckStatus.CANCELLED, message="已取消")
         if response is None:
             clean_error = _clean_error(error)
+            status_code = _http_status_from_error(clean_error)
+            if status_code is not None and spec.site in {Website.FC2PPVDB, Website.JAVDB, Website.JAVBUS}:
+                status, message = _classify_validated_http_result(spec, status_code, "")
+                return NetworkCheckResult(
+                    spec=spec,
+                    status=status,
+                    message=message,
+                    status_code=status_code,
+                    elapsed_ms=elapsed_ms,
+                )
             message = _message_for_error(clean_error)
             return NetworkCheckResult(
                 spec=spec,
@@ -641,7 +667,11 @@ def _classify_javdbapi(status_code: int, text: str) -> tuple[NetworkCheckStatus,
 
 def _classify_fc2cmadb(status_code: int, text: str) -> tuple[NetworkCheckStatus, str]:
     if status_code in {401, 404}:
-        return NetworkCheckStatus.FAILED, "FC2CMADB Cookie 无效或已过期"
+        return NetworkCheckStatus.WARNING, "站点可访问，但 FC2CMADB Cookie 无效或已过期"
+    if status_code == 403:
+        return NetworkCheckStatus.WARNING, "站点可访问，但 FC2CMADB 请求被拒绝；请检查 Cookie、节点或站点防护（HTTP 403）"
+    if status_code == 429:
+        return NetworkCheckStatus.WARNING, "站点可访问，但 FC2CMADB 请求过于频繁（HTTP 429）"
     if _is_cloudflare_challenge(text):
         return NetworkCheckStatus.WARNING, "被 Cloudflare 挑战页拦截"
     if status_code == 200:
