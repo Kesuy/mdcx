@@ -335,6 +335,7 @@ def _reorganize_scraped_media_sync(
     success_folder: Path,
     *,
     force_move: bool = False,
+    force_target_folder: bool = False,
 ) -> MediaReorganizationResult:
     old_file_path = file_info.file_path
     old_folder = old_file_path.parent
@@ -355,7 +356,9 @@ def _reorganize_scraped_media_sync(
     ) = get_output_name(file_info, data, success_folder, old_file_path.suffix)
 
     source_within_output = _source_within_output(old_folder, success_folder)
-    if not (manager.config.success_file_move or force_move):
+    if force_target_folder:
+        new_folder = generated_folder
+    elif not (manager.config.success_file_move or force_move):
         new_folder = old_folder
     elif source_within_output:
         new_folder = generated_folder
@@ -533,7 +536,6 @@ def _update_runtime_paths_from_mapping(
     file_info: FileInfo,
     other: OtherInfo,
     mapping: dict[Path, Path],
-    old_file_path: Path,
     new_file_path: Path,
 ) -> None:
     file_info.file_path = new_file_path
@@ -570,6 +572,7 @@ def _move_shared_folder_movie_sync(
             other,
             success_folder,
             force_move=True,
+            force_target_folder=True,
         )
 
     (
@@ -632,7 +635,7 @@ def _move_shared_folder_movie_sync(
     new_file_path = mapping.get(old_file_path)
     if new_file_path is None:
         raise MediaReorganizationError(f"移动后未找到主影片路径：{old_file_path}")
-    _update_runtime_paths_from_mapping(file_info, other, mapping, old_file_path, new_file_path)
+    _update_runtime_paths_from_mapping(file_info, other, mapping, new_file_path)
 
     if _source_within_output(old_folder, success_folder):
         _remove_empty_parents(old_folder, success_folder)
