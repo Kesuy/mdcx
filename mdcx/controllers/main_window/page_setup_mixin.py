@@ -267,6 +267,7 @@ class PageSetupMixin:
         self.menu_website = QAction(QIcon(resources.input_website_icon), "  输入网址重新刮削\tCtrl+L", self)
         self.menu_del_file = QAction(QIcon(resources.del_file_icon), "  删除文件\tDelete", self)
         self.menu_del_folder = QAction(QIcon(resources.del_folder_icon), "  删除文件和文件夹\tShift+Delete", self)
+        self.menu_move_by_rule = QAction(QIcon(resources.open_folder_icon), "  按设置的目录结构移动", self)
         self.menu_make_symlink = QAction(QIcon(resources.open_folder_icon), "  在指定位置创建软链接", self)
         self.menu_make_symlink_in_dir = QAction(
             QIcon(resources.open_folder_icon), "  在指定位置创建软链接（按文件名建目录）", self
@@ -286,6 +287,7 @@ class PageSetupMixin:
         self.menu_website.triggered.connect(self.search_by_url_clicked)
         self.menu_del_file.triggered.connect(self.main_del_file_click)
         self.menu_del_folder.triggered.connect(self.main_del_folder_click)
+        self.menu_move_by_rule.triggered.connect(self.main_move_by_rule_click)
         self.menu_make_symlink.triggered.connect(self.main_make_symlink_click)
         self.menu_make_symlink_in_dir.triggered.connect(self.main_make_symlink_in_dir_click)
         self.menu_make_hardlink.triggered.connect(self.main_make_hardlink_click)
@@ -331,6 +333,10 @@ class PageSetupMixin:
             menu.addAction(QAction(f"已选择 {len(selected_entries)} 项", self))
             menu.addSeparator()
             menu.addAction(self.menu_nfo)
+            menu.addAction(self.menu_move_by_rule)
+            self.menu_move_by_rule.setEnabled(
+                bool(selected_entries) and all(item.parent() is self.item_succ for item, *_rest in selected_entries)
+            )
             menu.addSeparator()
             menu.addAction(self.menu_del_file)
             menu.addAction(self.menu_del_folder)
@@ -359,6 +365,10 @@ class PageSetupMixin:
                 menu.addAction(self.menu_start)
         menu.addAction(self.menu_number)
         menu.addAction(self.menu_website)
+        self.menu_move_by_rule.setEnabled(
+            bool(selected_entries) and all(item.parent() is self.item_succ for item, *_rest in selected_entries)
+        )
+        menu.addAction(self.menu_move_by_rule)
         menu.addSeparator()
         menu.addAction(self.menu_del_file)
         menu.addAction(self.menu_del_folder)
